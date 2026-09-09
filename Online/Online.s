@@ -72,6 +72,9 @@
 .set ONLINE_MODE_DIRECT, 2
 .set ONLINE_MODE_TEAMS, 3
 .set ONLINE_MODE_PARTY, 4
+# Peppy: rooms. Added rather than replacing anything - every mode above keeps
+# working exactly as it did.
+.set ONLINE_MODE_ROOMS, 5
 
 .set OPTION_RANKED_IDX, 0
 .set OPTION_UNRANKED_IDX, 1
@@ -81,6 +84,7 @@
 .set OPTION_LOGIN_IDX, 5
 .set OPTION_LOGOUT_IDX, 6
 .set OPTION_UPDATE_IDX, 7
+.set OPTION_ROOMS_IDX, 8
 
 .set ONLINE_SUBMENU_OPTION_COUNT, 8
 
