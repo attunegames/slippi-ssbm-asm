@@ -142,15 +142,31 @@ mflr REG_FG_USER_DISPLAY # This will be restored by parent function
 li r0, 8 # Go to submenu 0x8 (Online Play)
 stb r0, 0(r31)
 
-# Get the selected index we want
+# Get the selected index we want.
+#
+# The option index is the mode number for Ranked through Party, because those
+# numbers coincide. Rooms is mode 5 but sits last in the list, so it needs
+# translating - done inline rather than in a helper, because a helper's compare
+# would clobber the condition register this code branches on.
 li r3, 0x8
-lbz r4, OFST_R13_ONLINE_MODE(r13) # The online mode is the option we want
+lbz r4, OFST_R13_ONLINE_MODE(r13)
+cmpwi r4, ONLINE_MODE_ROOMS
+bne FN_OnReturnFromOnline_CHECK_UNLOCKED
+li r4, OPTION_ROOMS_IDX
+
+FN_OnReturnFromOnline_CHECK_UNLOCKED:
 branchl r12, 0x80229938 # MainMenu_CheckIfOptionIsUnlocked
 cmpwi r3, 0
-lbz r3, OFST_R13_ONLINE_MODE(r13) # The online mode is the option we want
-bne FN_OnReturnFromOnline_SET_SELECTED_INDEX
+beq FN_OnReturnFromOnline_GET_FIRST_UNLOCKED
 
-# If option we want is locked, fetch first unlocked option
+# Unlocked - select it
+lbz r3, OFST_R13_ONLINE_MODE(r13)
+cmpwi r3, ONLINE_MODE_ROOMS
+bne FN_OnReturnFromOnline_SET_SELECTED_INDEX
+li r3, OPTION_ROOMS_IDX
+b FN_OnReturnFromOnline_SET_SELECTED_INDEX
+
+FN_OnReturnFromOnline_GET_FIRST_UNLOCKED:
 addi r12, REG_FG_USER_DISPLAY, 0x10 # FN_GetFirstUnlocked
 mtctr r12
 bctrl
@@ -523,10 +539,10 @@ blrl
 .short 0x0647 # Direct
 .short 0x064B # Teams
 .short 0x064C # Party
-.short 0x064C # Rooms - borrowing Party's description as a placeholder
 .short 0x0648 # Log-in
 .short 0x0649 # Log-out
 .short 0x064A # Update
+.short 0x064C # Rooms - borrowing Party's description as a placeholder
 .align 2
 
 FN_CREATE_DIALOG:
