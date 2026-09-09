@@ -81,13 +81,14 @@
 .set OPTION_DIRECT_IDX, 2
 .set OPTION_TEAMS_IDX, 3
 .set OPTION_PARTY_IDX, 4
-# Peppy: rooms sits with the other playable modes, because the menu code assumes
-# a mode's number IS its option index (see OnReturnFromOnline, which looks the
-# option up by mode byte). Login/Logout/Update shift down; none are removed.
-.set OPTION_ROOMS_IDX, 5
-.set OPTION_LOGIN_IDX, 6
-.set OPTION_LOGOUT_IDX, 7
-.set OPTION_UPDATE_IDX, 8
+.set OPTION_LOGIN_IDX, 5
+.set OPTION_LOGOUT_IDX, 6
+.set OPTION_UPDATE_IDX, 7
+# Peppy: rooms goes LAST. Row labels are positional artwork, so inserting ahead
+# of Login/Logout/Update made each of them display its neighbour's word - the
+# log-in button read "Log-out". Appending leaves every existing label correct.
+# OnReturnFromOnline maps the mode back to this index explicitly.
+.set OPTION_ROOMS_IDX, 8
 
 # Peppy: 9 with Rooms added. This is the count the stick handlers wrap on - it is
 # separate from the .byte in Data_OnlineSubmenuOptions, which only controls how
