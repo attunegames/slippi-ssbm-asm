@@ -307,6 +307,8 @@ cmpwi r0, OPTION_LOGOUT_IDX # Check if Log-out
 beq FN_OnlineSubmenuThink_HANDLE_LOGOUT
 cmpwi r0, OPTION_UPDATE_IDX # Check if update
 beq FN_OnlineSubmenuThink_HANDLE_UPDATE
+cmpwi r0, OPTION_ROOMS_IDX # Check if Peppy rooms
+beq FN_OnlineSubmenuThink_HANDLE_ROOMS
 b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 
 ################################################################################
@@ -326,6 +328,12 @@ b FN_OnlineSubmenuThink_GO_TO_CSS
 
 FN_OnlineSubmenuThink_HANDLE_TEAMS:
 li r3, ONLINE_MODE_TEAMS
+b FN_OnlineSubmenuThink_GO_TO_CSS
+
+# Peppy: rooms. Behaves like any other mode from here - it just sets a different
+# mode byte, which Dolphin reads to decide it is running our matchmaking.
+FN_OnlineSubmenuThink_HANDLE_ROOMS:
+li r3, ONLINE_MODE_ROOMS
 b FN_OnlineSubmenuThink_GO_TO_CSS
 
 FN_OnlineSubmenuThink_HANDLE_PARTY:
@@ -505,7 +513,7 @@ blrl
 .long 0x803eb57c # Ptr to preview animation frame values (stolen from reg match)
 .float 140 # Frame index pointing at the option text images
 .long 0x803eb684 # Ptr to description text. Will be overwritten
-.byte 0x08 # Number of options
+.byte 0x09 # Number of options
 .align 2
 
 Data_OnlineSubmenuDescriptions:
@@ -518,6 +526,7 @@ blrl
 .short 0x0648 # Log-in
 .short 0x0649 # Log-out
 .short 0x064A # Update
+.short 0x064C # Rooms - borrowing Party's description as a placeholder
 .align 2
 
 FN_CREATE_DIALOG:
