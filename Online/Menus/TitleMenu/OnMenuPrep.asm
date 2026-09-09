@@ -523,10 +523,10 @@ blrl
 .short 0x0647 # Direct
 .short 0x064B # Teams
 .short 0x064C # Party
+.short 0x064C # Rooms - borrowing Party's description as a placeholder
 .short 0x0648 # Log-in
 .short 0x0649 # Log-out
 .short 0x064A # Update
-.short 0x064C # Rooms - borrowing Party's description as a placeholder
 .align 2
 
 FN_CREATE_DIALOG:

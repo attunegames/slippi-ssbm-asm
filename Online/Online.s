@@ -81,12 +81,19 @@
 .set OPTION_DIRECT_IDX, 2
 .set OPTION_TEAMS_IDX, 3
 .set OPTION_PARTY_IDX, 4
-.set OPTION_LOGIN_IDX, 5
-.set OPTION_LOGOUT_IDX, 6
-.set OPTION_UPDATE_IDX, 7
-.set OPTION_ROOMS_IDX, 8
+# Peppy: rooms sits with the other playable modes, because the menu code assumes
+# a mode's number IS its option index (see OnReturnFromOnline, which looks the
+# option up by mode byte). Login/Logout/Update shift down; none are removed.
+.set OPTION_ROOMS_IDX, 5
+.set OPTION_LOGIN_IDX, 6
+.set OPTION_LOGOUT_IDX, 7
+.set OPTION_UPDATE_IDX, 8
 
-.set ONLINE_SUBMENU_OPTION_COUNT, 8
+# Peppy: 9 with Rooms added. This is the count the stick handlers wrap on - it is
+# separate from the .byte in Data_OnlineSubmenuOptions, which only controls how
+# many rows are drawn. Bumping one without the other draws a row the cursor can
+# never reach.
+.set ONLINE_SUBMENU_OPTION_COUNT, 9
 
 ################################################################################
 # Online Scenes
