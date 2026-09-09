@@ -401,6 +401,8 @@ cmpwi r3, ONLINE_MODE_RANKED
 beq CSSSceneDecide_Adv_IsRanked
 cmpwi r3, ONLINE_MODE_UNRANKED
 beq CSSSceneDecide_Adv_IsUnranked
+cmpwi r3, ONLINE_MODE_ROOMS
+beq CSSSceneDecide_Adv_IsUnranked
 cmpwi r3, ONLINE_MODE_PARTY
 beq CSSSceneDecide_Adv_IsUnranked
 cmpwi r3, ONLINE_MODE_DIRECT
