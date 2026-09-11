@@ -1514,8 +1514,8 @@ blrl
 .set PDD_S_ROOMS, PDD_EMPTY+1
 .set PDD_S_SINGLES, PDD_S_ROOMS+23
 .set PDD_S_DOUBLES, PDD_S_SINGLES+13
-.set PDD_S_FFA, PDD_S_DOUBLES+13
-.set PDD_S_CREW, PDD_S_FFA+16
+.set PDD_S_IRONMAN, PDD_S_DOUBLES+13
+.set PDD_S_CREW, PDD_S_IRONMAN+13
 # Offsets are spelled out rather than taken from the location counter, and they
 # have to account for the .align before the tables - the strings end at
 # PDD_S_PUBLIC+16, which is already a multiple of four.
@@ -1525,7 +1525,7 @@ blrl
 .set PDD_S_BROWSE, PDD_S_JOIN+18
 .set PDD_S_PRIVATE, PDD_S_BROWSE+20
 .set PDD_S_PUBLIC, PDD_S_PRIVATE+23
-.set PDD_LIST1, PDD_S_PUBLIC+16
+.set PDD_LIST1, PDD_S_PUBLIC+19
 .set PDD_LIST2, PDD_LIST1+20
 .set PDD_LIST3, PDD_LIST2+12
 .set PDD_LEVELS, PDD_LIST3+8
@@ -1545,7 +1545,7 @@ blrl
 .string "Public & Private Rooms"
 .string "Play Singles"
 .string "Play Doubles"
-.string "Play Free 4 All"
+.string "Play IronMan"
 .string "Play Crew Battle"
 .string "Join a Tournament"
 .string "Create a Room"
@@ -1556,7 +1556,7 @@ blrl
 .align 2
 .long PDD_S_SINGLES
 .long PDD_S_DOUBLES
-.long PDD_S_FFA
+.long PDD_S_IRONMAN
 .long PDD_S_CREW
 .long PDD_S_TOURNEY
 .long PDD_S_CREATE
@@ -1723,14 +1723,14 @@ blrl
            # the block at 160, fitted the same way Slippi fitted their own six
            # into the hold at 142: nothing any other menu reads moves.
 .long 0x803eb684 # Ptr to description text. Will be overwritten
-.byte 0x05 # Singles, Doubles, FFA, Crew Battles, Tournaments
+.byte 0x05 # Singles, Doubles, IronMan, Crew Battles, Tournaments
 .align 2
 
 Data_RoomsSubmenuDescriptions:
 blrl
 .short 0x0645 # Singles
 .short 0x0646 # Doubles
-.short 0x0647 # FFA
+.short 0x0647 # IronMan
 .short 0x064B # Crew Battles
 .short 0x064C # Tournaments
 .align 2
