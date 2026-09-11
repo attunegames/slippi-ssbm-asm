@@ -550,9 +550,17 @@ lis r3, 0x804A
 addi r3, r3, 0x4F0
 lbz r0, 0x0(r3)
 cmpwi r0, 0x8
-beq FN_OnlineSubmenuThink_LABEL_ON_MENU
+bne FN_OnlineSubmenuThink_LABEL_TEARDOWN
 
-# No - leaving, so take it down
+# And is the row actually drawn? It is hidden when signed out or mid-update,
+# and a name with no row under it would just float over the menu.
+li r3, 0x8
+li r4, OPTION_ROOMS_IDX
+branchl r12, 0x80229938 # MainMenu_CheckIfOptionIsUnlocked
+cmpwi r3, 0
+bne FN_OnlineSubmenuThink_LABEL_ON_MENU
+
+FN_OnlineSubmenuThink_LABEL_TEARDOWN:
 cmpwi REG_PL_TEXT, 0
 beq FN_OnlineSubmenuThink_EXIT
 mr r3, REG_PL_TEXT
