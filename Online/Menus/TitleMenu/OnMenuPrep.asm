@@ -1045,6 +1045,11 @@ bl PEPPY_LABEL_DATA
 mflr REG_PL_DATA
 lwz REG_PL_TEXT, PLD_TEXT_PTR(REG_PL_DATA)
 
+# The Rooms row has real artwork now - a proper image in MnMaAll.usd - so there
+# is nothing left to draw or cover here, and drawing it anyway would double up
+# on the artwork. The drawn label was always a stand-in for this.
+b FN_OnlineSubmenuThink_LABEL_TEARDOWN
+
 # Still animating into place? Count it down and show nothing yet.
 # Not r0 - it is a literal zero as the source of a subi, not the register.
 lwz r3, PLD_SETTLE(REG_PL_DATA)
