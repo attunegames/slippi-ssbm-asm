@@ -615,6 +615,19 @@ addi REG_PL_COUNT, REG_PL_COUNT, 1
 cmpwi REG_PL_COUNT, PLD_MASK_COUNT
 blt FN_OnlineSubmenuThink_LABEL_MASK_LOOP
 
+# The patch over the p's stem
+lfs f1, PLD_PATCH_X(REG_PL_DATA)
+lfs f2, PLD_PATCH_Y(REG_PL_DATA)
+mr r3, REG_PL_TEXT
+addi r4, REG_PL_DATA, PLD_PATCH_STR
+branchl r12, Text_InitializeSubtext
+mr REG_PL_WORD_COLOR, r3
+lfs f1, PLD_PATCH_W(REG_PL_DATA)
+lfs f2, PLD_SIZE(REG_PL_DATA)
+mr r3, REG_PL_TEXT
+mr r4, REG_PL_WORD_COLOR
+branchl r12, Text_UpdateSubtextSize
+
 # And the word itself, on top of the cover
 lfs f1, PLD_X(REG_PL_DATA)
 lfs f2, PLD_Y(REG_PL_DATA)
@@ -657,11 +670,11 @@ mr r4, REG_PL_COUNT
 mr r5, REG_PL_MASK_COLOR
 branchl r12, Text_ChangeTextColor
 addi REG_PL_COUNT, REG_PL_COUNT, 1
-cmpwi REG_PL_COUNT, PLD_MASK_COUNT
+cmpwi REG_PL_COUNT, PLD_COVER_COUNT
 blt FN_OnlineSubmenuThink_LABEL_PAINT_LOOP
 
 mr r3, REG_PL_TEXT
-li r4, PLD_MASK_COUNT
+li r4, PLD_COVER_COUNT
 mr r5, REG_PL_WORD_COLOR
 branchl r12, Text_ChangeTextColor
 
@@ -729,7 +742,20 @@ blrl
 .float -121.94
 .float 86.65
 .set PLD_MASK_COUNT, 7
-.set PLD_Z, PLD_MASK_OFS+56
+# One spot the cover cannot reach: the artwork draws "Update" with a FULL-HEIGHT
+# stem on the p, and the runtime font's p is an ordinary lowercase, so its stem
+# starts at x-height and there is simply no ink up there to dilate. The two
+# fonts agree on every other glyph. Patched with a single stretched l, wide
+# enough to bury the stem (screen x 604-617) and starting just below the plate's
+# top edge, which begins at y 767 - going higher would paint on the border.
+.set PLD_PATCH_X, PLD_MASK_OFS+56
+.float -151.72
+.set PLD_PATCH_Y, PLD_PATCH_X+4
+.float 83.07
+.set PLD_PATCH_W, PLD_PATCH_Y+4
+.float 1.70
+.set PLD_COVER_COUNT, PLD_MASK_COUNT+1
+.set PLD_Z, PLD_PATCH_W+4
 .float 17
 .set PLD_SCALE, PLD_Z+4
 .float 0.06
@@ -746,6 +772,8 @@ blrl
 .string "Rooms"
 .set PLD_MASK_STR, PLD_STR+6
 .string "Update"
+.set PLD_PATCH_STR, PLD_MASK_STR+7
+.string "l"
 .align 2
 
 Data_OnlineSubmenuDescriptions:
