@@ -706,20 +706,22 @@ blrl
 # the gaps further, and a single stretched period (the one solid glyph in the
 # font) kills the whole text object.
 #
-# Five copies, offset by two pixels each way, dilate the cover enough to swallow
-# the antialiased edges and any small difference between the two fonts. The
-# plate under here is flat (#00000A to #070712), so none of this can be seen.
+# Five copies - the centre and the four diagonals, 6px across and 4px down -
+# dilate the cover by a rectangle rather than a cross, which is what it takes to
+# swallow the artwork's outline: it sits a few pixels outside the glyph the font
+# draws, corners included. The plate under here is flat (#00000A to #070712), so
+# none of this can be seen.
 .set PLD_MASK_OFS, PLD_SIZE+4
 .float -124.55
 .float 85.06
-.float -125.42
-.float 85.06
-.float -123.68
-.float 85.06
-.float -124.55
-.float 84.27
-.float -124.55
-.float 85.85
+.float -121.94
+.float 86.65
+.float -121.94
+.float 83.47
+.float -127.16
+.float 86.65
+.float -127.16
+.float 83.47
 .set PLD_MASK_COUNT, 5
 .set PLD_Z, PLD_MASK_OFS+40
 .float 17
