@@ -1202,9 +1202,9 @@ blrl
 .float 0.06
 # Sampled from the menu itself
 .long 0xCA9732FF
-.long 0x04040EFF
+.long 0xFFFFFFFF # PROBE: cover painted white so its width can be measured
 .long 0x000000FF
-.long 0xFFCB00FF
+.long 0xFFFFFFFF # PROBE
 # Seven offsets that dilate the cover: centre, straight up and down, and the
 # four diagonals. Same shape that buried "Update" on the Rooms row.
 .float 0.00
