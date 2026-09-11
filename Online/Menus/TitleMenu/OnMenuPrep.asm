@@ -456,9 +456,10 @@ mulli r4, REG_PRL_I, 4
 addi r5, REG_PRL_DATA, PRW_STRUCTS
 stwx REG_PRL_TEXT, r5, r4
 
-# Close kerning, centred - the row words are centred on their plate
-li r4, 0x1
+# PROBE: kerning OFF, centred
+li r4, 0x0
 stb r4, 0x49(REG_PRL_TEXT)
+li r4, 0x1
 stb r4, 0x4A(REG_PRL_TEXT)
 
 lfs f1, PRW_Z(REG_PRL_DATA)
@@ -1433,9 +1434,9 @@ blrl
 .float 17
 .float 0.06
 # Sampled from the menu itself
-.long 0xCA973200 # PROBE: our word hidden
-.long 0xFF0000FF # PROBE: cover in red
-.long 0x00000000 # PROBE
+.long 0x00FF00FF # PROBE: our word green
+.long 0xFF0000FF # PROBE: cover red - anything ORANGE left is uncovered artwork
+.long 0x00FF00FF # PROBE
 .long 0xFF0000FF # PROBE
 # Seven offsets that dilate the cover: centre, straight up and down, and the
 # four diagonals. Same shape that buried "Update" on the Rooms row.
