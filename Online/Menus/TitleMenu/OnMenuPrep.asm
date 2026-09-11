@@ -61,6 +61,17 @@
 backup
 
 ################################################################################
+# Section 0: Peppy - forget last visit's Rooms label
+################################################################################
+# The label's text object dies with the scene, so the stored pointer is stale
+# every time the main menu is loaded afresh. Clearing it here is what makes the
+# lazy creation in the submenu think safe.
+bl PEPPY_LABEL_DATA
+mflr r3
+li r4, 0
+stw r4, PLD_TEXT_PTR(r3)
+
+################################################################################
 # Section 1: Overwrite handler function pointer for going back to menu from
 # major 0x8
 ################################################################################
@@ -513,6 +524,120 @@ FN_OnlineSubmenuThink_INPUT_HANDLERS_END:
 # on main menu while preserving user display behavior in other scenes.
 ################################################################################
 
+################################################################################
+# Peppy: name the Rooms row
+################################################################################
+# The row labels are pre-rendered images and there are only eight of them, so
+# the ninth row borrows the eighth and reads "Update". Nothing overrides a
+# single row, so the name is drawn over it with Slippi's own text machinery.
+#
+# It lives here, in the submenu's own think, for three reasons: the scene is
+# fully loaded by now (creating a text struct at scene prep writes through a
+# garbage pointer), this runs every frame so the colours can follow the row's
+# selected state, and this same frame is the one in which a B press has already
+# written the menu we are leaving to - which is when the label is taken down,
+# so it cannot bleed onto the 1-P menu's rows.
+.set REG_PL_DATA, 22
+.set REG_PL_TEXT, 23
+.set REG_PL_WORD_COLOR, 24
+
+bl PEPPY_LABEL_DATA
+mflr REG_PL_DATA
+lwz REG_PL_TEXT, PLD_TEXT_PTR(REG_PL_DATA)
+
+# Still on the online submenu?
+lis r3, 0x804A
+addi r3, r3, 0x4F0
+lbz r0, 0x0(r3)
+cmpwi r0, 0x8
+beq FN_OnlineSubmenuThink_LABEL_ON_MENU
+
+# No - leaving, so take it down
+cmpwi REG_PL_TEXT, 0
+beq FN_OnlineSubmenuThink_EXIT
+mr r3, REG_PL_TEXT
+branchl r12, Text_RemoveText
+li r3, 0
+stw r3, PLD_TEXT_PTR(REG_PL_DATA)
+b FN_OnlineSubmenuThink_EXIT
+
+FN_OnlineSubmenuThink_LABEL_ON_MENU:
+cmpwi REG_PL_TEXT, 0
+bne FN_OnlineSubmenuThink_LABEL_COLOR
+
+li r3, 0
+li r4, 0
+branchl r12, Text_CreateStruct
+mr REG_PL_TEXT, r3
+stw REG_PL_TEXT, PLD_TEXT_PTR(REG_PL_DATA)
+
+# Close kerning, centred - the row words are centred on their plate
+li r4, 0x1
+stb r4, 0x49(REG_PL_TEXT)
+stb r4, 0x4A(REG_PL_TEXT)
+
+lfs f1, PLD_Z(REG_PL_DATA)
+stfs f1, 0x8(REG_PL_TEXT)
+lfs f1, PLD_SCALE(REG_PL_DATA)
+stfs f1, 0x24(REG_PL_TEXT)
+stfs f1, 0x28(REG_PL_TEXT)
+
+# Subtext 0 is a larger copy drawn underneath in the plate's own colour: the
+# borrowed word is still down there and this is what buries it.
+lfs f1, PLD_MASK_X(REG_PL_DATA)
+lfs f2, PLD_MASK_Y(REG_PL_DATA)
+mr r3, REG_PL_TEXT
+addi r4, REG_PL_DATA, PLD_STR
+branchl r12, Text_InitializeSubtext
+mr REG_PL_WORD_COLOR, r3 # borrowed as scratch for the subtext index
+lfs f1, PLD_MASK_SIZE(REG_PL_DATA)
+fmr f2, f1
+mr r3, REG_PL_TEXT
+mr r4, REG_PL_WORD_COLOR
+branchl r12, Text_UpdateSubtextSize
+
+# Subtext 1 is the word itself
+lfs f1, PLD_X(REG_PL_DATA)
+lfs f2, PLD_Y(REG_PL_DATA)
+mr r3, REG_PL_TEXT
+addi r4, REG_PL_DATA, PLD_STR
+branchl r12, Text_InitializeSubtext
+mr REG_PL_WORD_COLOR, r3
+lfs f1, PLD_SIZE(REG_PL_DATA)
+fmr f2, f1
+mr r3, REG_PL_TEXT
+mr r4, REG_PL_WORD_COLOR
+branchl r12, Text_UpdateSubtextSize
+
+FN_OnlineSubmenuThink_LABEL_COLOR:
+# Follow the row: orange on a dark plate normally, black on yellow when it is
+# the selected row - the same inversion every other row does.
+lis r3, 0x804A
+addi r3, r3, 0x4F0
+lhz r0, 0x2(r3)
+cmpwi r0, OPTION_ROOMS_IDX
+beq FN_OnlineSubmenuThink_LABEL_SELECTED
+
+addi r5, REG_PL_DATA, PLD_COL_PLATE_IDLE
+addi REG_PL_WORD_COLOR, REG_PL_DATA, PLD_COL_WORD_IDLE
+b FN_OnlineSubmenuThink_LABEL_PAINT
+
+FN_OnlineSubmenuThink_LABEL_SELECTED:
+addi r5, REG_PL_DATA, PLD_COL_PLATE_PICKED
+addi REG_PL_WORD_COLOR, REG_PL_DATA, PLD_COL_WORD_PICKED
+
+FN_OnlineSubmenuThink_LABEL_PAINT:
+# The mask first, then the word - the colour pointer for the word is held in a
+# saved register, since a call is free to trample the volatile ones.
+mr r3, REG_PL_TEXT
+li r4, 0
+branchl r12, Text_ChangeTextColor
+
+mr r3, REG_PL_TEXT
+li r4, 1
+mr r5, REG_PL_WORD_COLOR
+branchl r12, Text_ChangeTextColor
+
 FN_OnlineSubmenuThink_EXIT:
 restore BKP_DEFAULT_FREE_SPACE_SIZE, NUM_FREG, NUM_GPREG
 
@@ -530,6 +655,44 @@ blrl
 .float 140 # Frame index pointing at the option text images
 .long 0x803eb684 # Ptr to description text. Will be overwritten
 .byte 0x09 # Number of options
+.align 2
+
+PEPPY_LABEL_DATA:
+blrl
+# Measured off the screen, not guessed. Three calibration marks drawn at known
+# canvas coordinates put the mapping at
+#     screen_x = 961 + 2.30 * canvas_x      screen_y = 583 + 2.52 * canvas_y
+# on a 1920x1080 render; the row's word is centred at (673, 774) and stands
+# 49px tall. Note a glyph draws ABOVE its anchor by about 78 * size pixels.
+.set PLD_TEXT_PTR, 0
+.long 0
+.set PLD_X, PLD_TEXT_PTR+4
+.float -124.55
+.set PLD_Y, PLD_X+4
+.float 85.06
+.set PLD_SIZE, PLD_Y+4
+.float 0.80
+.set PLD_MASK_X, PLD_SIZE+4
+.float -124.55
+.set PLD_MASK_Y, PLD_MASK_X+4
+.float 89.60
+.set PLD_MASK_SIZE, PLD_MASK_Y+4
+.float 1.00
+.set PLD_Z, PLD_MASK_SIZE+4
+.float 17
+.set PLD_SCALE, PLD_Z+4
+.float 0.06
+# Sampled from the menu itself
+.set PLD_COL_WORD_IDLE, PLD_SCALE+4
+.long 0xCA9732FF
+.set PLD_COL_PLATE_IDLE, PLD_COL_WORD_IDLE+4
+.long 0x000000FF
+.set PLD_COL_WORD_PICKED, PLD_COL_PLATE_IDLE+4
+.long 0x000000FF
+.set PLD_COL_PLATE_PICKED, PLD_COL_WORD_PICKED+4
+.long 0xFFCB00FF
+.set PLD_STR, PLD_COL_PLATE_PICKED+4
+.string "Rooms"
 .align 2
 
 Data_OnlineSubmenuDescriptions:
