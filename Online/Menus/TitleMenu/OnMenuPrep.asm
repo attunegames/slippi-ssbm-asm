@@ -1154,33 +1154,50 @@ blrl
 # Size is smaller than the mode list's rows because "Crew Battles" has to fit the
 # plate: our font runs wider per character than the artwork does, and at the
 # mode list's size that word would be half again wider than the row it sits on.
+# Offsets are spelled out rather than taken from the location counter - the
+# gecko build renames symbols per file, so a "here minus there" expression comes
+# out as a difference against an undefined section and the assembler refuses it.
+.set PRW_STRUCTS, 0
+.set PRW_SIZE, PRW_STRUCTS+20
+.set PRW_Z, PRW_SIZE+4
+.set PRW_SCALE, PRW_Z+4
+.set PRW_COL_WORD_IDLE, PRW_SCALE+4
+.set PRW_COL_PLATE_IDLE, PRW_COL_WORD_IDLE+4
+.set PRW_COL_WORD_PICKED, PRW_COL_PLATE_IDLE+4
+.set PRW_COL_PLATE_PICKED, PRW_COL_WORD_PICKED+4
+.set PRW_COVERS, PRW_COL_PLATE_PICKED+4
+.set PRW_COVER_COUNT, 7
+.set PRW_S_SINGLES, PRW_COVERS+56
+.set PRW_S_DOUBLES, PRW_S_SINGLES+8
+.set PRW_S_FFA, PRW_S_DOUBLES+8
+.set PRW_S_CREW, PRW_S_FFA+4
+.set PRW_S_TOURNEY, PRW_S_CREW+13
+.set PRW_S_RANKED, PRW_S_TOURNEY+12
+.set PRW_S_UNRANKED, PRW_S_RANKED+7
+.set PRW_S_DIRECT, PRW_S_UNRANKED+9
+.set PRW_S_TEAMS, PRW_S_DIRECT+7
+.set PRW_S_PARTY, PRW_S_TEAMS+6
+.set PRW_ROWS, PRW_S_PARTY+6
+.set PRW_ROW_COUNT, 5
+
 PEPPY_ROWS_DATA:
 blrl
-PRW_BASE:
-.set PRW_STRUCTS, . - PRW_BASE
+# One text struct per row, filled in when they are built
 .long 0
 .long 0
 .long 0
 .long 0
 .long 0
-.set PRW_SIZE, . - PRW_BASE
 .float 0.58
-.set PRW_Z, . - PRW_BASE
 .float 17
-.set PRW_SCALE, . - PRW_BASE
 .float 0.06
 # Sampled from the menu itself
-.set PRW_COL_WORD_IDLE, . - PRW_BASE
 .long 0xCA9732FF
-.set PRW_COL_PLATE_IDLE, . - PRW_BASE
 .long 0x04040EFF
-.set PRW_COL_WORD_PICKED, . - PRW_BASE
 .long 0x000000FF
-.set PRW_COL_PLATE_PICKED, . - PRW_BASE
 .long 0xFFCB00FF
 # Seven offsets that dilate the cover: centre, straight up and down, and the
 # four diagonals. Same shape that buried "Update" on the Rooms row.
-.set PRW_COVERS, . - PRW_BASE
 .float 0.00
 .float 0.00
 .float 0.00
@@ -1195,32 +1212,18 @@ PRW_BASE:
 .float 1.59
 .float 2.61
 .float 1.59
-.set PRW_COVER_COUNT, 7
-# Our words, and the artwork word each one has to bury
-.set PRW_S_SINGLES, . - PRW_BASE
+# Our words, then the artwork word each one has to bury
 .string "Singles"
-.set PRW_S_DOUBLES, . - PRW_BASE
 .string "Doubles"
-.set PRW_S_FFA, . - PRW_BASE
 .string "FFA"
-.set PRW_S_CREW, . - PRW_BASE
 .string "Crew Battles"
-.set PRW_S_TOURNEY, . - PRW_BASE
 .string "Tournaments"
-.set PRW_S_RANKED, . - PRW_BASE
 .string "Ranked"
-.set PRW_S_UNRANKED, . - PRW_BASE
 .string "Unranked"
-.set PRW_S_DIRECT, . - PRW_BASE
 .string "Direct"
-.set PRW_S_TEAMS, . - PRW_BASE
 .string "Teams"
-.set PRW_S_PARTY, . - PRW_BASE
 .string "Party"
-.align 2
 # x, y, our word, the word underneath
-.set PRW_ROWS, . - PRW_BASE
-.set PRW_ROW_COUNT, 5
 .float -66.29
 .float -99.47
 .long PRW_S_SINGLES
