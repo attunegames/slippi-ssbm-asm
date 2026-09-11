@@ -24,16 +24,18 @@ blrl
 #     screen_x = 961 + 2.30 * canvas_x      screen_y = 583 + 2.52 * canvas_y
 # on a 1920x1080 render, and the Rooms row's word sits centred at (673, 774).
 .set PL_X, 0
-.float -125.2
+.float -124.55
 .set PL_Y, PL_X+4
-.float 75.8
+.float 85.06
 .set PL_Z, PL_Y+4
 .float 17
 .set PL_SCALE, PL_Z+4
 .float 0.06
-# The row words stand 49px tall; the calibration marks stood 32px at size 0.5.
+# The row words stand 49px tall, which is size 0.80. Note the glyph is drawn
+# ABOVE its anchor by about 78*size pixels - measured, and the reason the first
+# placement landed a row-height high.
 .set PL_SIZE, PL_SCALE+4
-.float 0.77
+.float 0.80
 .set PL_STR, PL_SIZE+4
 .string "Rooms"
 .align 2
