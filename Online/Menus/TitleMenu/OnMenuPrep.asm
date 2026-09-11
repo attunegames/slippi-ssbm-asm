@@ -72,6 +72,17 @@ li r4, 0
 stw r4, PLD_TEXT_PTR(r3)
 stw r4, PLD_LEVEL(r3)
 
+bl PEPPY_ROWS_DATA
+mflr r3
+li r5, 0
+PEPPY_SCENE_PREP_CLEAR_ROWS:
+mulli r6, r5, 4
+addi r7, r3, PRW_STRUCTS
+stwx r4, r7, r6
+addi r5, r5, 1
+cmpwi r5, PRW_ROW_COUNT
+blt PEPPY_SCENE_PREP_CLEAR_ROWS
+
 ################################################################################
 # Section 1: Overwrite handler function pointer for going back to menu from
 # major 0x8
@@ -248,6 +259,201 @@ stb r3, OFST_R13_FORCE_MENU_CLEAR(r13)
 # Return this such that we can mimic a direct execution
 mr r3, r27
 
+restore
+blr
+
+################################################################################
+# Routine: PeppyRoomsLabels
+# ------------------------------------------------------------------------------
+# Names the five rows of the Rooms list, the same way the Rooms row itself is
+# named: the artwork word is buried under a copy of itself in the plate's
+# colour, then ours is drawn on top.
+#
+# One text struct per row rather than one for all five - that keeps each row's
+# subtext count at eight, which is where the single-row version is already known
+# to work, instead of asking one struct to hold forty.
+################################################################################
+.set REG_PRL_DATA, 31
+.set REG_PRL_ROW, 30
+.set REG_PRL_TEXT, 29
+.set REG_PRL_I, 28
+.set REG_PRL_COVER, 27
+.set REG_PRL_SELECTED, 26
+.set REG_PRL_PLATE, 25
+.set REG_PRL_WORD, 24
+.set REG_PRL_TMP, 23
+
+FN_PeppyRoomsLabels:
+backup
+
+bl PEPPY_ROWS_DATA
+mflr REG_PRL_DATA
+
+# Only while the Rooms list is the thing on screen
+bl PEPPY_LABEL_DATA
+mflr r3
+lwz r0, PLD_LEVEL(r3)
+cmpwi r0, 1
+bne FN_PeppyRoomsLabels_TEARDOWN
+lis r3, 0x804A
+addi r3, r3, 0x4F0
+lbz r0, 0x0(r3)
+cmpwi r0, 0x8
+bne FN_PeppyRoomsLabels_TEARDOWN
+
+lwz r0, PRW_STRUCTS(REG_PRL_DATA)
+cmpwi r0, 0
+bne FN_PeppyRoomsLabels_PAINT
+
+################################################################################
+# Build them
+################################################################################
+li REG_PRL_I, 0
+
+FN_PeppyRoomsLabels_BUILD:
+mulli r3, REG_PRL_I, 16
+addi REG_PRL_ROW, REG_PRL_DATA, PRW_ROWS
+add REG_PRL_ROW, REG_PRL_ROW, r3
+
+li r3, 0
+li r4, 0
+branchl r12, Text_CreateStruct
+mr REG_PRL_TEXT, r3
+
+mulli r4, REG_PRL_I, 4
+addi r5, REG_PRL_DATA, PRW_STRUCTS
+stwx REG_PRL_TEXT, r5, r4
+
+# Close kerning, centred - the row words are centred on their plate
+li r4, 0x1
+stb r4, 0x49(REG_PRL_TEXT)
+stb r4, 0x4A(REG_PRL_TEXT)
+
+lfs f1, PRW_Z(REG_PRL_DATA)
+stfs f1, 0x8(REG_PRL_TEXT)
+lfs f1, PRW_SCALE(REG_PRL_DATA)
+stfs f1, 0x24(REG_PRL_TEXT)
+stfs f1, 0x28(REG_PRL_TEXT)
+
+# The cover, seven offset copies of the word underneath
+li REG_PRL_COVER, 0
+
+FN_PeppyRoomsLabels_COVER:
+mulli r3, REG_PRL_COVER, 8
+addi r4, REG_PRL_DATA, PRW_COVERS
+add r4, r4, r3
+lfs f1, 0x0(REG_PRL_ROW)
+lfs f2, 0x4(REG_PRL_ROW)
+lfs f3, 0x0(r4)
+lfs f4, 0x4(r4)
+fadds f1, f1, f3
+fadds f2, f2, f4
+mr r3, REG_PRL_TEXT
+lwz r4, 0xC(REG_PRL_ROW)
+add r4, REG_PRL_DATA, r4
+branchl r12, Text_InitializeSubtext
+mr REG_PRL_TMP, r3
+lfs f1, PRW_SIZE(REG_PRL_DATA)
+fmr f2, f1
+mr r3, REG_PRL_TEXT
+mr r4, REG_PRL_TMP
+branchl r12, Text_UpdateSubtextSize
+addi REG_PRL_COVER, REG_PRL_COVER, 1
+cmpwi REG_PRL_COVER, PRW_COVER_COUNT
+blt FN_PeppyRoomsLabels_COVER
+
+# And the word itself, on top
+lfs f1, 0x0(REG_PRL_ROW)
+lfs f2, 0x4(REG_PRL_ROW)
+mr r3, REG_PRL_TEXT
+lwz r4, 0x8(REG_PRL_ROW)
+add r4, REG_PRL_DATA, r4
+branchl r12, Text_InitializeSubtext
+mr REG_PRL_TMP, r3
+lfs f1, PRW_SIZE(REG_PRL_DATA)
+fmr f2, f1
+mr r3, REG_PRL_TEXT
+mr r4, REG_PRL_TMP
+branchl r12, Text_UpdateSubtextSize
+
+addi REG_PRL_I, REG_PRL_I, 1
+cmpwi REG_PRL_I, PRW_ROW_COUNT
+blt FN_PeppyRoomsLabels_BUILD
+
+################################################################################
+# Colour them, every frame, so each row follows its own selected state
+################################################################################
+FN_PeppyRoomsLabels_PAINT:
+lis r3, 0x804A
+addi r3, r3, 0x4F0
+lhz REG_PRL_SELECTED, 0x2(r3)
+
+li REG_PRL_I, 0
+
+FN_PeppyRoomsLabels_PAINT_ROW:
+mulli r4, REG_PRL_I, 4
+addi r5, REG_PRL_DATA, PRW_STRUCTS
+lwzx REG_PRL_TEXT, r5, r4
+cmpwi REG_PRL_TEXT, 0
+beq FN_PeppyRoomsLabels_PAINT_NEXT
+
+cmpw REG_PRL_I, REG_PRL_SELECTED
+beq FN_PeppyRoomsLabels_PAINT_PICKED
+addi REG_PRL_PLATE, REG_PRL_DATA, PRW_COL_PLATE_IDLE
+addi REG_PRL_WORD, REG_PRL_DATA, PRW_COL_WORD_IDLE
+b FN_PeppyRoomsLabels_PAINT_DO
+
+FN_PeppyRoomsLabels_PAINT_PICKED:
+addi REG_PRL_PLATE, REG_PRL_DATA, PRW_COL_PLATE_PICKED
+addi REG_PRL_WORD, REG_PRL_DATA, PRW_COL_WORD_PICKED
+
+FN_PeppyRoomsLabels_PAINT_DO:
+li REG_PRL_COVER, 0
+
+FN_PeppyRoomsLabels_PAINT_COVER:
+mr r3, REG_PRL_TEXT
+mr r4, REG_PRL_COVER
+mr r5, REG_PRL_PLATE
+branchl r12, Text_ChangeTextColor
+addi REG_PRL_COVER, REG_PRL_COVER, 1
+cmpwi REG_PRL_COVER, PRW_COVER_COUNT
+blt FN_PeppyRoomsLabels_PAINT_COVER
+
+mr r3, REG_PRL_TEXT
+li r4, PRW_COVER_COUNT
+mr r5, REG_PRL_WORD
+branchl r12, Text_ChangeTextColor
+
+FN_PeppyRoomsLabels_PAINT_NEXT:
+addi REG_PRL_I, REG_PRL_I, 1
+cmpwi REG_PRL_I, PRW_ROW_COUNT
+blt FN_PeppyRoomsLabels_PAINT_ROW
+b FN_PeppyRoomsLabels_EXIT
+
+################################################################################
+# Take them down
+################################################################################
+FN_PeppyRoomsLabels_TEARDOWN:
+li REG_PRL_I, 0
+
+FN_PeppyRoomsLabels_TEARDOWN_ROW:
+mulli r4, REG_PRL_I, 4
+addi r5, REG_PRL_DATA, PRW_STRUCTS
+lwzx r3, r5, r4
+cmpwi r3, 0
+beq FN_PeppyRoomsLabels_TEARDOWN_NEXT
+branchl r12, Text_RemoveText
+li r3, 0
+mulli r4, REG_PRL_I, 4
+addi r5, REG_PRL_DATA, PRW_STRUCTS
+stwx r3, r5, r4
+
+FN_PeppyRoomsLabels_TEARDOWN_NEXT:
+addi REG_PRL_I, REG_PRL_I, 1
+cmpwi REG_PRL_I, PRW_ROW_COUNT
+blt FN_PeppyRoomsLabels_TEARDOWN_ROW
+
+FN_PeppyRoomsLabels_EXIT:
 restore
 blr
 
@@ -717,12 +923,12 @@ bne FN_OnlineSubmenuThink_LABEL_ON_MENU
 
 FN_OnlineSubmenuThink_LABEL_TEARDOWN:
 cmpwi REG_PL_TEXT, 0
-beq FN_OnlineSubmenuThink_EXIT
+beq FN_OnlineSubmenuThink_LABELS_DONE
 mr r3, REG_PL_TEXT
 branchl r12, Text_RemoveText
 li r3, 0
 stw r3, PLD_TEXT_PTR(REG_PL_DATA)
-b FN_OnlineSubmenuThink_EXIT
+b FN_OnlineSubmenuThink_LABELS_DONE
 
 FN_OnlineSubmenuThink_LABEL_ON_MENU:
 cmpwi REG_PL_TEXT, 0
@@ -832,6 +1038,9 @@ li r4, PLD_COVER_COUNT
 mr r5, REG_PL_WORD_COLOR
 branchl r12, Text_ChangeTextColor
 
+FN_OnlineSubmenuThink_LABELS_DONE:
+bl FN_PeppyRoomsLabels
+
 FN_OnlineSubmenuThink_EXIT:
 restore BKP_DEFAULT_FREE_SPACE_SIZE, NUM_FREG, NUM_GPREG
 
@@ -933,6 +1142,105 @@ blrl
 .set PLD_PATCH_STR, PLD_MASK_STR+7
 .string "l"
 .align 2
+
+################################################################################
+# Data: the Rooms list's rows
+################################################################################
+# Positions measured off the screen, same mapping the Rooms label uses:
+#   screen_x = 959.5 + 2.30 * canvas_x    cap top = 559.7 + 2.52 * canvas_y
+# The five rows sit at screen centres 807, 700, 611, 678, 634 with cap tops 309,
+# 413, 528, 635 and 746 - the fan layout means they are not in a straight line.
+#
+# Size is smaller than the mode list's rows because "Crew Battles" has to fit the
+# plate: our font runs wider per character than the artwork does, and at the
+# mode list's size that word would be half again wider than the row it sits on.
+PEPPY_ROWS_DATA:
+blrl
+PRW_BASE:
+.set PRW_STRUCTS, . - PRW_BASE
+.long 0
+.long 0
+.long 0
+.long 0
+.long 0
+.set PRW_SIZE, . - PRW_BASE
+.float 0.58
+.set PRW_Z, . - PRW_BASE
+.float 17
+.set PRW_SCALE, . - PRW_BASE
+.float 0.06
+# Sampled from the menu itself
+.set PRW_COL_WORD_IDLE, . - PRW_BASE
+.long 0xCA9732FF
+.set PRW_COL_PLATE_IDLE, . - PRW_BASE
+.long 0x04040EFF
+.set PRW_COL_WORD_PICKED, . - PRW_BASE
+.long 0x000000FF
+.set PRW_COL_PLATE_PICKED, . - PRW_BASE
+.long 0xFFCB00FF
+# Seven offsets that dilate the cover: centre, straight up and down, and the
+# four diagonals. Same shape that buried "Update" on the Rooms row.
+.set PRW_COVERS, . - PRW_BASE
+.float 0.00
+.float 0.00
+.float 0.00
+.float -2.38
+.float 0.00
+.float 1.59
+.float -2.61
+.float -2.38
+.float 2.61
+.float -2.38
+.float -2.61
+.float 1.59
+.float 2.61
+.float 1.59
+.set PRW_COVER_COUNT, 7
+# Our words, and the artwork word each one has to bury
+.set PRW_S_SINGLES, . - PRW_BASE
+.string "Singles"
+.set PRW_S_DOUBLES, . - PRW_BASE
+.string "Doubles"
+.set PRW_S_FFA, . - PRW_BASE
+.string "FFA"
+.set PRW_S_CREW, . - PRW_BASE
+.string "Crew Battles"
+.set PRW_S_TOURNEY, . - PRW_BASE
+.string "Tournaments"
+.set PRW_S_RANKED, . - PRW_BASE
+.string "Ranked"
+.set PRW_S_UNRANKED, . - PRW_BASE
+.string "Unranked"
+.set PRW_S_DIRECT, . - PRW_BASE
+.string "Direct"
+.set PRW_S_TEAMS, . - PRW_BASE
+.string "Teams"
+.set PRW_S_PARTY, . - PRW_BASE
+.string "Party"
+.align 2
+# x, y, our word, the word underneath
+.set PRW_ROWS, . - PRW_BASE
+.set PRW_ROW_COUNT, 5
+.float -66.29
+.float -99.47
+.long PRW_S_SINGLES
+.long PRW_S_RANKED
+.float -112.59
+.float -58.20
+.long PRW_S_DOUBLES
+.long PRW_S_UNRANKED
+.float -151.29
+.float -12.56
+.long PRW_S_FFA
+.long PRW_S_DIRECT
+.float -122.37
+.float 29.90
+.long PRW_S_CREW
+.long PRW_S_TEAMS
+.float -141.29
+.float 73.94
+.long PRW_S_TOURNEY
+.long PRW_S_PARTY
 
 ################################################################################
 # Data: RoomsSubmenuOptions
