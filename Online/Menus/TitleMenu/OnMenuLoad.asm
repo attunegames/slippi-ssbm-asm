@@ -19,22 +19,23 @@ blrl
 
 DATA_PEPPY_LABEL_BLRL:
 blrl
-.set PL_ZERO, 0
-.float 0
-.set PL_MARK, PL_ZERO+4
-.float 100
-.set PL_Z, PL_MARK+4
+# Measured, not guessed. Three calibration marks drawn at known canvas
+# coordinates put the mapping at
+#     screen_x = 961 + 2.30 * canvas_x      screen_y = 583 + 2.52 * canvas_y
+# on a 1920x1080 render, and the Rooms row's word sits centred at (673, 774).
+.set PL_X, 0
+.float -125.2
+.set PL_Y, PL_X+4
+.float 75.8
+.set PL_Z, PL_Y+4
 .float 17
 .set PL_SCALE, PL_Z+4
 .float 0.06
+# The row words stand 49px tall; the calibration marks stood 32px at size 0.5.
 .set PL_SIZE, PL_SCALE+4
-.float 0.5
-.set PL_STR_O, PL_SIZE+4
-.string "O"
-.set PL_STR_X, PL_STR_O+2
-.string "X"
-.set PL_STR_Y, PL_STR_X+2
-.string "Y"
+.float 0.77
+.set PL_STR, PL_SIZE+4
+.string "Rooms"
 .align 2
 
 DATA_BLRL:
@@ -57,7 +58,7 @@ backup
 # Other scenes (like CSS/ranked) initialize their own user display separately.
 
 ################################################################################
-# Section 1b: Peppy - calibration marks for the Rooms label
+# Section 1b: Peppy - name the Rooms row
 ################################################################################
 # The online menu's row labels are pre-rendered images and there are only eight
 # of them, so the ninth row borrows the eighth and reads "Update". Nothing
@@ -65,18 +66,12 @@ backup
 # Slippi's own text machinery - the same machinery that puts the user name on
 # these menus.
 #
-# Where to draw is the open question: the row's position lives in Melee's menu
-# layout, not in any code here. So this build puts three marks at known canvas
-# coordinates - O at (0,0), X at (100,0), Y at (0,100) - which makes the mapping
-# from canvas units to screen pixels measurable instead of guessed.
-#
 # This runs at scene load rather than scene prep: prep is before Melee has
 # allocated its menu text memory, and creating a text struct there writes
 # through a garbage pointer.
 .set REG_PEPPY_DATA, 27
 .set REG_PEPPY_TEXT, 26
 .set REG_PEPPY_SUBTEXT, 25
-.set REG_PEPPY_LR, 24
 
 bl DATA_PEPPY_LABEL_BLRL
 mflr REG_PEPPY_DATA
@@ -86,10 +81,9 @@ li r4, 0
 branchl r12, Text_CreateStruct
 mr REG_PEPPY_TEXT, r3
 
-# Close kerning, left aligned - same as the user display uses
+# Close kerning, centred - the row words are centred on their plate
 li r4, 0x1
 stb r4, 0x49(REG_PEPPY_TEXT)
-li r4, 0x0
 stb r4, 0x4A(REG_PEPPY_TEXT)
 
 lfs f1, PL_Z(REG_PEPPY_DATA)
@@ -98,48 +92,18 @@ lfs f1, PL_SCALE(REG_PEPPY_DATA)
 stfs f1, 0x24(REG_PEPPY_TEXT)
 stfs f1, 0x28(REG_PEPPY_TEXT)
 
-# Origin mark
-lfs f1, PL_ZERO(REG_PEPPY_DATA)
-lfs f2, PL_ZERO(REG_PEPPY_DATA)
+lfs f1, PL_X(REG_PEPPY_DATA)
+lfs f2, PL_Y(REG_PEPPY_DATA)
 mr r3, REG_PEPPY_TEXT
-addi r4, REG_PEPPY_DATA, PL_STR_O
+addi r4, REG_PEPPY_DATA, PL_STR
 branchl r12, Text_InitializeSubtext
 mr REG_PEPPY_SUBTEXT, r3
-bl FN_PEPPY_SET_SIZE
 
-# One hundred units along X
-lfs f1, PL_MARK(REG_PEPPY_DATA)
-lfs f2, PL_ZERO(REG_PEPPY_DATA)
-mr r3, REG_PEPPY_TEXT
-addi r4, REG_PEPPY_DATA, PL_STR_X
-branchl r12, Text_InitializeSubtext
-mr REG_PEPPY_SUBTEXT, r3
-bl FN_PEPPY_SET_SIZE
-
-# One hundred units along Y
-lfs f1, PL_ZERO(REG_PEPPY_DATA)
-lfs f2, PL_MARK(REG_PEPPY_DATA)
-mr r3, REG_PEPPY_TEXT
-addi r4, REG_PEPPY_DATA, PL_STR_Y
-branchl r12, Text_InitializeSubtext
-mr REG_PEPPY_SUBTEXT, r3
-bl FN_PEPPY_SET_SIZE
-
-b PEPPY_LABEL_DONE
-
-FN_PEPPY_SET_SIZE:
-# Link register kept in a register rather than on the stack - these injections
-# run inside someone else's frame.
-mflr REG_PEPPY_LR
 lfs f1, PL_SIZE(REG_PEPPY_DATA)
 fmr f2, f1
 mr r3, REG_PEPPY_TEXT
 mr r4, REG_PEPPY_SUBTEXT
 branchl r12, Text_UpdateSubtextSize
-mtlr REG_PEPPY_LR
-blr
-
-PEPPY_LABEL_DONE:
 
 ################################################################################
 # Section 2: Play MELEE on first boot
