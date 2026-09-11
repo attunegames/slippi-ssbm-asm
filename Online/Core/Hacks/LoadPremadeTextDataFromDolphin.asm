@@ -63,30 +63,84 @@ bne EXIT
 cmpwi REG_PREMADE_TEXT_ID, 0x064C
 bne EXIT
 
+# Take Melee's own formatting and put our words behind it.
+#
+# Writing the whole string ourselves does not work: it comes out ~45% taller
+# than the other descriptions and overflows the box, and it cannot ask to be
+# smaller - SCALE is consumed but inert here (probed with a value of 2, nothing
+# moved) and FIT fits horizontally only, so it condenses the letters instead.
+# Whatever sets the size lives in the opcodes Melee puts at the front of its own
+# strings, so rather than guess at them, they are copied verbatim.
+#
+# Opcodes are below 0x20 and characters are 0x20 and up, so the prefix ends at
+# the first character - but opcode parameters can be any value, so each one's
+# length comes from the table below.
 bl PEPPY_ROOMS_DESC_DATA
 mflr r3
-stw r3, 0x5C(r31)
+lwz r4, 0x5C(r31) # Melee's string for this row, already loaded
+addi r5, r3, PRD_BUFFER
+mr r6, r5
+li r10, 32 # cap the prefix, so a surprise cannot run off the buffer
+
+PEPPY_DESC_PREFIX:
+cmpwi r10, 0
+beq PEPPY_DESC_WORDS
+lbz r7, 0x0(r4)
+cmpwi r7, 0x20
+bge PEPPY_DESC_WORDS # first character - the formatting is behind us
+cmpwi r7, 0x0
+beq PEPPY_DESC_WORDS # end of string - nothing to inherit
+stb r7, 0x0(r5)
+addi r4, r4, 1
+addi r5, r5, 1
+subi r10, r10, 1
+
+addi r8, r3, PRD_PARAMLEN
+lbzx r9, r8, r7
+cmpwi r9, 0
+beq PEPPY_DESC_PREFIX
+
+PEPPY_DESC_PARAMS:
+lbz r7, 0x0(r4)
+stb r7, 0x0(r5)
+addi r4, r4, 1
+addi r5, r5, 1
+subi r9, r9, 1
+subi r10, r10, 1
+cmpwi r9, 0
+bne PEPPY_DESC_PARAMS
+b PEPPY_DESC_PREFIX
+
+PEPPY_DESC_WORDS:
+addi r4, r3, PRD_WORDS
+PEPPY_DESC_WORDS_LOOP:
+lbz r7, 0x0(r4)
+stb r7, 0x0(r5)
+addi r4, r4, 1
+addi r5, r5, 1
+cmpwi r7, 0x0
+bne PEPPY_DESC_WORDS_LOOP
+
+stw r6, 0x5C(r31)
 b EXIT
 
 PEPPY_ROOMS_DESC_DATA:
 blrl
-# "Public & Private Rooms", padded with spaces.
-#
-# Sizing this was the fiddly part. The string renders about 45% larger than
-# Melee's own descriptions and overflows the box, and it cannot ask to be
-# smaller: SCALE is consumed but inert here - probed with a value of 2, which
-# changed nothing. FIT is the only lever, and it fits horizontally only, so it
-# condenses rather than shrinks.
-#
-# What FIT does scale is the whole content, padding included, so symmetric
-# spaces pull the visible glyphs in. Five a side puts the footprint on Melee's
-# own: theirs run about 27px per character, ours 24. The glyphs are still taller
-# than theirs - that would need the text struct's own scale, not the string.
-.byte 0x18, 0x10, 0x16, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x20, 0x19, 0x20, 0x38
-.byte 0x20, 0x25, 0x20, 0x2F, 0x20, 0x2C, 0x20, 0x26, 0x1A, 0x21, 0x05, 0x1A
-.byte 0x20, 0x19, 0x20, 0x35, 0x20, 0x2C, 0x20, 0x39, 0x20, 0x24, 0x20, 0x37
-.byte 0x20, 0x28, 0x1A, 0x20, 0x1B, 0x20, 0x32, 0x20, 0x32, 0x20, 0x30, 0x20
-.byte 0x36, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x00
+# Built at runtime: their formatting, then our words
+.set PRD_BUFFER, 0
+.space 96, 0
+# Parameter bytes per opcode, 0x00 to 0x1A. From Dolphin's SlippiPremadeText.h:
+# 0x05 s, 0x06 ss, 0x07 OFFSET ss, 0x0A SCALING bbbb, 0x0C COLOR bbb,
+# 0x0E SET_TEXTBOX ss. Everything else takes none.
+.set PRD_PARAMLEN, PRD_BUFFER+96
+.byte 0, 0, 0, 0, 0, 2, 4, 4, 0, 0, 4, 0, 3, 0, 4, 0
+.byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+# "Public & Private Rooms" - characters only, the formatting is inherited
+.set PRD_WORDS, PRD_PARAMLEN+27
+.byte 0x20, 0x19, 0x20, 0x38, 0x20, 0x25, 0x20, 0x2F, 0x20, 0x2C, 0x20, 0x26
+.byte 0x1A, 0x21, 0x05, 0x1A, 0x20, 0x19, 0x20, 0x35, 0x20, 0x2C, 0x20, 0x39
+.byte 0x20, 0x24, 0x20, 0x37, 0x20, 0x28, 0x1A, 0x20, 0x1B, 0x20, 0x32, 0x20
+.byte 0x32, 0x20, 0x30, 0x20, 0x36, 0x00
 .align 2
 
 EXIT:
