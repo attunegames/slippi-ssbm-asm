@@ -540,6 +540,7 @@ FN_OnlineSubmenuThink_INPUT_HANDLERS_END:
 .set REG_PL_DATA, 22
 .set REG_PL_TEXT, 23
 .set REG_PL_WORD_COLOR, 24
+.set REG_PL_MASK_COLOR, 21
 
 bl PEPPY_LABEL_DATA
 mflr REG_PL_DATA
@@ -590,21 +591,31 @@ lfs f1, PLD_SCALE(REG_PL_DATA)
 stfs f1, 0x24(REG_PL_TEXT)
 stfs f1, 0x28(REG_PL_TEXT)
 
-# Subtext 0 is a larger copy drawn underneath in the plate's own colour: the
-# borrowed word is still down there and this is what buries it.
-lfs f1, PLD_MASK_X(REG_PL_DATA)
-lfs f2, PLD_MASK_Y(REG_PL_DATA)
+# Subtexts 0..4 are the cover, then the word goes on top of them
+.set REG_PL_OFS, 25
+.set REG_PL_COUNT, 26
+
+addi REG_PL_OFS, REG_PL_DATA, PLD_MASK_OFS
+li REG_PL_COUNT, 0
+
+FN_OnlineSubmenuThink_LABEL_MASK_LOOP:
+lfs f1, 0x0(REG_PL_OFS)
+lfs f2, 0x4(REG_PL_OFS)
 mr r3, REG_PL_TEXT
 addi r4, REG_PL_DATA, PLD_MASK_STR
 branchl r12, Text_InitializeSubtext
 mr REG_PL_WORD_COLOR, r3 # borrowed as scratch for the subtext index
-lfs f1, PLD_MASK_WIDTH(REG_PL_DATA)
-lfs f2, PLD_MASK_SIZE(REG_PL_DATA)
+lfs f1, PLD_SIZE(REG_PL_DATA)
+fmr f2, f1
 mr r3, REG_PL_TEXT
 mr r4, REG_PL_WORD_COLOR
 branchl r12, Text_UpdateSubtextSize
+addi REG_PL_OFS, REG_PL_OFS, 8
+addi REG_PL_COUNT, REG_PL_COUNT, 1
+cmpwi REG_PL_COUNT, PLD_MASK_COUNT
+blt FN_OnlineSubmenuThink_LABEL_MASK_LOOP
 
-# Subtext 1 is the word itself
+# And the word itself, on top of the cover
 lfs f1, PLD_X(REG_PL_DATA)
 lfs f2, PLD_Y(REG_PL_DATA)
 mr r3, REG_PL_TEXT
@@ -635,14 +646,22 @@ addi r5, REG_PL_DATA, PLD_COL_PLATE_PICKED
 addi REG_PL_WORD_COLOR, REG_PL_DATA, PLD_COL_WORD_PICKED
 
 FN_OnlineSubmenuThink_LABEL_PAINT:
-# The mask first, then the word - the colour pointer for the word is held in a
-# saved register, since a call is free to trample the volatile ones.
+# Colour pointers live in saved registers - a call is free to trample the
+# volatile ones.
+mr REG_PL_MASK_COLOR, r5
+li REG_PL_COUNT, 0
+
+FN_OnlineSubmenuThink_LABEL_PAINT_LOOP:
 mr r3, REG_PL_TEXT
-li r4, 0
+mr r4, REG_PL_COUNT
+mr r5, REG_PL_MASK_COLOR
 branchl r12, Text_ChangeTextColor
+addi REG_PL_COUNT, REG_PL_COUNT, 1
+cmpwi REG_PL_COUNT, PLD_MASK_COUNT
+blt FN_OnlineSubmenuThink_LABEL_PAINT_LOOP
 
 mr r3, REG_PL_TEXT
-li r4, 1
+li r4, PLD_MASK_COUNT
 mr r5, REG_PL_WORD_COLOR
 branchl r12, Text_ChangeTextColor
 
@@ -680,22 +699,29 @@ blrl
 .float 85.06
 .set PLD_SIZE, PLD_Y+4
 .float 0.80
-.set PLD_MASK_X, PLD_SIZE+4
+# The mask is the borrowed word itself, drawn in the plate's colour at the same
+# size and place. The row artwork and Slippi's text use the same font, so it
+# covers the ghost glyph for glyph - which nothing generic can do: a larger copy
+# of "Rooms" leaves it showing between the letters, stretching that copy opens
+# the gaps further, and a single stretched period (the one solid glyph in the
+# font) kills the whole text object.
+#
+# Five copies, offset by two pixels each way, dilate the cover enough to swallow
+# the antialiased edges and any small difference between the two fonts. The
+# plate under here is flat (#00000A to #070712), so none of this can be seen.
+.set PLD_MASK_OFS, PLD_SIZE+4
 .float -124.55
-.set PLD_MASK_Y, PLD_MASK_X+4
-.float 141.20
-# The mask is a single period stretched into a rectangle. A period is the one
-# glyph in Melee's font that is solid ink, so scaled up it is an opaque block -
-# which is the only thing that covers the borrowed word completely. A larger
-# copy of the word was tried first and leaves it showing between the letters;
-# stretching that copy wider is worse still, since it opens the gaps further.
-# The plate under here is flat (#00000A to #070712), so a block in its colour
-# cannot be seen.
-.set PLD_MASK_SIZE, PLD_MASK_Y+4
-.float 8.51
-.set PLD_MASK_WIDTH, PLD_MASK_SIZE+4
-.float 27.70
-.set PLD_Z, PLD_MASK_WIDTH+4
+.float 85.06
+.float -125.42
+.float 85.06
+.float -123.68
+.float 85.06
+.float -124.55
+.float 84.27
+.float -124.55
+.float 85.85
+.set PLD_MASK_COUNT, 5
+.set PLD_Z, PLD_MASK_OFS+40
 .float 17
 .set PLD_SCALE, PLD_Z+4
 .float 0.06
@@ -703,15 +729,15 @@ blrl
 .set PLD_COL_WORD_IDLE, PLD_SCALE+4
 .long 0xCA9732FF
 .set PLD_COL_PLATE_IDLE, PLD_COL_WORD_IDLE+4
-.long 0xFFFFFFFF # PROBE - plate colour once the block is measured
+.long 0x04040EFF
 .set PLD_COL_WORD_PICKED, PLD_COL_PLATE_IDLE+4
 .long 0x000000FF
 .set PLD_COL_PLATE_PICKED, PLD_COL_WORD_PICKED+4
-.long 0xFFFFFFFF # PROBE
+.long 0xFFCB00FF
 .set PLD_STR, PLD_COL_PLATE_PICKED+4
 .string "Rooms"
 .set PLD_MASK_STR, PLD_STR+6
-.string "."
+.string "Update"
 .align 2
 
 Data_OnlineSubmenuDescriptions:
