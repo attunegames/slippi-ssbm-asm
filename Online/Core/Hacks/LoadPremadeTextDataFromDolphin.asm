@@ -72,12 +72,13 @@ lbz r0, 0x0(r3)
 cmpwi r0, 0x8
 bne EXIT
 
-# Five rows is the Rooms list, nine the mode list - the same menu redrawn, so
-# the row count is what tells them apart.
+# Nine rows is the mode list; every level Peppy adds below it has fewer. The
+# same menu is redrawn for all of them, so the row count is what tells them
+# apart, and anything that is not the mode list draws its own description.
 load r4, 0x803eb750
 lbz r4, 0xC(r4)
-cmpwi r4, 5
-beq PEPPY_BLANK_IT
+cmpwi r4, 9
+bne PEPPY_BLANK_IT
 
 lhz r0, 0x2(r3)
 cmpwi r0, OPTION_ROOMS_IDX

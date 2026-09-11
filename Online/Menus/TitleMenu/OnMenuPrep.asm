@@ -312,19 +312,27 @@ cmpwi r0, 0x8
 bne FN_PeppyDescription_TEARDOWN
 lhz r5, 0x2(r3)
 
+# Level 0 is the mode list, whose Rooms line is NOT drawn here - it needs an
+# ampersand and the drawn-text path has no glyph for one, so it goes through the
+# premade-text hook instead. See LoadPremadeTextDataFromDolphin.
 cmpwi r4, 1
-beq FN_PeppyDescription_LIST
-
-# The mode list's Rooms line is NOT drawn here - it needs an ampersand, and the
-# drawn-text path has no glyph for one, so it goes through the premade-text hook
-# instead. See LoadPremadeTextDataFromDolphin.
-b FN_PeppyDescription_NONE
+blt FN_PeppyDescription_NONE
+cmpwi r4, 3
+bgt FN_PeppyDescription_NONE
 
 FN_PeppyDescription_LIST:
-cmpwi r5, PRW_ROW_COUNT
+# Each level from 1 up has an entry in PDD_LEVELS: where its strings start and
+# how many rows it has.
+subi r6, r4, 1
+mulli r6, r6, 8
+addi r7, REG_PD_DATA, PDD_LEVELS
+add r7, r7, r6
+lwz r8, 0x0(r7)
+lwz r9, 0x4(r7)
+cmpw r5, r9
 bge FN_PeppyDescription_NONE
 mulli r6, r5, 4
-addi r7, REG_PD_DATA, PDD_LIST
+add r7, REG_PD_DATA, r8
 lwzx REG_PD_STR, r7, r6
 b FN_PeppyDescription_HAVE
 
@@ -681,6 +689,86 @@ restore
 blr
 
 ################################################################################
+# Routine: PeppyLevelTables
+# ------------------------------------------------------------------------------
+# The option table and description table a level is built from.
+#   r3 = level  ->  r3 = options, r4 = descriptions
+#
+# LR is parked in r11 because reaching a data block here means branching to it,
+# which overwrites LR on the way.
+################################################################################
+FN_PeppyLevelTables:
+mflr r11
+cmpwi r3, 1
+beq FN_PeppyLevelTables_ROOMS
+cmpwi r3, 2
+beq FN_PeppyLevelTables_ACTIONS
+cmpwi r3, 3
+beq FN_PeppyLevelTables_CREATE
+
+bl Data_OnlineSubmenuOptions
+mflr r3
+bl Data_OnlineSubmenuDescriptions
+mflr r4
+mtlr r11
+blr
+
+FN_PeppyLevelTables_ROOMS:
+bl Data_RoomsSubmenuOptions
+mflr r3
+bl Data_RoomsSubmenuDescriptions
+mflr r4
+mtlr r11
+blr
+
+FN_PeppyLevelTables_ACTIONS:
+bl Data_RoomActionOptions
+mflr r3
+bl Data_RoomActionDescriptions
+mflr r4
+mtlr r11
+blr
+
+FN_PeppyLevelTables_CREATE:
+bl Data_CreateTypeOptions
+mflr r3
+bl Data_CreateTypeDescriptions
+mflr r4
+mtlr r11
+blr
+
+################################################################################
+# Routine: PeppyGoToLevel
+# ------------------------------------------------------------------------------
+# Move to a level and draw it.
+#   r3 - level to go to
+#   r4 - option to put the cursor on
+#   r5 - transition kind: 1 going deeper, 3 coming back
+################################################################################
+.set REG_PGL_LEVEL, 27
+.set REG_PGL_SELECT, 26
+.set REG_PGL_TRANS, 25
+
+FN_PeppyGoToLevel:
+backup
+mr REG_PGL_LEVEL, r3
+mr REG_PGL_SELECT, r4
+mr REG_PGL_TRANS, r5
+
+bl PEPPY_LABEL_DATA
+mflr r3
+stw REG_PGL_LEVEL, PLD_LEVEL(r3)
+
+mr r3, REG_PGL_LEVEL
+bl FN_PeppyLevelTables
+mr r5, REG_PGL_SELECT
+mr r6, REG_PGL_TRANS
+bl FN_PeppyEnterSubmenu
+
+restore
+blr
+
+################################################################################
 # Routine: OnlineSubmenuThink
 # ------------------------------------------------------------------------------
 # Description: Think function for online submenu
@@ -755,6 +843,10 @@ mflr r3
 lwz r3, PLD_LEVEL(r3)
 cmpwi r3, 1
 beq FN_OnlineSubmenuThink_ROOMS_DISPATCH
+cmpwi r3, 2
+beq FN_OnlineSubmenuThink_ACTION_DISPATCH
+cmpwi r3, 3
+beq FN_OnlineSubmenuThink_CREATE_DISPATCH
 
 cmpwi r0, OPTION_RANKED_IDX # Check if Ranked
 beq FN_OnlineSubmenuThink_HANDLE_RANKED
@@ -802,16 +894,13 @@ branchl r12, SFX_Menu_CommonSound
 
 bl PEPPY_LABEL_DATA
 mflr r3
-li r4, 1
-stw r4, PLD_LEVEL(r3)
+li r4, OPTION_ROOMS_IDX
+stb r4, PLD_SEL(r3)
 
-bl Data_RoomsSubmenuOptions
-mflr r3
-bl Data_RoomsSubmenuDescriptions
-mflr r4
-li r5, 0
-li r6, 1
-bl FN_PeppyEnterSubmenu
+li r3, 1
+li r4, 0
+li r5, 1
+bl FN_PeppyGoToLevel
 b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 
 ################################################################################
@@ -823,9 +912,66 @@ b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 .set ROOMS_OPT_SINGLES, 0
 
 FN_OnlineSubmenuThink_ROOMS_DISPATCH:
+# Every mode opens the same Create / Join / Public menu. Which one was picked is
+# written down first, because the sound call below is free to trample r0 and
+# because the room that eventually gets made needs to know what it is.
+bl PEPPY_LABEL_DATA
+mflr r3
+stb r0, PLD_SEL+1(r3)
+
+li r3, 1
+branchl r12, SFX_Menu_CommonSound
+li r3, 2
+li r4, 0
+li r5, 1
+bl FN_PeppyGoToLevel
+b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
+
+################################################################################
+# Create / Join / Public
+################################################################################
+# Create picks a room type next. Join wants a room code and Public wants a list
+# of rooms to show - neither exists yet, so they say no rather than pretending.
+.set ACTION_OPT_CREATE, 0
+.set ACTION_OPT_JOIN, 1
+.set ACTION_OPT_PUBLIC, 2
+
+FN_OnlineSubmenuThink_ACTION_DISPATCH:
+cmpwi r0, ACTION_OPT_CREATE
+bne FN_OnlineSubmenuThink_NOT_BUILT
+
+bl PEPPY_LABEL_DATA
+mflr r3
+stb r0, PLD_SEL+2(r3)
+
+li r3, 1
+branchl r12, SFX_Menu_CommonSound
+li r3, 3
+li r4, 0
+li r5, 1
+bl FN_PeppyGoToLevel
+b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
+
+################################################################################
+# Private / Public
+################################################################################
+# Private needs a passcode entered before the room can be made, which is not
+# built. Public has nothing to ask, so it is where a room would be created -
+# and Singles is the only mode with anywhere to go yet.
+.set CREATE_OPT_PRIVATE, 0
+.set CREATE_OPT_PUBLIC, 1
+
+FN_OnlineSubmenuThink_CREATE_DISPATCH:
+cmpwi r0, CREATE_OPT_PUBLIC
+bne FN_OnlineSubmenuThink_NOT_BUILT
+
+bl PEPPY_LABEL_DATA
+mflr r3
+lbz r0, PLD_SEL+1(r3)
 cmpwi r0, ROOMS_OPT_SINGLES
 beq FN_OnlineSubmenuThink_HANDLE_SINGLES
 
+FN_OnlineSubmenuThink_NOT_BUILT:
 li r3, 0xbc
 li r4, 127
 li r5, 64
@@ -902,21 +1048,24 @@ FN_OnlineSubmenuThink_B_PRESS_HANLER:
 bl PEPPY_LABEL_DATA
 mflr r3
 lwz r0, PLD_LEVEL(r3)
-cmpwi r0, 1
-bne FN_OnlineSubmenuThink_B_LEAVE_ONLINE
+cmpwi r0, 0
+beq FN_OnlineSubmenuThink_B_LEAVE_ONLINE
 
-li r4, 0
-stw r4, PLD_LEVEL(r3)
 li r3, 0
 branchl r12, SFX_Menu_CommonSound
 
-bl Data_OnlineSubmenuOptions
+# Up one level, cursor back on the row that opened this one. Read again after
+# the sound call rather than holding it across - these are volatile registers.
+bl PEPPY_LABEL_DATA
 mflr r3
-bl Data_OnlineSubmenuDescriptions
-mflr r4
-li r5, OPTION_ROOMS_IDX
-li r6, 3
-bl FN_PeppyEnterSubmenu
+lwz r4, PLD_LEVEL(r3)
+subi r4, r4, 1
+addi r5, r3, PLD_SEL
+lbzx r5, r5, r4
+mr r3, r4
+mr r4, r5
+li r5, 3
+bl FN_PeppyGoToLevel
 b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 
 FN_OnlineSubmenuThink_B_LEAVE_ONLINE:
@@ -1236,14 +1385,20 @@ blrl
 # 49px tall. Note a glyph draws ABOVE its anchor by about 78 * size pixels.
 .set PLD_TEXT_PTR, 0
 .long 0
-# 0 = the mode list, 1 = the Rooms list. The Rooms list is not a second menu -
-# it is this one, redrawn with a different option table.
+# How deep we are: 0 = the mode list, 1 = the Rooms list, 2 = Create/Join/Public,
+# 3 = Private/Public. None of these are separate menus - they are all menu 8,
+# redrawn with a different option table.
 .set PLD_LEVEL, PLD_TEXT_PTR+4
+.long 0
+# The option picked at each level, one byte per level. B uses it to put the
+# cursor back where it was, and the deeper levels use it to know which mode the
+# room is being made for.
+.set PLD_SEL, PLD_LEVEL+4
 .long 0
 # Frames to sit still after the menu is (re)built. The rows animate into place,
 # and our text does not animate with them - drawn from frame one it arrives
 # before the plate it belongs to.
-.set PLD_SETTLE, PLD_LEVEL+4
+.set PLD_SETTLE, PLD_SEL+4
 .long 0
 # Measured frame by frame: the rows fly in and land by about frame 6. Waiting
 # much longer than that is its own bug - the plates sit there wearing Melee's
@@ -1361,8 +1516,19 @@ blrl
 .set PDD_S_DOUBLES, PDD_S_SINGLES+13
 .set PDD_S_FFA, PDD_S_DOUBLES+13
 .set PDD_S_CREW, PDD_S_FFA+16
+# Offsets are spelled out rather than taken from the location counter, and they
+# have to account for the .align before the tables - the strings end at
+# PDD_S_PUBLIC+16, which is already a multiple of four.
 .set PDD_S_TOURNEY, PDD_S_CREW+17
-.set PDD_LIST, PDD_S_TOURNEY+21
+.set PDD_S_CREATE, PDD_S_TOURNEY+18
+.set PDD_S_JOIN, PDD_S_CREATE+14
+.set PDD_S_BROWSE, PDD_S_JOIN+18
+.set PDD_S_PRIVATE, PDD_S_BROWSE+20
+.set PDD_S_PUBLIC, PDD_S_PRIVATE+23
+.set PDD_LIST1, PDD_S_PUBLIC+16
+.set PDD_LIST2, PDD_LIST1+20
+.set PDD_LIST3, PDD_LIST2+12
+.set PDD_LEVELS, PDD_LIST3+8
 
 PEPPY_DESC_DATA:
 blrl
@@ -1382,12 +1548,29 @@ blrl
 .string "Play Free 4 All"
 .string "Play Crew Battle"
 .string "Join a Tournament"
+.string "Create a Room"
+.string "Join by Room Code"
+.string "Browse Public Rooms"
+.string "Set a 4-Digit Passcode"
+.string "Anyone Can Join"
 .align 2
 .long PDD_S_SINGLES
 .long PDD_S_DOUBLES
 .long PDD_S_FFA
 .long PDD_S_CREW
 .long PDD_S_TOURNEY
+.long PDD_S_CREATE
+.long PDD_S_JOIN
+.long PDD_S_BROWSE
+.long PDD_S_PRIVATE
+.long PDD_S_PUBLIC
+# Per level, from level 1: where its strings start and how many rows it has
+.long PDD_LIST1
+.long 5
+.long PDD_LIST2
+.long 3
+.long PDD_LIST3
+.long 2
 
 ################################################################################
 # Data: the Rooms list's rows
@@ -1550,6 +1733,47 @@ blrl
 .short 0x0647 # FFA
 .short 0x064B # Crew Battles
 .short 0x064C # Tournaments
+.align 2
+
+################################################################################
+# Data: Create / Join / Public
+################################################################################
+Data_RoomActionOptions:
+blrl
+
+.long 0x803eb57c # Ptr to preview animation frame values
+.float 126 # Create, Join and Public sit in the padding of the block at 120 -
+           # that menu has three options and its last image held the rest of
+           # the block, so the frames were spare.
+.long 0x803eb684 # Ptr to description text. Will be overwritten
+.byte 0x03 # Create, Join, Public
+.align 2
+
+# The ids do not matter: every description on our levels is blanked out here and
+# drawn by FN_PeppyDescription instead. They only have to be real ids.
+Data_RoomActionDescriptions:
+blrl
+.short 0x0645 # Create
+.short 0x0646 # Join
+.short 0x0647 # Public
+.align 2
+
+################################################################################
+# Data: Private / Public
+################################################################################
+Data_CreateTypeOptions:
+blrl
+
+.long 0x803eb57c # Ptr to preview animation frame values
+.float 186 # Private and Public, in the padding of the block at 180
+.long 0x803eb684 # Ptr to description text. Will be overwritten
+.byte 0x02 # Private, Public
+.align 2
+
+Data_CreateTypeDescriptions:
+blrl
+.short 0x0645 # Private
+.short 0x0646 # Public
 .align 2
 
 Data_OnlineSubmenuDescriptions:
