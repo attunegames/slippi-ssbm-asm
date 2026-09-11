@@ -675,14 +675,14 @@ blrl
 .set PLD_MASK_X, PLD_SIZE+4
 .float -124.55
 .set PLD_MASK_Y, PLD_MASK_X+4
-.float 91.50
-# Stretched wider than it is tall: the mask is never seen (dark on a dark
-# plate, yellow on a yellow one), so widening it just closes the gaps between
-# letters where the borrowed word used to show through.
+.float 89.60
+# Uniformly larger, not stretched. Stretching it wider was tried and is worse:
+# it moves the mask's ink outward and opens the gaps between letters, which is
+# exactly where the borrowed word shows through.
 .set PLD_MASK_SIZE, PLD_MASK_Y+4
-.float 1.10
+.float 1.00
 .set PLD_MASK_WIDTH, PLD_MASK_SIZE+4
-.float 1.65
+.float 1.00
 .set PLD_Z, PLD_MASK_WIDTH+4
 .float 17
 .set PLD_SCALE, PLD_Z+4
