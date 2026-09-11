@@ -315,11 +315,10 @@ lhz r5, 0x2(r3)
 cmpwi r4, 1
 beq FN_PeppyDescription_LIST
 
-# The mode list - only the Rooms row is ours
-cmpwi r5, OPTION_ROOMS_IDX
-bne FN_PeppyDescription_NONE
-li REG_PD_STR, PDD_S_ROOMS
-b FN_PeppyDescription_HAVE
+# The mode list's Rooms line is NOT drawn here - it needs an ampersand, and the
+# drawn-text path has no glyph for one, so it goes through the premade-text hook
+# instead. See LoadPremadeTextDataFromDolphin.
+b FN_PeppyDescription_NONE
 
 FN_PeppyDescription_LIST:
 cmpwi r5, PRW_ROW_COUNT
@@ -1145,12 +1144,12 @@ branchl r12, Text_UpdateSubtextSize
 
 # And the word itself, on top of the cover
 lfs f1, PLD_X(REG_PL_DATA)
-lfs f2, PLD_Y(REG_PL_DATA)
+lfs f2, PLD_WORD_Y(REG_PL_DATA)
 mr r3, REG_PL_TEXT
 addi r4, REG_PL_DATA, PLD_STR
 branchl r12, Text_InitializeSubtext
 mr REG_PL_WORD_COLOR, r3
-lfs f1, PLD_SIZE(REG_PL_DATA)
+lfs f1, PLD_WORD_SIZE(REG_PL_DATA)
 fmr f2, f1
 mr r3, REG_PL_TEXT
 mr r4, REG_PL_WORD_COLOR
@@ -1265,13 +1264,13 @@ blrl
 .float 82.68
 .float -124.55
 .float 86.65
-.float -127.16
+.float -125.85
 .float 82.68
-.float -121.94
+.float -123.25
 .float 82.68
-.float -127.16
+.float -125.85
 .float 86.65
-.float -121.94
+.float -123.25
 .float 86.65
 .set PLD_MASK_COUNT, 7
 # One spot the cover cannot reach: the artwork draws "Update" with a FULL-HEIGHT
@@ -1306,6 +1305,13 @@ blrl
 .string "Update"
 .set PLD_PATCH_STR, PLD_MASK_STR+7
 .string "l"
+# The word is drawn slightly larger than the cover so the cover vanishes behind
+# it entirely - "Rooms" at 0.80 is 208px against "Update"'s 206px, which left
+# the dilation poking out either end. Its anchor shifts to keep the row centred.
+.set PLD_WORD_SIZE, PLD_PATCH_STR+2
+.float 0.86
+.set PLD_WORD_Y, PLD_WORD_SIZE+4
+.float 86.18
 .align 2
 
 ################################################################################
@@ -1349,7 +1355,7 @@ blrl
 .float 0.06
 .long 0xAAAAAAFF # sampled off Melee's own description text
 .string ""
-.string "Public &+@ PrivateRmsX"
+.string "Public & Private Rooms"
 .string "Play Singles"
 .string "Play Doubles"
 .string "Play Free 4 All"
@@ -1391,12 +1397,12 @@ blrl
 .set PRW_S_FFA, PRW_S_DOUBLES+8
 .set PRW_S_CREW, PRW_S_FFA+4
 .set PRW_S_TOURNEY, PRW_S_CREW+13
-.set PRW_S_RANKED, PRW_S_TOURNEY+12
-.set PRW_S_UNRANKED, PRW_S_RANKED+7
-.set PRW_S_DIRECT, PRW_S_UNRANKED+9
+.set PRW_S_DIRECT, PRW_S_TOURNEY+12
 .set PRW_S_TEAMS, PRW_S_DIRECT+7
 .set PRW_S_PARTY, PRW_S_TEAMS+6
-.set PRW_ROWS, PRW_S_PARTY+6
+.set PRW_S_LOGIN, PRW_S_PARTY+6
+.set PRW_S_LOGOUT, PRW_S_LOGIN+6
+.set PRW_ROWS, PRW_S_LOGOUT+7
 .set PRW_ROW_COUNT, 5
 # The cover has to match the artwork it is burying, which is the same size the
 # mode list's rows use. Our own word is smaller so "Crew Battles" fits the
@@ -1419,9 +1425,9 @@ blrl
 .float 0.06
 # Sampled from the menu itself
 .long 0xCA9732FF
-.long 0x04040E00 # PROBE
+.long 0x04040EFF
 .long 0x000000FF
-.long 0xFFCB0000 # PROBE
+.long 0xFFCB00FF
 # Seven offsets that dilate the cover: centre, straight up and down, and the
 # four diagonals. Same shape that buried "Update" on the Rooms row.
 .float 0.00
@@ -1444,11 +1450,11 @@ blrl
 .string "FFA"
 .string "Crew Battles"
 .string "Tournaments"
-.string "Ranked"
-.string "Unranked"
 .string "Direct"
 .string "Teams"
 .string "Party"
+.string "Login"
+.string "Logout"
 # x, y, our word, the word underneath, and how wide that cover has to be.
 #
 # That last one matters more than it sounds. The cover is our font drawing the
@@ -1463,28 +1469,28 @@ blrl
 .float -66.29
 .float -99.47
 .long PRW_S_SINGLES
-.long PRW_S_RANKED
-.float 0.768
+.long PRW_S_DIRECT
+.float 0.720
 .float -112.59
 .float -58.20
 .long PRW_S_DOUBLES
-.long PRW_S_UNRANKED
-.float 0.757
+.long PRW_S_TEAMS
+.float 0.726
 .float -151.29
 .float -12.56
 .long PRW_S_FFA
-.long PRW_S_DIRECT
-.float 0.720
+.long PRW_S_PARTY
+.float 0.735
 .float -122.37
 .float 29.90
 .long PRW_S_CREW
-.long PRW_S_TEAMS
-.float 0.726
+.long PRW_S_LOGIN
+.float 0.690
 .float -141.29
 .float 73.94
 .long PRW_S_TOURNEY
-.long PRW_S_PARTY
-.float 0.735
+.long PRW_S_LOGOUT
+.float 0.670
 .float 0.80
 .float -4.11
 
@@ -1501,7 +1507,9 @@ Data_RoomsSubmenuOptions:
 blrl
 
 .long 0x803eb57c # Ptr to preview animation frame values
-.float 143 # PROBE: later base, shorter words
+.float 146 # Artwork frames step by THREE per option, not one - so this puts
+           # Direct, Teams, Party, Log-in and Log-out under the five rows,
+           # which are narrow enough for our labels to cover
 .long 0x803eb684 # Ptr to description text. Will be overwritten
 .byte 0x05 # Singles, Doubles, FFA, Crew Battles, Tournaments
 .align 2

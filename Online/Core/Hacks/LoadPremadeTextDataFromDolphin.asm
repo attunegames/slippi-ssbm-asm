@@ -53,28 +53,27 @@ b EXIT
 # and the id being asked for is the one that row carries.
 PEPPY_ROOMS_DESCRIPTION:
 ################################################################################
-# Peppy: blank the description line for rows that are ours
+# Peppy: the description line
 ################################################################################
-# Not substituted - BLANKED, and drawn separately instead.
+# Two different treatments, for a reason.
 #
-# Substituting a string here worked but only from the second time a line was
-# built. The first one after a menu is built comes out letter-spaced: the
-# letters are the right size and spread apart, which is justification, not
-# scaling - Melee reserves a width from the original string and spreads ours
-# across it, and ours are much shorter than the lines they replace. It is never
-# rebuilt, so it stays wrong until the cursor moves and comes back. Neither
-# dropping FIT nor padding with spaces touched it.
+# The Rooms LIST draws its own line (FN_PeppyDescription), because substituting
+# one here only renders correctly from the second time it is built: Melee
+# reserves a width from the original string and justifies ours across it, and
+# those lines are much shorter than the ones they replace. So they are blanked.
 #
-# So Melee draws nothing for these rows and the line is drawn with our own text,
-# where nothing depends on the frame it was born on. See FN_PeppyDescription.
+# The Rooms ROW on the mode list still goes through here, because it needs an
+# ampersand and the drawn-text path has no glyph for one - probed with & + and @
+# and all three came out blank. That line is close enough in length to the one
+# it replaces (22 against 26) that the justification never shows.
 lis r3, 0x804A
 addi r3, r3, 0x4F0
 lbz r0, 0x0(r3)
 cmpwi r0, 0x8
 bne EXIT
 
-# Which list is on screen? Five rows is the Rooms list, nine the mode list -
-# the same menu redrawn, so the row count is what tells them apart.
+# Five rows is the Rooms list, nine the mode list - the same menu redrawn, so
+# the row count is what tells them apart.
 load r4, 0x803eb750
 lbz r4, 0xC(r4)
 cmpwi r4, 5
@@ -86,6 +85,64 @@ bne EXIT
 cmpwi REG_PREMADE_TEXT_ID, 0x064C
 bne EXIT
 
+# Melee's own formatting, then our words. Opcodes are below 0x20 and characters
+# are 0x20 and up, so the prefix ends at the first character - but opcode
+# parameters can be any value, so each one's length comes from the table below.
+# FIT is dropped: it scales against a box that is still animating when the line
+# is first built.
+bl PEPPY_ROOMS_DESC_DATA
+mflr r3
+lwz r4, 0x5C(r31)
+addi r5, r3, PRD_BUFFER
+mr r6, r5
+li r10, 32
+
+PEPPY_DESC_PREFIX:
+cmpwi r10, 0
+beq PEPPY_DESC_WORDS
+lbz r7, 0x0(r4)
+cmpwi r7, 0x20
+bge PEPPY_DESC_WORDS
+cmpwi r7, 0x0
+beq PEPPY_DESC_WORDS
+cmpwi r7, 0x18
+beq PEPPY_DESC_DROP_FIT
+stb r7, 0x0(r5)
+addi r5, r5, 1
+
+PEPPY_DESC_DROP_FIT:
+addi r4, r4, 1
+subi r10, r10, 1
+addi r8, r3, PRD_PARAMLEN
+lbzx r9, r8, r7
+cmpwi r9, 0
+beq PEPPY_DESC_PREFIX
+
+PEPPY_DESC_PARAMS:
+lbz r7, 0x0(r4)
+stb r7, 0x0(r5)
+addi r4, r4, 1
+addi r5, r5, 1
+subi r9, r9, 1
+subi r10, r10, 1
+cmpwi r9, 0
+bne PEPPY_DESC_PARAMS
+b PEPPY_DESC_PREFIX
+
+PEPPY_DESC_WORDS:
+addi r4, r3, PRD_WORDS
+
+PEPPY_DESC_WORDS_LOOP:
+lbz r7, 0x0(r4)
+stb r7, 0x0(r5)
+addi r4, r4, 1
+addi r5, r5, 1
+cmpwi r7, 0x0
+bne PEPPY_DESC_WORDS_LOOP
+
+stw r6, 0x5C(r31)
+b EXIT
+
 PEPPY_BLANK_IT:
 bl PEPPY_ROOMS_DESC_DATA
 mflr r3
@@ -95,7 +152,20 @@ b EXIT
 
 PEPPY_ROOMS_DESC_DATA:
 blrl
-.set PRD_EMPTY, 0
+.set PRD_BUFFER, 0
+.space 96, 0
+# Parameter bytes per opcode, 0x00 to 0x1A, from Dolphin's SlippiPremadeText.h
+.set PRD_PARAMLEN, PRD_BUFFER+96
+.byte 0, 0, 0, 0, 0, 2, 4, 4, 0, 0, 4, 0, 3, 0, 4, 0
+.byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+# "Public & Private Rooms" - characters only, the formatting is inherited. The
+# ampersand is index 261, which is why it needs the two-byte form.
+.set PRD_WORDS, PRD_PARAMLEN+27
+.byte 0x20, 0x19, 0x20, 0x38, 0x20, 0x25, 0x20, 0x2F, 0x20, 0x2C, 0x20, 0x26
+.byte 0x1A, 0x21, 0x05, 0x1A, 0x20, 0x19, 0x20, 0x35, 0x20, 0x2C, 0x20, 0x39
+.byte 0x20, 0x24, 0x20, 0x37, 0x20, 0x28, 0x1A, 0x20, 0x1B, 0x20, 0x32, 0x20
+.byte 0x32, 0x20, 0x30, 0x20, 0x36, 0x00
+.set PRD_EMPTY, PRD_WORDS+42
 .byte 0x00
 .align 2
 
