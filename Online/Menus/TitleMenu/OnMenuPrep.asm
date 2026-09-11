@@ -1117,7 +1117,7 @@ blrl
 # before the plate it belongs to.
 .set PLD_SETTLE, PLD_LEVEL+4
 .long 0
-.set PLD_SETTLE_FRAMES, 10
+.set PLD_SETTLE_FRAMES, 30
 .set PLD_X, PLD_SETTLE+4
 .float -124.55
 .set PLD_Y, PLD_X+4
@@ -1327,7 +1327,7 @@ Data_RoomsSubmenuOptions:
 blrl
 
 .long 0x803eb57c # Ptr to preview animation frame values
-.float 140 # Frame index pointing at the option text images
+.float 0 # PROBE: what do the rows read at the bottom of the animation?
 .long 0x803eb684 # Ptr to description text. Will be overwritten
 .byte 0x05 # Singles, Doubles, FFA, Crew Battles, Tournaments
 .align 2
