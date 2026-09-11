@@ -70,6 +70,7 @@ bl PEPPY_LABEL_DATA
 mflr r3
 li r4, 0
 stw r4, PLD_TEXT_PTR(r3)
+stw r4, PLD_LEVEL(r3)
 
 ################################################################################
 # Section 1: Overwrite handler function pointer for going back to menu from
@@ -251,6 +252,81 @@ restore
 blr
 
 ################################################################################
+# Routine: PeppyEnterSubmenu
+# ------------------------------------------------------------------------------
+# Installs an option table and rebuilds the online submenu in place. This is how
+# the Rooms list can be a second level without a second menu: Melee is told to
+# switch to the menu it is already on, which normally does nothing - Slippi's
+# AllowSwapToSameSubmenu patch plus the force-clear flag is what makes it redraw.
+#
+# The sequence after the table swap is the one the B press handler uses to go
+# back to the 1-P menu, pointed at menu 8 instead.
+#
+# r3 - option table to install, 0x10 bytes
+# r4 - description table for it
+# r5 - option to select
+# r6 - transition kind: 1 going deeper, 3 coming back
+################################################################################
+.set REG_PES_SELECTED, 27
+.set REG_PES_TRANSITION, 26
+.set REG_PES_MENU, 25
+
+FN_PeppyEnterSubmenu:
+backup
+
+mr REG_PES_SELECTED, r5
+mr REG_PES_TRANSITION, r6
+mr REG_PES_MENU, r4
+
+mr r4, r3
+load r3, 0x803eb750
+li r5, 0x10
+branchl r12, memcpy
+
+load r3, 0x803eb750
+stw REG_PES_MENU, 0x8(r3) # Overwrite description text locations
+
+# Without this, switching to the menu we are already on does nothing
+li r3, 1
+stb r3, OFST_R13_FORCE_MENU_CLEAR(r13)
+
+load r29, 0x804a04f0
+li r0, 5
+sth r0, -0x4AD8 (r13)
+lbz r4, 0x0 (r29)
+stb r4, 0x0001 (r29) # Previous menu
+li r0, 8
+stb r0, 0x0 (r29) # Still the online submenu
+sth REG_PES_SELECTED, 0x0002 (r29)
+
+mr r3, REG_PES_TRANSITION
+branchl r12, 0x8022B3A0
+branchl r12, 0x80390CD4
+lwz r3, -0x3E84 (r13)
+branchl r12, 0x80390228
+
+load r3, 0x803eb760 # Think function for menu 8, which is ours
+lwz r28, 0x0(r3)
+cmplwi r28, 0
+beq FN_PeppyEnterSubmenu_EXIT
+
+li r3, 0
+li r4, 1
+li r5, 128
+branchl r12, 0x803901F0 # GObj_Create
+addi r4, r28, 0
+li r5, 0
+branchl r12, 0x8038FD54 # GObj_AddProc
+lwz r4, -0x3E64 (r13)
+lbz r0, 0x000D (r3)
+rlwimi r0, r4, 4, 26, 27
+stb r0, 0x000D (r3)
+
+FN_PeppyEnterSubmenu_EXIT:
+restore
+blr
+
+################################################################################
 # Routine: OnlineSubmenuThink
 # ------------------------------------------------------------------------------
 # Description: Think function for online submenu
@@ -318,6 +394,14 @@ FN_OnlineSubmenuThink_A_PRESS_UPDATE_PLAYER_PORT:
 branchl r12, 0x801677E8 # CSS_StoreSinglePlayerPortNumber
 
 lhz r0, 0x0002 (r29) # Load selected option index
+
+# Peppy: on the Rooms list these indices mean Singles, Doubles and so on
+bl PEPPY_LABEL_DATA
+mflr r3
+lwz r3, PLD_LEVEL(r3)
+cmpwi r3, 1
+beq FN_OnlineSubmenuThink_ROOMS_DISPATCH
+
 cmpwi r0, OPTION_RANKED_IDX # Check if Ranked
 beq FN_OnlineSubmenuThink_HANDLE_RANKED
 cmpwi r0, OPTION_UNRANKED_IDX # Check if Unranked
@@ -357,9 +441,44 @@ FN_OnlineSubmenuThink_HANDLE_TEAMS:
 li r3, ONLINE_MODE_TEAMS
 b FN_OnlineSubmenuThink_GO_TO_CSS
 
-# Peppy: rooms. Behaves like any other mode from here - it just sets a different
-# mode byte, which Dolphin reads to decide it is running our matchmaking.
+# Peppy: Rooms opens its own list rather than starting a match.
 FN_OnlineSubmenuThink_HANDLE_ROOMS:
+li r3, 1
+branchl r12, SFX_Menu_CommonSound
+
+bl PEPPY_LABEL_DATA
+mflr r3
+li r4, 1
+stw r4, PLD_LEVEL(r3)
+
+bl Data_RoomsSubmenuOptions
+mflr r3
+bl Data_RoomsSubmenuDescriptions
+mflr r4
+li r5, 0
+li r6, 1
+bl FN_PeppyEnterSubmenu
+b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
+
+################################################################################
+# The Rooms list
+################################################################################
+# Singles is the mode that exists today - it is what Rooms did before this list
+# was in front of it. The other four are named but have nothing to start yet, so
+# they say no rather than pretending.
+.set ROOMS_OPT_SINGLES, 0
+
+FN_OnlineSubmenuThink_ROOMS_DISPATCH:
+cmpwi r0, ROOMS_OPT_SINGLES
+beq FN_OnlineSubmenuThink_HANDLE_SINGLES
+
+li r3, 0xbc
+li r4, 127
+li r5, 64
+branchl r12, 0x800237a8 # SFX_PlaySoundAtFullVolume
+b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
+
+FN_OnlineSubmenuThink_HANDLE_SINGLES:
 li r3, ONLINE_MODE_ROOMS
 b FN_OnlineSubmenuThink_GO_TO_CSS
 
@@ -424,6 +543,29 @@ beq- FN_OnlineSubmenuThink_B_PRESS_HANDLER_END
 # B Press Handler
 ################################################################################
 FN_OnlineSubmenuThink_B_PRESS_HANLER:
+# Peppy: on the Rooms list, B goes back to the mode list rather than out of
+# online play, and puts the cursor back on the row that opened it.
+bl PEPPY_LABEL_DATA
+mflr r3
+lwz r0, PLD_LEVEL(r3)
+cmpwi r0, 1
+bne FN_OnlineSubmenuThink_B_LEAVE_ONLINE
+
+li r4, 0
+stw r4, PLD_LEVEL(r3)
+li r3, 0
+branchl r12, SFX_Menu_CommonSound
+
+bl Data_OnlineSubmenuOptions
+mflr r3
+bl Data_OnlineSubmenuDescriptions
+mflr r4
+li r5, OPTION_ROOMS_IDX
+li r6, 3
+bl FN_PeppyEnterSubmenu
+b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
+
+FN_OnlineSubmenuThink_B_LEAVE_ONLINE:
 li	r3, 0
 branchl r12, SFX_Menu_CommonSound
 stb	r30, 0x0011 (r29)
@@ -468,7 +610,11 @@ beq- FN_OnlineSubmenuThink_STICK_UP_HANDLER_END
 FN_OnlineSubmenuThink_STICK_UP_HANDLER:
 li r3, 2
 branchl r12, SFX_Menu_CommonSound
-li r31, ONLINE_SUBMENU_OPTION_COUNT - 1 # Bottom index
+# Wrap on the count the menu is actually drawing - the Rooms list is shorter
+# than the mode list, so this can no longer be a constant
+load r31, 0x803eb750
+lbz r31, 0xC(r31)
+subi r31, r31, 1
 addi r28, r29, 2
 FN_OnlineSubmenuThink_STICK_UP_INDEX_ADJUST_START:
 lhz r3, 0(r28) # Load current index
@@ -498,10 +644,13 @@ FN_OnlineSubmenuThink_STICK_DOWN_HANDLER:
 li r3, 2
 branchl r12, SFX_Menu_CommonSound
 # Play MELEE sfx
+load r31, 0x803eb750
+lbz r31, 0xC(r31)
+subi r31, r31, 1
 addi r28, r29, 2
 FN_OnlineSubmenuThink_STICK_DOWN_INDEX_ADJUST_START:
 lhz r3, 0(r28) # Load current index
-cmplwi r3, ONLINE_SUBMENU_OPTION_COUNT - 1 # Check if at bottom
+cmplw r3, r31 # Check if at bottom
 beq- FN_OnlineSubmenuThink_WRAP_TO_TOP
 addi r0, r3, 1
 sth r0, 0(r28)
@@ -551,6 +700,11 @@ lis r3, 0x804A
 addi r3, r3, 0x4F0
 lbz r0, 0x0(r3)
 cmpwi r0, 0x8
+bne FN_OnlineSubmenuThink_LABEL_TEARDOWN
+
+# The Rooms list has its own rows; this label names the one on the mode list
+lwz r0, PLD_LEVEL(REG_PL_DATA)
+cmpwi r0, 0
 bne FN_OnlineSubmenuThink_LABEL_TEARDOWN
 
 # And is the row actually drawn? It is hidden when signed out or mid-update,
@@ -706,7 +860,11 @@ blrl
 # 49px tall. Note a glyph draws ABOVE its anchor by about 78 * size pixels.
 .set PLD_TEXT_PTR, 0
 .long 0
-.set PLD_X, PLD_TEXT_PTR+4
+# 0 = the mode list, 1 = the Rooms list. The Rooms list is not a second menu -
+# it is this one, redrawn with a different option table.
+.set PLD_LEVEL, PLD_TEXT_PTR+4
+.long 0
+.set PLD_X, PLD_LEVEL+4
 .float -124.55
 .set PLD_Y, PLD_X+4
 .float 85.06
@@ -774,6 +932,33 @@ blrl
 .string "Update"
 .set PLD_PATCH_STR, PLD_MASK_STR+7
 .string "l"
+.align 2
+
+################################################################################
+# Data: RoomsSubmenuOptions
+# ------------------------------------------------------------------------------
+# Description: The second level, shown after picking Rooms. Same artwork base as
+# the mode list on purpose - the row labels are pre-rendered images and covering
+# one means drawing its own word over it, so reusing a base whose words are
+# already known (Ranked, Unranked, Direct, Teams, Party) beats discovering five
+# new ones.
+################################################################################
+Data_RoomsSubmenuOptions:
+blrl
+
+.long 0x803eb57c # Ptr to preview animation frame values
+.float 140 # Frame index pointing at the option text images
+.long 0x803eb684 # Ptr to description text. Will be overwritten
+.byte 0x05 # Singles, Doubles, FFA, Crew Battles, Tournaments
+.align 2
+
+Data_RoomsSubmenuDescriptions:
+blrl
+.short 0x0645 # Singles
+.short 0x0646 # Doubles
+.short 0x0647 # FFA
+.short 0x064B # Crew Battles
+.short 0x064C # Tournaments
 .align 2
 
 Data_OnlineSubmenuDescriptions:
