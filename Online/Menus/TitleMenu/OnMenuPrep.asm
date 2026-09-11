@@ -418,6 +418,13 @@ backup
 bl PEPPY_ROWS_DATA
 mflr REG_PRL_DATA
 
+# The five rows have real artwork now - Singles, Doubles, FFA, Crew Battles and
+# Tournaments are images in MnMaAll.usd, the same as every other row in this
+# menu - so there is nothing left to draw or to cover. The drawn labels were a
+# stand-in for exactly this. Teardown still runs, so any struct built before the
+# artwork landed is released rather than left on screen.
+b FN_PeppyRoomsLabels_TEARDOWN
+
 # Only while the Rooms list is the thing on screen
 bl PEPPY_LABEL_DATA
 mflr r3
@@ -1527,9 +1534,11 @@ Data_RoomsSubmenuOptions:
 blrl
 
 .long 0x803eb57c # Ptr to preview animation frame values
-.float 146 # Artwork frames step by THREE per option, not one - so this puts
-           # Direct, Teams, Party, Log-in and Log-out under the five rows,
-           # which are narrow enough for our labels to cover
+.float 246 # The five rows have real artwork now. Frames step by TWO per option,
+           # and 246 is where Singles, Doubles, FFA, Crew Battles and
+           # Tournaments were added to the texture animation in MnMaAll.usd -
+           # frames that were dead padding inside a long hold, so no existing
+           # menu points at them and nothing Slippi draws has changed.
 .long 0x803eb684 # Ptr to description text. Will be overwritten
 .byte 0x05 # Singles, Doubles, FFA, Crew Battles, Tournaments
 .align 2
