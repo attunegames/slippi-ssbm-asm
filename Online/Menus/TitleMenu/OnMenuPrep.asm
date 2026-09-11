@@ -1339,8 +1339,8 @@ blrl
 .long 0
 .long 0
 .float -0.63
-.float 139.8
-.float 0.563
+.float 140.6
+.float 0.659
 .float 0.62
 .float 17
 .float 0.06
