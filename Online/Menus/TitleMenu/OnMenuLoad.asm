@@ -17,29 +17,6 @@ blrl
 .float 17 # Z Offset, 0x8
 .float 0.06 # Scaling, 0xC
 
-DATA_PEPPY_LABEL_BLRL:
-blrl
-# Measured, not guessed. Three calibration marks drawn at known canvas
-# coordinates put the mapping at
-#     screen_x = 961 + 2.30 * canvas_x      screen_y = 583 + 2.52 * canvas_y
-# on a 1920x1080 render, and the Rooms row's word sits centred at (673, 774).
-.set PL_X, 0
-.float -124.55
-.set PL_Y, PL_X+4
-.float 85.06
-.set PL_Z, PL_Y+4
-.float 17
-.set PL_SCALE, PL_Z+4
-.float 0.06
-# The row words stand 49px tall, which is size 0.80. Note the glyph is drawn
-# ABOVE its anchor by about 78*size pixels - measured, and the reason the first
-# placement landed a row-height high.
-.set PL_SIZE, PL_SCALE+4
-.float 0.80
-.set PL_STR, PL_SIZE+4
-.string "Rooms"
-.align 2
-
 DATA_BLRL:
 blrl
 .set DOFST_IS_FIRST_BOOT, 0
@@ -58,54 +35,6 @@ backup
 ################################################################################
 # Intentionally disabled so "User" + logged in name are not shown on title menu.
 # Other scenes (like CSS/ranked) initialize their own user display separately.
-
-################################################################################
-# Section 1b: Peppy - name the Rooms row
-################################################################################
-# The online menu's row labels are pre-rendered images and there are only eight
-# of them, so the ninth row borrows the eighth and reads "Update". Nothing
-# overrides a single row, so the only way to name it is to draw over it with
-# Slippi's own text machinery - the same machinery that puts the user name on
-# these menus.
-#
-# This runs at scene load rather than scene prep: prep is before Melee has
-# allocated its menu text memory, and creating a text struct there writes
-# through a garbage pointer.
-.set REG_PEPPY_DATA, 27
-.set REG_PEPPY_TEXT, 26
-.set REG_PEPPY_SUBTEXT, 25
-
-bl DATA_PEPPY_LABEL_BLRL
-mflr REG_PEPPY_DATA
-
-li r3, 0
-li r4, 0
-branchl r12, Text_CreateStruct
-mr REG_PEPPY_TEXT, r3
-
-# Close kerning, centred - the row words are centred on their plate
-li r4, 0x1
-stb r4, 0x49(REG_PEPPY_TEXT)
-stb r4, 0x4A(REG_PEPPY_TEXT)
-
-lfs f1, PL_Z(REG_PEPPY_DATA)
-stfs f1, 0x8(REG_PEPPY_TEXT)
-lfs f1, PL_SCALE(REG_PEPPY_DATA)
-stfs f1, 0x24(REG_PEPPY_TEXT)
-stfs f1, 0x28(REG_PEPPY_TEXT)
-
-lfs f1, PL_X(REG_PEPPY_DATA)
-lfs f2, PL_Y(REG_PEPPY_DATA)
-mr r3, REG_PEPPY_TEXT
-addi r4, REG_PEPPY_DATA, PL_STR
-branchl r12, Text_InitializeSubtext
-mr REG_PEPPY_SUBTEXT, r3
-
-lfs f1, PL_SIZE(REG_PEPPY_DATA)
-fmr f2, f1
-mr r3, REG_PEPPY_TEXT
-mr r4, REG_PEPPY_SUBTEXT
-branchl r12, Text_UpdateSubtextSize
 
 ################################################################################
 # Section 2: Play MELEE on first boot
