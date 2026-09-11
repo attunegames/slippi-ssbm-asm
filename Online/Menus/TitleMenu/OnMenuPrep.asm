@@ -353,7 +353,7 @@ lwz r4, 0xC(REG_PRL_ROW)
 add r4, REG_PRL_DATA, r4
 branchl r12, Text_InitializeSubtext
 mr REG_PRL_TMP, r3
-lfs f1, PRW_SIZE(REG_PRL_DATA)
+lfs f1, PRW_COVER_SIZE(REG_PRL_DATA)
 fmr f2, f1
 mr r3, REG_PRL_TEXT
 mr r4, REG_PRL_TMP
@@ -365,6 +365,8 @@ blt FN_PeppyRoomsLabels_COVER
 # And the word itself, on top
 lfs f1, 0x0(REG_PRL_ROW)
 lfs f2, 0x4(REG_PRL_ROW)
+lfs f3, PRW_WORD_DY(REG_PRL_DATA)
+fadds f2, f2, f3
 mr r3, REG_PRL_TEXT
 lwz r4, 0x8(REG_PRL_ROW)
 add r4, REG_PRL_DATA, r4
@@ -1179,6 +1181,13 @@ blrl
 .set PRW_S_PARTY, PRW_S_TEAMS+6
 .set PRW_ROWS, PRW_S_PARTY+6
 .set PRW_ROW_COUNT, 5
+# The cover has to match the artwork it is burying, which is the same size the
+# mode list's rows use. Our own word is smaller so "Crew Battles" fits the
+# plate, which means it also sits lower for the same anchor - a glyph is drawn
+# above its anchor by about 78 * size - so it is nudged back up to sit centred
+# on the row rather than under it.
+.set PRW_COVER_SIZE, PRW_ROWS+80
+.set PRW_WORD_DY, PRW_COVER_SIZE+4
 
 PEPPY_ROWS_DATA:
 blrl
@@ -1244,6 +1253,8 @@ blrl
 .float 73.94
 .long PRW_S_TOURNEY
 .long PRW_S_PARTY
+.float 0.80
+.float -4.11
 
 ################################################################################
 # Data: RoomsSubmenuOptions
