@@ -577,5 +577,18 @@ mflr \reg
 .set RESP_DISCONNECTED, 3
 .set RESP_ADVANCE, 4
 
+# Peppy: a watcher that is behind the live match. Dolphin sends this instead of
+# RESP_ADVANCE, and ForceEngineOnRollback turns it into several engine loops for
+# one render - the frames in between are simulated and never drawn, which is how
+# catching up stops looking like the game running at four times speed.
+#
+# The dispatch in TriggerSendInput does not know this value and falls through to
+# "continue", which is exactly right: nothing about the frame itself changes.
+.set RESP_CATCHUP, 5
+
+# How many frames to run per drawn frame while catching up. Every one of them is
+# fetched from Dolphin and simulated; only the last is rendered.
+.set PEPPY_CATCHUP_LOOPS, 6
+
 .endif
 .set HEADER_ONLINE, 1
