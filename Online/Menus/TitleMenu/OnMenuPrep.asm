@@ -1349,7 +1349,7 @@ blrl
 .float 0.06
 .long 0xAAAAAAFF # sampled off Melee's own description text
 .string ""
-.string "Public & Private Rooms"
+.string "Public &+#@ PrivateRms"
 .string "Play Singles"
 .string "Play Doubles"
 .string "Play Free 4 All"
@@ -1419,9 +1419,9 @@ blrl
 .float 0.06
 # Sampled from the menu itself
 .long 0xCA9732FF
-.long 0x04040EFF
+.long 0x04040E00 # PROBE
 .long 0x000000FF
-.long 0xFFCB00FF
+.long 0xFFCB0000 # PROBE
 # Seven offsets that dilate the cover: centre, straight up and down, and the
 # four diagonals. Same shape that buried "Update" on the Rooms row.
 .float 0.00
@@ -1501,7 +1501,7 @@ Data_RoomsSubmenuOptions:
 blrl
 
 .long 0x803eb57c # Ptr to preview animation frame values
-.float 140 # Frame index pointing at the option text images
+.float 143 # PROBE: later base, shorter words
 .long 0x803eb684 # Ptr to description text. Will be overwritten
 .byte 0x05 # Singles, Doubles, FFA, Crew Battles, Tournaments
 .align 2
