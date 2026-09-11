@@ -1349,7 +1349,7 @@ blrl
 .float 0.06
 .long 0xAAAAAAFF # sampled off Melee's own description text
 .string ""
-.string "Public &+#@ PrivateRms"
+.string "Public &+@ PrivateRmsX"
 .string "Play Singles"
 .string "Play Doubles"
 .string "Play Free 4 All"
