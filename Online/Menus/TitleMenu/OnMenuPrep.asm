@@ -595,7 +595,7 @@ stfs f1, 0x28(REG_PL_TEXT)
 lfs f1, PLD_MASK_X(REG_PL_DATA)
 lfs f2, PLD_MASK_Y(REG_PL_DATA)
 mr r3, REG_PL_TEXT
-addi r4, REG_PL_DATA, PLD_STR
+addi r4, REG_PL_DATA, PLD_MASK_STR
 branchl r12, Text_InitializeSubtext
 mr REG_PL_WORD_COLOR, r3 # borrowed as scratch for the subtext index
 lfs f1, PLD_MASK_WIDTH(REG_PL_DATA)
@@ -683,14 +683,18 @@ blrl
 .set PLD_MASK_X, PLD_SIZE+4
 .float -124.55
 .set PLD_MASK_Y, PLD_MASK_X+4
-.float 89.60
-# Uniformly larger, not stretched. Stretching it wider was tried and is worse:
-# it moves the mask's ink outward and opens the gaps between letters, which is
-# exactly where the borrowed word shows through.
+.float 141.20
+# The mask is a single period stretched into a rectangle. A period is the one
+# glyph in Melee's font that is solid ink, so scaled up it is an opaque block -
+# which is the only thing that covers the borrowed word completely. A larger
+# copy of the word was tried first and leaves it showing between the letters;
+# stretching that copy wider is worse still, since it opens the gaps further.
+# The plate under here is flat (#00000A to #070712), so a block in its colour
+# cannot be seen.
 .set PLD_MASK_SIZE, PLD_MASK_Y+4
-.float 1.00
+.float 8.51
 .set PLD_MASK_WIDTH, PLD_MASK_SIZE+4
-.float 1.00
+.float 27.70
 .set PLD_Z, PLD_MASK_WIDTH+4
 .float 17
 .set PLD_SCALE, PLD_Z+4
@@ -699,13 +703,15 @@ blrl
 .set PLD_COL_WORD_IDLE, PLD_SCALE+4
 .long 0xCA9732FF
 .set PLD_COL_PLATE_IDLE, PLD_COL_WORD_IDLE+4
-.long 0x000000FF
+.long 0xFFFFFFFF # PROBE - plate colour once the block is measured
 .set PLD_COL_WORD_PICKED, PLD_COL_PLATE_IDLE+4
 .long 0x000000FF
 .set PLD_COL_PLATE_PICKED, PLD_COL_WORD_PICKED+4
-.long 0xFFCB00FF
+.long 0xFFFFFFFF # PROBE
 .set PLD_STR, PLD_COL_PLATE_PICKED+4
 .string "Rooms"
+.set PLD_MASK_STR, PLD_STR+6
+.string "."
 .align 2
 
 Data_OnlineSubmenuDescriptions:
