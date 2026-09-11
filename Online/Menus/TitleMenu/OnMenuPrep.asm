@@ -71,6 +71,8 @@ mflr r3
 li r4, 0
 stw r4, PLD_TEXT_PTR(r3)
 stw r4, PLD_LEVEL(r3)
+li r5, PLD_SETTLE_FRAMES
+stw r5, PLD_SETTLE(r3)
 
 bl PEPPY_ROWS_DATA
 mflr r3
@@ -157,6 +159,12 @@ b EXIT
 FN_OnReturnFromOnline:
 blrl
 
+# Coming back from a match - the menu animates in, so hold the labels
+bl PEPPY_LABEL_DATA
+mflr r3
+li r4, PLD_SETTLE_FRAMES
+stw r4, PLD_SETTLE(r3)
+
 # Get static function table
 branchl r12, FG_UserDisplay
 mflr REG_FG_USER_DISPLAY # This will be restored by parent function
@@ -209,6 +217,12 @@ FN_SwitchToOnlineMenu_blrl:
 blrl
 FN_SwitchToOnlineMenu:
 backup
+
+# Entering online play - the menu animates in, so hold the labels
+bl PEPPY_LABEL_DATA
+mflr r3
+li r4, PLD_SETTLE_FRAMES
+stw r4, PLD_SETTLE(r3)
 
 # Most of the code in this function is stolen from game logic so it's a bit
 # weird... r27 is returned as r3 so it can mimic a direct function call
@@ -292,6 +306,9 @@ mflr REG_PRL_DATA
 # Only while the Rooms list is the thing on screen
 bl PEPPY_LABEL_DATA
 mflr r3
+lwz r0, PLD_SETTLE(r3)
+cmpwi r0, 0
+bne FN_PeppyRoomsLabels_TEARDOWN
 lwz r0, PLD_LEVEL(r3)
 cmpwi r0, 1
 bne FN_PeppyRoomsLabels_TEARDOWN
@@ -481,6 +498,12 @@ blr
 
 FN_PeppyEnterSubmenu:
 backup
+
+# The rebuild animates too, so hold the labels through it
+bl PEPPY_LABEL_DATA
+mflr r0
+li r4, PLD_SETTLE_FRAMES
+stw r4, PLD_SETTLE(r0)
 
 mr REG_PES_SELECTED, r5
 mr REG_PES_TRANSITION, r6
@@ -903,6 +926,15 @@ bl PEPPY_LABEL_DATA
 mflr REG_PL_DATA
 lwz REG_PL_TEXT, PLD_TEXT_PTR(REG_PL_DATA)
 
+# Still animating into place? Count it down and show nothing yet.
+lwz r0, PLD_SETTLE(REG_PL_DATA)
+cmpwi r0, 0
+beq FN_OnlineSubmenuThink_LABEL_SETTLED
+subi r0, r0, 1
+stw r0, PLD_SETTLE(REG_PL_DATA)
+b FN_OnlineSubmenuThink_LABEL_TEARDOWN
+
+FN_OnlineSubmenuThink_LABEL_SETTLED:
 # Still on the online submenu?
 lis r3, 0x804A
 addi r3, r3, 0x4F0
@@ -1075,7 +1107,13 @@ blrl
 # it is this one, redrawn with a different option table.
 .set PLD_LEVEL, PLD_TEXT_PTR+4
 .long 0
-.set PLD_X, PLD_LEVEL+4
+# Frames to sit still after the menu is (re)built. The rows animate into place,
+# and our text does not animate with them - drawn from frame one it arrives
+# before the plate it belongs to.
+.set PLD_SETTLE, PLD_LEVEL+4
+.long 0
+.set PLD_SETTLE_FRAMES, 10
+.set PLD_X, PLD_SETTLE+4
 .float -124.55
 .set PLD_Y, PLD_X+4
 .float 85.06
