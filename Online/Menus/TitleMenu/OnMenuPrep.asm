@@ -443,7 +443,7 @@ bne FN_PeppyRoomsLabels_PAINT
 li REG_PRL_I, 0
 
 FN_PeppyRoomsLabels_BUILD:
-mulli r3, REG_PRL_I, 20
+mulli r3, REG_PRL_I, 24
 addi REG_PRL_ROW, REG_PRL_DATA, PRW_ROWS
 add REG_PRL_ROW, REG_PRL_ROW, r3
 
@@ -494,18 +494,18 @@ addi REG_PRL_COVER, REG_PRL_COVER, 1
 cmpwi REG_PRL_COVER, PRW_COVER_COUNT
 blt FN_PeppyRoomsLabels_COVER
 
-# And the word itself, on top
+# And the word itself, on top. Same height as the cover, so the cover has
+# nowhere to show above or below it; the width is per row, because a word wide
+# enough to cover the artwork still has to fit the plate.
 lfs f1, 0x0(REG_PRL_ROW)
 lfs f2, 0x4(REG_PRL_ROW)
-lfs f3, PRW_WORD_DY(REG_PRL_DATA)
-fadds f2, f2, f3
 mr r3, REG_PRL_TEXT
 lwz r4, 0x8(REG_PRL_ROW)
 add r4, REG_PRL_DATA, r4
 branchl r12, Text_InitializeSubtext
 mr REG_PRL_TMP, r3
-lfs f1, PRW_SIZE(REG_PRL_DATA)
-fmr f2, f1
+lfs f1, 0x14(REG_PRL_ROW)
+lfs f2, PRW_SIZE(REG_PRL_DATA)
 mr r3, REG_PRL_TEXT
 mr r4, REG_PRL_TMP
 branchl r12, Text_UpdateSubtextSize
@@ -1264,13 +1264,13 @@ blrl
 .float 82.68
 .float -124.55
 .float 86.65
-.float -125.85
+.float -127.16
 .float 82.68
-.float -123.25
+.float -121.94
 .float 82.68
-.float -125.85
+.float -127.16
 .float 86.65
-.float -123.25
+.float -121.94
 .float 86.65
 .set PLD_MASK_COUNT, 7
 # One spot the cover cannot reach: the artwork draws "Update" with a FULL-HEIGHT
@@ -1384,7 +1384,7 @@ blrl
 # gecko build renames symbols per file, so a "here minus there" expression comes
 # out as a difference against an undefined section and the assembler refuses it.
 .set PRW_STRUCTS, 0
-.set PRW_SIZE, PRW_STRUCTS+20
+.set PRW_SIZE, PRW_STRUCTS+20 # word HEIGHT - matches the artwork
 .set PRW_Z, PRW_SIZE+4
 .set PRW_SCALE, PRW_Z+4
 .set PRW_COL_WORD_IDLE, PRW_SCALE+4
@@ -1410,7 +1410,7 @@ blrl
 # plate, which means it also sits lower for the same anchor - a glyph is drawn
 # above its anchor by about 78 * size - so it is nudged back up to sit centred
 # on the row rather than under it.
-.set PRW_COVER_SIZE, PRW_ROWS+100
+.set PRW_COVER_SIZE, PRW_ROWS+120
 .set PRW_WORD_DY, PRW_COVER_SIZE+4
 
 PEPPY_ROWS_DATA:
@@ -1421,7 +1421,7 @@ blrl
 .long 0
 .long 0
 .long 0
-.float 0.58
+.float 0.80
 .float 17
 .float 0.06
 # Sampled from the menu itself
@@ -1473,26 +1473,31 @@ blrl
 .long PRW_S_SINGLES
 .long PRW_S_DIRECT
 .float 0.720
+.float 0.800
 .float -112.59
 .float -58.20
 .long PRW_S_DOUBLES
 .long PRW_S_TEAMS
 .float 0.726
+.float 0.800
 .float -151.29
 .float -12.56
 .long PRW_S_FFA
 .long PRW_S_PARTY
 .float 0.735
+.float 1.050
 .float -122.37
 .float 29.90
 .long PRW_S_CREW
 .long PRW_S_LOGIN
 .float 0.690
+.float 0.595
 .float -141.29
 .float 73.94
 .long PRW_S_TOURNEY
 .long PRW_S_LOGOUT
 .float 0.670
+.float 0.648
 .float 0.80
 .float -4.11
 
