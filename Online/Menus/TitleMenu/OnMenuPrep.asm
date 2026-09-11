@@ -311,7 +311,7 @@ bne FN_PeppyRoomsLabels_PAINT
 li REG_PRL_I, 0
 
 FN_PeppyRoomsLabels_BUILD:
-mulli r3, REG_PRL_I, 16
+mulli r3, REG_PRL_I, 20
 addi REG_PRL_ROW, REG_PRL_DATA, PRW_ROWS
 add REG_PRL_ROW, REG_PRL_ROW, r3
 
@@ -353,8 +353,8 @@ lwz r4, 0xC(REG_PRL_ROW)
 add r4, REG_PRL_DATA, r4
 branchl r12, Text_InitializeSubtext
 mr REG_PRL_TMP, r3
-lfs f1, PRW_COVER_SIZE(REG_PRL_DATA)
-fmr f2, f1
+lfs f1, 0x10(REG_PRL_ROW)
+lfs f2, PRW_COVER_SIZE(REG_PRL_DATA)
 mr r3, REG_PRL_TEXT
 mr r4, REG_PRL_TMP
 branchl r12, Text_UpdateSubtextSize
@@ -1186,7 +1186,7 @@ blrl
 # plate, which means it also sits lower for the same anchor - a glyph is drawn
 # above its anchor by about 78 * size - so it is nudged back up to sit centred
 # on the row rather than under it.
-.set PRW_COVER_SIZE, PRW_ROWS+80
+.set PRW_COVER_SIZE, PRW_ROWS+100
 .set PRW_WORD_DY, PRW_COVER_SIZE+4
 
 PEPPY_ROWS_DATA:
@@ -1202,9 +1202,9 @@ blrl
 .float 0.06
 # Sampled from the menu itself
 .long 0xCA9732FF
-.long 0xFFFFFFFF # PROBE: cover painted white so its width can be measured
+.long 0x04040EFF
 .long 0x000000FF
-.long 0xFFFFFFFF # PROBE
+.long 0xFFCB00FF
 # Seven offsets that dilate the cover: centre, straight up and down, and the
 # four diagonals. Same shape that buried "Update" on the Rooms row.
 .float 0.00
@@ -1232,27 +1232,42 @@ blrl
 .string "Direct"
 .string "Teams"
 .string "Party"
-# x, y, our word, the word underneath
+# x, y, our word, the word underneath, and how wide that cover has to be.
+#
+# That last one matters more than it sounds. The cover is our font drawing the
+# artwork's word, and our font spreads the same word about 10% wider - so the
+# letters drift out of register towards the ends and the artwork shows past
+# them. Squeezing each cover's WIDTH to the artwork's measured width puts the
+# letters back on top of each other; the height stays, or the cover would come
+# up short and leave the tops showing.
+#
+# Measured white: covers came out 225, 297, 201, 205 and 173 wide against
+# artwork of 216, 281, 181, 186 and 159.
 .float -66.29
 .float -99.47
 .long PRW_S_SINGLES
 .long PRW_S_RANKED
+.float 0.768
 .float -112.59
 .float -58.20
 .long PRW_S_DOUBLES
 .long PRW_S_UNRANKED
+.float 0.757
 .float -151.29
 .float -12.56
 .long PRW_S_FFA
 .long PRW_S_DIRECT
+.float 0.720
 .float -122.37
 .float 29.90
 .long PRW_S_CREW
 .long PRW_S_TEAMS
+.float 0.726
 .float -141.29
 .float 73.94
 .long PRW_S_TOURNEY
 .long PRW_S_PARTY
+.float 0.735
 .float 0.80
 .float -4.11
 
