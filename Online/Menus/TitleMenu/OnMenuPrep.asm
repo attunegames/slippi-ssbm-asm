@@ -931,11 +931,12 @@ mflr REG_PL_DATA
 lwz REG_PL_TEXT, PLD_TEXT_PTR(REG_PL_DATA)
 
 # Still animating into place? Count it down and show nothing yet.
-lwz r0, PLD_SETTLE(REG_PL_DATA)
-cmpwi r0, 0
+# Not r0 - it is a literal zero as the source of a subi, not the register.
+lwz r3, PLD_SETTLE(REG_PL_DATA)
+cmpwi r3, 0
 beq FN_OnlineSubmenuThink_LABEL_SETTLED
-subi r0, r0, 1
-stw r0, PLD_SETTLE(REG_PL_DATA)
+subi r3, r3, 1
+stw r3, PLD_SETTLE(REG_PL_DATA)
 b FN_OnlineSubmenuThink_LABEL_TEARDOWN
 
 FN_OnlineSubmenuThink_LABEL_SETTLED:
