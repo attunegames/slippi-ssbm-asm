@@ -70,6 +70,25 @@ RESTORE_AND_EXIT:
 mr r3, r26 # We will set r26 to 0 later so it's fine to use here
 branchl r12, OSRestoreInterrupts
 
+################################################################################
+# Peppy: a watcher catching up runs several frames for every frame drawn
+################################################################################
+# r27 is the engine loop count - how many times the engine runs before the
+# screen is drawn. Rollback already uses it to re-simulate without rendering;
+# this is the same trick pointed at a different problem.
+#
+# The signal is the result byte from the previous frame's exchange, so no new
+# field is needed anywhere. Only a watcher is ever sent it, so a player's match
+# cannot be affected by any of this.
+lwz r5, OFST_R13_ODB_ADDR(r13)
+lwz r4, ODB_RXB_ADDR(r5)
+lbz r4, RXB_RESULT(r4)
+cmpwi r4, RESP_CATCHUP
+bne ORIGINAL
+cmpwi r27, 0
+beq ORIGINAL              # no inputs waiting: nothing to catch up on
+li r27, PEPPY_CATCHUP_LOOPS
+
 ORIGINAL:
 cmpwi r27, 0 # Check if we have no inputs
 bne EXEC_ENGINE
