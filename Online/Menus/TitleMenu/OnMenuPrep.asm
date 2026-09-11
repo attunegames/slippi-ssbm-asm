@@ -1305,10 +1305,11 @@ blrl
 .string "Update"
 .set PLD_PATCH_STR, PLD_MASK_STR+7
 .string "l"
+.align 2
 # The word is drawn slightly larger than the cover so the cover vanishes behind
 # it entirely - "Rooms" at 0.80 is 208px against "Update"'s 206px, which left
 # the dilation poking out either end. Its anchor shifts to keep the row centred.
-.set PLD_WORD_SIZE, PLD_PATCH_STR+2
+.set PLD_WORD_SIZE, PLD_PATCH_STR+3
 .float 0.86
 .set PLD_WORD_Y, PLD_WORD_SIZE+4
 .float 86.18
@@ -1402,7 +1403,7 @@ blrl
 .set PRW_S_PARTY, PRW_S_TEAMS+6
 .set PRW_S_LOGIN, PRW_S_PARTY+6
 .set PRW_S_LOGOUT, PRW_S_LOGIN+6
-.set PRW_ROWS, PRW_S_LOGOUT+7
+.set PRW_ROWS, PRW_S_LOGOUT+10 # 7 for the string, 3 to realign
 .set PRW_ROW_COUNT, 5
 # The cover has to match the artwork it is burying, which is the same size the
 # mode list's rows use. Our own word is smaller so "Crew Battles" fits the
