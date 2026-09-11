@@ -1456,6 +1456,7 @@ blrl
 .string "Party"
 .string "Login"
 .string "Logout"
+.align 2
 # x, y, our word, the word underneath, and how wide that cover has to be.
 #
 # That last one matters more than it sounds. The cover is our font drawing the
