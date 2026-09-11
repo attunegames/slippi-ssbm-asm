@@ -962,14 +962,35 @@ b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 .set CREATE_OPT_PUBLIC, 1
 
 FN_OnlineSubmenuThink_CREATE_DISPATCH:
-cmpwi r0, CREATE_OPT_PUBLIC
-bne FN_OnlineSubmenuThink_NOT_BUILT
-
+# Only Singles has a game to go to yet, so only Singles makes a room. The others
+# would leave one sitting in the table with nobody able to reach it.
 bl PEPPY_LABEL_DATA
 mflr r3
-lbz r0, PLD_SEL+1(r3)
-cmpwi r0, ROOMS_OPT_SINGLES
-beq FN_OnlineSubmenuThink_HANDLE_SINGLES
+lbz r5, PLD_SEL+1(r3)
+cmpwi r5, ROOMS_OPT_SINGLES
+bne FN_OnlineSubmenuThink_NOT_BUILT
+
+# Public is listed and Private is not - that is the whole difference between
+# them, and the passcode for the unlisted one is Dolphin's to invent.
+li r6, 0
+cmpwi r0, CREATE_OPT_PUBLIC
+bne FN_OnlineSubmenuThink_CREATE_SEND
+li r6, 1
+
+FN_OnlineSubmenuThink_CREATE_SEND:
+# Three bytes: make a room, for this mode, listed or not. Dolphin mints the code
+# and holds on to it, so the matchmaking that starts at the character select
+# joins that room rather than whatever peppy.json last said.
+lwz r3, OFST_R13_SB_ADDR(r13)
+li r4, CONST_PeppyCmdCreateRoom
+stb r4, 0x0(r3)
+stb r5, 0x1(r3)
+stb r6, 0x2(r3)
+li r4, 3
+li r5, CONST_ExiWrite
+branchl r12, FN_EXITransferBuffer
+
+b FN_OnlineSubmenuThink_HANDLE_SINGLES
 
 FN_OnlineSubmenuThink_NOT_BUILT:
 li r3, 0xbc
