@@ -706,24 +706,30 @@ blrl
 # the gaps further, and a single stretched period (the one solid glyph in the
 # font) kills the whole text object.
 #
-# Five copies - the centre and the four diagonals, 6px across and 4px down -
-# dilate the cover by a rectangle rather than a cross, which is what it takes to
-# swallow the artwork's outline: it sits a few pixels outside the glyph the font
-# draws, corners included. The plate under here is flat (#00000A to #070712), so
-# none of this can be seen.
+# Seven copies dilate the cover: the centre, straight up and down, and the four
+# diagonals. The artwork's letters sit a couple of pixels higher than the font
+# draws them and carry an outline outside the glyph, so the cover has to reach
+# further up (6px) than down (4px) and out to 6px either side. Diagonals alone
+# leave a gap directly above each stem - which is exactly where the last specks
+# of "Update" were showing. The plate under here is flat (#00000A to #070712),
+# so none of this can be seen.
 .set PLD_MASK_OFS, PLD_SIZE+4
 .float -124.55
 .float 85.06
-.float -121.94
-.float 86.65
-.float -121.94
-.float 83.47
-.float -127.16
+.float -124.55
+.float 82.68
+.float -124.55
 .float 86.65
 .float -127.16
-.float 83.47
-.set PLD_MASK_COUNT, 5
-.set PLD_Z, PLD_MASK_OFS+40
+.float 82.68
+.float -121.94
+.float 82.68
+.float -127.16
+.float 86.65
+.float -121.94
+.float 86.65
+.set PLD_MASK_COUNT, 7
+.set PLD_Z, PLD_MASK_OFS+56
 .float 17
 .set PLD_SCALE, PLD_Z+4
 .float 0.06
