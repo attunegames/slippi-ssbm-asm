@@ -1234,7 +1234,10 @@ blrl
 # before the plate it belongs to.
 .set PLD_SETTLE, PLD_LEVEL+4
 .long 0
-.set PLD_SETTLE_FRAMES, 30
+# Measured frame by frame: the rows fly in and land by about frame 6. Waiting
+# much longer than that is its own bug - the plates sit there wearing Melee's
+# words until ours arrive.
+.set PLD_SETTLE_FRAMES, 12
 .set PLD_X, PLD_SETTLE+4
 .float -124.55
 .set PLD_Y, PLD_X+4
