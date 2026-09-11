@@ -590,8 +590,8 @@ mr r3, REG_PL_TEXT
 addi r4, REG_PL_DATA, PLD_STR
 branchl r12, Text_InitializeSubtext
 mr REG_PL_WORD_COLOR, r3 # borrowed as scratch for the subtext index
-lfs f1, PLD_MASK_SIZE(REG_PL_DATA)
-fmr f2, f1
+lfs f1, PLD_MASK_WIDTH(REG_PL_DATA)
+lfs f2, PLD_MASK_SIZE(REG_PL_DATA)
 mr r3, REG_PL_TEXT
 mr r4, REG_PL_WORD_COLOR
 branchl r12, Text_UpdateSubtextSize
@@ -675,10 +675,15 @@ blrl
 .set PLD_MASK_X, PLD_SIZE+4
 .float -124.55
 .set PLD_MASK_Y, PLD_MASK_X+4
-.float 89.60
+.float 91.50
+# Stretched wider than it is tall: the mask is never seen (dark on a dark
+# plate, yellow on a yellow one), so widening it just closes the gaps between
+# letters where the borrowed word used to show through.
 .set PLD_MASK_SIZE, PLD_MASK_Y+4
-.float 1.00
-.set PLD_Z, PLD_MASK_SIZE+4
+.float 1.10
+.set PLD_MASK_WIDTH, PLD_MASK_SIZE+4
+.float 1.65
+.set PLD_Z, PLD_MASK_WIDTH+4
 .float 17
 .set PLD_SCALE, PLD_Z+4
 .float 0.06
