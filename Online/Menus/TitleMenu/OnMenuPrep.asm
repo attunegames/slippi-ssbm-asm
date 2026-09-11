@@ -1433,10 +1433,10 @@ blrl
 .float 17
 .float 0.06
 # Sampled from the menu itself
-.long 0xCA9732FF
-.long 0x04040EFF
-.long 0x000000FF
-.long 0xFFCB00FF
+.long 0xCA973200 # PROBE: our word hidden
+.long 0xFF0000FF # PROBE: cover in red
+.long 0x00000000 # PROBE
+.long 0xFF0000FF # PROBE
 # Seven offsets that dilate the cover: centre, straight up and down, and the
 # four diagonals. Same shape that buried "Update" on the Rooms row.
 .float 0.00
