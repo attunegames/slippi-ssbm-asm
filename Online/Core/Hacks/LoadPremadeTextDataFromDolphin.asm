@@ -52,157 +52,51 @@ b EXIT
 # only swaps when the online submenu is up, the Rooms row is the selected one,
 # and the id being asked for is the one that row carries.
 PEPPY_ROOMS_DESCRIPTION:
+################################################################################
+# Peppy: blank the description line for rows that are ours
+################################################################################
+# Not substituted - BLANKED, and drawn separately instead.
+#
+# Substituting a string here worked but only from the second time a line was
+# built. The first one after a menu is built comes out letter-spaced: the
+# letters are the right size and spread apart, which is justification, not
+# scaling - Melee reserves a width from the original string and spreads ours
+# across it, and ours are much shorter than the lines they replace. It is never
+# rebuilt, so it stays wrong until the cursor moves and comes back. Neither
+# dropping FIT nor padding with spaces touched it.
+#
+# So Melee draws nothing for these rows and the line is drawn with our own text,
+# where nothing depends on the frame it was born on. See FN_PeppyDescription.
 lis r3, 0x804A
 addi r3, r3, 0x4F0
 lbz r0, 0x0(r3)
 cmpwi r0, 0x8
 bne EXIT
 
-# Which of the two lists is on screen? They are the same menu redrawn, so the
-# thing that tells them apart is how many rows it is drawing - five for the
-# Rooms list, nine for the mode list.
+# Which list is on screen? Five rows is the Rooms list, nine the mode list -
+# the same menu redrawn, so the row count is what tells them apart.
 load r4, 0x803eb750
 lbz r4, 0xC(r4)
 cmpwi r4, 5
-beq PEPPY_ROOMS_LIST_DESCRIPTION
+beq PEPPY_BLANK_IT
 
-# The mode list: only the Rooms row's line is ours
 lhz r0, 0x2(r3)
 cmpwi r0, OPTION_ROOMS_IDX
 bne EXIT
 cmpwi REG_PREMADE_TEXT_ID, 0x064C
 bne EXIT
-li r11, PRD_WORDS
-b PEPPY_DESC_BUILD
 
-# The Rooms list: a line per row, picked by which row is selected
-PEPPY_ROOMS_LIST_DESCRIPTION:
-lhz r0, 0x2(r3)
-cmpwi r0, 5
-bge EXIT
+PEPPY_BLANK_IT:
 bl PEPPY_ROOMS_DESC_DATA
 mflr r3
-mulli r4, r0, 4
-addi r5, r3, PRD_LIST
-lwzx r11, r5, r4
-
-PEPPY_DESC_BUILD:
-# Take Melee's own formatting and put our words behind it.
-#
-# Writing the whole string ourselves does not work: it comes out ~45% taller
-# than the other descriptions and overflows the box, and it cannot ask to be
-# smaller - SCALE is consumed but inert here (probed with a value of 2, nothing
-# moved) and FIT fits horizontally only, so it condenses the letters instead.
-# Whatever sets the size lives in the opcodes Melee puts at the front of its own
-# strings, so rather than guess at them, they are copied verbatim.
-#
-# Opcodes are below 0x20 and characters are 0x20 and up, so the prefix ends at
-# the first character - but opcode parameters can be any value, so each one's
-# length comes from the table below.
-bl PEPPY_ROOMS_DESC_DATA
-mflr r3
-lwz r4, 0x5C(r31) # Melee's string for this row, already loaded
-addi r5, r3, PRD_BUFFER
-mr r6, r5
-li r10, 32 # cap the prefix, so a surprise cannot run off the buffer
-
-PEPPY_DESC_PREFIX:
-cmpwi r10, 0
-beq PEPPY_DESC_WORDS
-lbz r7, 0x0(r4)
-cmpwi r7, 0x20
-bge PEPPY_DESC_WORDS # first character - the formatting is behind us
-cmpwi r7, 0x0
-beq PEPPY_DESC_WORDS # end of string - nothing to inherit
-# Everything except FIT. FIT scales against the box, and the box is still
-# animating when a line is first built, so a line that inherits it renders
-# differently depending on the frame it was born on - and it is never rebuilt,
-# so it stays that way. Melee's own lines hide it; ours did not.
-cmpwi r7, 0x18
-beq PEPPY_DESC_DROP_FIT
-stb r7, 0x0(r5)
-addi r5, r5, 1
-
-PEPPY_DESC_DROP_FIT:
-addi r4, r4, 1
-subi r10, r10, 1
-
-addi r8, r3, PRD_PARAMLEN
-lbzx r9, r8, r7
-cmpwi r9, 0
-beq PEPPY_DESC_PREFIX
-
-PEPPY_DESC_PARAMS:
-lbz r7, 0x0(r4)
-stb r7, 0x0(r5)
-addi r4, r4, 1
-addi r5, r5, 1
-subi r9, r9, 1
-subi r10, r10, 1
-cmpwi r9, 0
-bne PEPPY_DESC_PARAMS
-b PEPPY_DESC_PREFIX
-
-PEPPY_DESC_WORDS:
-add r4, r3, r11
-PEPPY_DESC_WORDS_LOOP:
-lbz r7, 0x0(r4)
-stb r7, 0x0(r5)
-addi r4, r4, 1
-addi r5, r5, 1
-cmpwi r7, 0x0
-bne PEPPY_DESC_WORDS_LOOP
-
-stw r6, 0x5C(r31)
+addi r3, r3, PRD_EMPTY
+stw r3, 0x5C(r31)
 b EXIT
 
 PEPPY_ROOMS_DESC_DATA:
 blrl
-# Built at runtime: their formatting, then our words
-.set PRD_BUFFER, 0
-.space 96, 0
-# Parameter bytes per opcode, 0x00 to 0x1A. From Dolphin's SlippiPremadeText.h:
-# 0x05 s, 0x06 ss, 0x07 OFFSET ss, 0x0A SCALING bbbb, 0x0C COLOR bbb,
-# 0x0E SET_TEXTBOX ss. Everything else takes none.
-.set PRD_PARAMLEN, PRD_BUFFER+96
-.byte 0, 0, 0, 0, 0, 2, 4, 4, 0, 0, 4, 0, 3, 0, 4, 0
-.byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-# "Public & Private Rooms" - characters only, the formatting is inherited
-.set PRD_WORDS, PRD_PARAMLEN+27
-# One line per row of the Rooms list, and a table to pick between them
-.set PRD_LIST, PRD_WORDS+42
-.set PRD_W_SINGLES, PRD_LIST+20
-.set PRD_W_DOUBLES, PRD_W_SINGLES+24
-.set PRD_W_FFA, PRD_W_DOUBLES+24
-.set PRD_W_CREW, PRD_W_FFA+28
-.set PRD_W_TOURNEY, PRD_W_CREW+31
-.byte 0x20, 0x19, 0x20, 0x38, 0x20, 0x25, 0x20, 0x2F, 0x20, 0x2C, 0x20, 0x26
-.byte 0x1A, 0x21, 0x05, 0x1A, 0x20, 0x19, 0x20, 0x35, 0x20, 0x2C, 0x20, 0x39
-.byte 0x20, 0x24, 0x20, 0x37, 0x20, 0x28, 0x1A, 0x20, 0x1B, 0x20, 0x32, 0x20
-.byte 0x32, 0x20, 0x30, 0x20, 0x36, 0x00
-.long PRD_W_SINGLES
-.long PRD_W_DOUBLES
-.long PRD_W_FFA
-.long PRD_W_CREW
-.long PRD_W_TOURNEY
-# "Play Singles"
-.byte 0x20, 0x19, 0x20, 0x2F, 0x20, 0x24, 0x20, 0x3C, 0x1A, 0x20, 0x1C, 0x20
-.byte 0x2C, 0x20, 0x31, 0x20, 0x2A, 0x20, 0x2F, 0x20, 0x28, 0x20, 0x36, 0x00
-# "Play Doubles"
-.byte 0x20, 0x19, 0x20, 0x2F, 0x20, 0x24, 0x20, 0x3C, 0x1A, 0x20, 0x0D, 0x20
-.byte 0x32, 0x20, 0x38, 0x20, 0x25, 0x20, 0x2F, 0x20, 0x28, 0x20, 0x36, 0x00
-# "Play Free 4 All"
-.byte 0x20, 0x19, 0x20, 0x2F, 0x20, 0x24, 0x20, 0x3C, 0x1A, 0x20, 0x0F, 0x20
-.byte 0x35, 0x20, 0x28, 0x20, 0x28, 0x1A, 0x20, 0x04, 0x1A, 0x20, 0x0A, 0x20
-.byte 0x2F, 0x20, 0x2F, 0x00
-# "Play Crew Battle"
-.byte 0x20, 0x19, 0x20, 0x2F, 0x20, 0x24, 0x20, 0x3C, 0x1A, 0x20, 0x0C, 0x20
-.byte 0x35, 0x20, 0x28, 0x20, 0x3A, 0x1A, 0x20, 0x0B, 0x20, 0x24, 0x20, 0x37
-.byte 0x20, 0x37, 0x20, 0x2F, 0x20, 0x28, 0x00
-# "Join a Tournament"
-.byte 0x20, 0x13, 0x20, 0x32, 0x20, 0x2C, 0x20, 0x31, 0x1A, 0x20, 0x24, 0x1A
-.byte 0x20, 0x1D, 0x20, 0x32, 0x20, 0x38, 0x20, 0x35, 0x20, 0x31, 0x20, 0x24
-.byte 0x20, 0x30, 0x20, 0x28, 0x20, 0x31, 0x20, 0x37, 0x00
+.set PRD_EMPTY, 0
+.byte 0x00
 .align 2
 
 EXIT:

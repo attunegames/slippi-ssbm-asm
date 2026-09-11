@@ -74,6 +74,10 @@ stw r4, PLD_LEVEL(r3)
 li r5, PLD_SETTLE_FRAMES
 stw r5, PLD_SETTLE(r3)
 
+bl PEPPY_DESC_DATA
+mflr r3
+stw r4, PDD_TEXT(r3)
+
 bl PEPPY_ROWS_DATA
 mflr r3
 li r5, 0
@@ -273,6 +277,118 @@ stb r3, OFST_R13_FORCE_MENU_CLEAR(r13)
 # Return this such that we can mimic a direct execution
 mr r3, r27
 
+restore
+blr
+
+################################################################################
+# Routine: PeppyDescription
+# ------------------------------------------------------------------------------
+# The line under the rows, for rows that are ours. Melee draws nothing for them;
+# this draws the text, so it is sized and placed by us and waits out the menu
+# animation like the labels do.
+################################################################################
+.set REG_PD_DATA, 31
+.set REG_PD_TEXT, 30
+.set REG_PD_STR, 29
+.set REG_PD_SUB, 28
+
+FN_PeppyDescription:
+backup
+
+bl PEPPY_DESC_DATA
+mflr REG_PD_DATA
+
+bl PEPPY_LABEL_DATA
+mflr r3
+lwz r0, PLD_SETTLE(r3)
+cmpwi r0, 0
+bne FN_PeppyDescription_TEARDOWN
+lwz r4, PLD_LEVEL(r3)
+
+lis r3, 0x804A
+addi r3, r3, 0x4F0
+lbz r0, 0x0(r3)
+cmpwi r0, 0x8
+bne FN_PeppyDescription_TEARDOWN
+lhz r5, 0x2(r3)
+
+cmpwi r4, 1
+beq FN_PeppyDescription_LIST
+
+# The mode list - only the Rooms row is ours
+cmpwi r5, OPTION_ROOMS_IDX
+bne FN_PeppyDescription_NONE
+li REG_PD_STR, PDD_S_ROOMS
+b FN_PeppyDescription_HAVE
+
+FN_PeppyDescription_LIST:
+cmpwi r5, PRW_ROW_COUNT
+bge FN_PeppyDescription_NONE
+mulli r6, r5, 4
+addi r7, REG_PD_DATA, PDD_LIST
+lwzx REG_PD_STR, r7, r6
+b FN_PeppyDescription_HAVE
+
+FN_PeppyDescription_NONE:
+li REG_PD_STR, PDD_EMPTY
+
+FN_PeppyDescription_HAVE:
+lwz REG_PD_TEXT, PDD_TEXT(REG_PD_DATA)
+cmpwi REG_PD_TEXT, 0
+bne FN_PeppyDescription_SET
+
+li r3, 0
+li r4, 0
+branchl r12, Text_CreateStruct
+mr REG_PD_TEXT, r3
+stw REG_PD_TEXT, PDD_TEXT(REG_PD_DATA)
+
+li r4, 0x1
+stb r4, 0x49(REG_PD_TEXT)
+stb r4, 0x4A(REG_PD_TEXT)
+
+lfs f1, PDD_Z(REG_PD_DATA)
+stfs f1, 0x8(REG_PD_TEXT)
+lfs f1, PDD_SCALE(REG_PD_DATA)
+stfs f1, 0x24(REG_PD_TEXT)
+stfs f1, 0x28(REG_PD_TEXT)
+
+lfs f1, PDD_X(REG_PD_DATA)
+lfs f2, PDD_Y(REG_PD_DATA)
+mr r3, REG_PD_TEXT
+addi r4, REG_PD_DATA, PDD_EMPTY
+branchl r12, Text_InitializeSubtext
+mr REG_PD_SUB, r3
+stw REG_PD_SUB, PDD_SUBTEXT(REG_PD_DATA)
+
+lfs f1, PDD_W(REG_PD_DATA)
+lfs f2, PDD_H(REG_PD_DATA)
+mr r3, REG_PD_TEXT
+mr r4, REG_PD_SUB
+branchl r12, Text_UpdateSubtextSize
+
+mr r3, REG_PD_TEXT
+mr r4, REG_PD_SUB
+addi r5, REG_PD_DATA, PDD_COLOR
+branchl r12, Text_ChangeTextColor
+
+FN_PeppyDescription_SET:
+lwz REG_PD_SUB, PDD_SUBTEXT(REG_PD_DATA)
+mr r3, REG_PD_TEXT
+mr r4, REG_PD_SUB
+add r5, REG_PD_DATA, REG_PD_STR
+branchl r12, Text_UpdateSubtextContents
+b FN_PeppyDescription_EXIT
+
+FN_PeppyDescription_TEARDOWN:
+lwz r3, PDD_TEXT(REG_PD_DATA)
+cmpwi r3, 0
+beq FN_PeppyDescription_EXIT
+branchl r12, Text_RemoveText
+li r3, 0
+stw r3, PDD_TEXT(REG_PD_DATA)
+
+FN_PeppyDescription_EXIT:
 restore
 blr
 
@@ -1079,6 +1195,7 @@ branchl r12, Text_ChangeTextColor
 
 FN_OnlineSubmenuThink_LABELS_DONE:
 bl FN_PeppyRoomsLabels
+bl FN_PeppyDescription
 
 FN_OnlineSubmenuThink_EXIT:
 restore BKP_DEFAULT_FREE_SPACE_SIZE, NUM_FREG, NUM_GPREG
@@ -1189,6 +1306,60 @@ blrl
 .align 2
 
 ################################################################################
+# Data: the description line, drawn rather than substituted
+################################################################################
+# Melee is told to draw nothing for our rows (see LoadPremadeTextDataFromDolphin)
+# and the line is drawn here instead, so nothing about it depends on the frame it
+# was built on.
+#
+# Position measured off Melee's own lines: centred at screen x 958, cap top 926,
+# 38px tall and about 27.8px per character. Width and height are scaled
+# separately because our font runs wider per character than Melee's - matching
+# both needs two numbers.
+.set PDD_TEXT, 0
+.set PDD_SUBTEXT, PDD_TEXT+4
+.set PDD_X, PDD_SUBTEXT+4
+.set PDD_Y, PDD_X+4
+.set PDD_W, PDD_Y+4
+.set PDD_H, PDD_W+4
+.set PDD_Z, PDD_H+4
+.set PDD_SCALE, PDD_Z+4
+.set PDD_COLOR, PDD_SCALE+4
+.set PDD_EMPTY, PDD_COLOR+4
+.set PDD_S_ROOMS, PDD_EMPTY+1
+.set PDD_S_SINGLES, PDD_S_ROOMS+23
+.set PDD_S_DOUBLES, PDD_S_SINGLES+13
+.set PDD_S_FFA, PDD_S_DOUBLES+13
+.set PDD_S_CREW, PDD_S_FFA+16
+.set PDD_S_TOURNEY, PDD_S_CREW+17
+.set PDD_LIST, PDD_S_TOURNEY+21
+
+PEPPY_DESC_DATA:
+blrl
+.long 0
+.long 0
+.float -0.63
+.float 139.8
+.float 0.563
+.float 0.62
+.float 17
+.float 0.06
+.long 0xAAAAAAFF # sampled off Melee's own description text
+.string ""
+.string "Public & Private Rooms"
+.string "Play Singles"
+.string "Play Doubles"
+.string "Play Free 4 All"
+.string "Play Crew Battle"
+.string "Join a Tournament"
+.align 2
+.long PDD_S_SINGLES
+.long PDD_S_DOUBLES
+.long PDD_S_FFA
+.long PDD_S_CREW
+.long PDD_S_TOURNEY
+
+################################################################################
 # Data: the Rooms list's rows
 ################################################################################
 # Positions measured off the screen, same mapping the Rooms label uses:
@@ -1245,9 +1416,9 @@ blrl
 .float 0.06
 # Sampled from the menu itself
 .long 0xCA9732FF
-.long 0x04040E00 # PROBE: cover made invisible to read the artwork underneath
+.long 0x04040EFF
 .long 0x000000FF
-.long 0xFFCB0000 # PROBE
+.long 0xFFCB00FF
 # Seven offsets that dilate the cover: centre, straight up and down, and the
 # four diagonals. Same shape that buried "Update" on the Rooms row.
 .float 0.00
@@ -1327,7 +1498,7 @@ Data_RoomsSubmenuOptions:
 blrl
 
 .long 0x803eb57c # Ptr to preview animation frame values
-.float 9999 # PROBE: does an out-of-range frame draw nothing, or clamp?
+.float 140 # Frame index pointing at the option text images
 .long 0x803eb684 # Ptr to description text. Will be overwritten
 .byte 0x05 # Singles, Doubles, FFA, Crew Battles, Tournaments
 .align 2
