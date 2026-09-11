@@ -495,21 +495,25 @@ blr
 .set REG_PES_SELECTED, 27
 .set REG_PES_TRANSITION, 26
 .set REG_PES_MENU, 25
+.set REG_PES_TABLE, 24
 
 FN_PeppyEnterSubmenu:
 backup
 
-# The rebuild animates too, so hold the labels through it
-bl PEPPY_LABEL_DATA
-mflr r0
-li r4, PLD_SETTLE_FRAMES
-stw r4, PLD_SETTLE(r0)
-
+# Arguments first - the settle write below needs scratch registers, and r0 is a
+# literal zero in the base position of a store rather than the register.
 mr REG_PES_SELECTED, r5
 mr REG_PES_TRANSITION, r6
 mr REG_PES_MENU, r4
+mr REG_PES_TABLE, r3
 
-mr r4, r3
+# The rebuild animates too, so hold the labels through it
+bl PEPPY_LABEL_DATA
+mflr r5
+li r6, PLD_SETTLE_FRAMES
+stw r6, PLD_SETTLE(r5)
+
+mr r4, REG_PES_TABLE
 load r3, 0x803eb750
 li r5, 0x10
 branchl r12, memcpy
