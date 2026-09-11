@@ -95,6 +95,44 @@ li r4, 0x644
 sth r4, 0x4(r3) # Set 3rd option description text (online submenu)
 
 ################################################################################
+# Section 2b: Peppy - write "Rooms" over the last menu row
+################################################################################
+# The row labels are frames of an animation of pre-rendered images and there are
+# only eight of them, so the ninth row borrows the last one and reads "Log-in".
+# There is no per-row override, so the only way to name it is to draw over it -
+# which Slippi's own text machinery already does in this scene for the user
+# display.
+#
+# The position below is the confirm dialog's, used as a calibration point. It is
+# not where the row is; it is somewhere known, so the offset to the row can be
+# measured rather than guessed.
+bl PEPPY_ROOMS_DATA
+mflr r22
+
+li r3, 0
+li r4, 0
+branchl r12, Text_CreateStruct
+mr r21, r3
+
+# Close kerning, left aligned - same as the user display uses
+li r4, 0x1
+stb r4, 0x49(r21)
+li r4, 0x0
+stb r4, 0x4A(r21)
+
+lfs f1, PEPPY_ROOMS_Z(r22)
+stfs f1, 0x8(r21)
+lfs f1, PEPPY_ROOMS_SCALE(r22)
+stfs f1, 0x24(r21)
+stfs f1, 0x28(r21)
+
+lfs f1, PEPPY_ROOMS_X(r22)
+lfs f2, PEPPY_ROOMS_Y(r22)
+mr r3, r21
+addi r4, r22, PEPPY_ROOMS_STRING
+branchl r12, Text_InitializeSubtext
+
+################################################################################
 # Section 3: Store function for switching to online submenu
 ################################################################################
 bl FN_SwitchToOnlineMenu_blrl
@@ -873,6 +911,23 @@ FN_LogoutDialogThink_Exit:
 
 restore BKP_DEFAULT_FREE_SPACE_SIZE, 2
 blr
+
+################################################################################
+# Peppy: position and wording of the Rooms label
+################################################################################
+PEPPY_ROOMS_DATA:
+blrl
+.set PEPPY_ROOMS_X, 0
+.float -5.5
+.set PEPPY_ROOMS_Y, PEPPY_ROOMS_X+4
+.float -2.8
+.set PEPPY_ROOMS_Z, PEPPY_ROOMS_Y+4
+.float 23
+.set PEPPY_ROOMS_SCALE, PEPPY_ROOMS_Z+4
+.float 0.045
+.set PEPPY_ROOMS_STRING, PEPPY_ROOMS_SCALE+4
+.string "Rooms"
+.align 2
 
 ################################################################################
 # Properties
