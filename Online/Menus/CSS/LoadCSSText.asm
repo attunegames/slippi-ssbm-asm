@@ -831,6 +831,23 @@ lbz r3, MSRB_CONNECTION_STATE(REG_MSRB_ADDR)
 cmpwi r3, MM_STATE_CONNECTION_SUCCESS
 beq UPDATE_PRESS_START_TEXT # If connected already, always show lock-in text
 
+# Peppy: in Rooms you are put back in the queue when a game ends, so by the time
+# anyone reads this line they are usually searching already - and Start does
+# nothing at all until an opponent turns up, because HANDLE_FINDING ignores it.
+# Telling someone to press a button that does nothing, to start something they
+# are already doing, is how an afternoon gets spent looking for a bug that is
+# really a caption.
+lbz r3, OFST_R13_ONLINE_MODE(r13)
+cmpwi r3, ONLINE_MODE_ROOMS
+bne PEPPY_STILL_IDLE
+lbz r3, MSRB_CONNECTION_STATE(REG_MSRB_ADDR)
+cmpwi r3, MM_STATE_IDLE
+ble PEPPY_STILL_IDLE            # genuinely idle - "press start to search" is honest
+addi r5, REG_TEXT_PROPERTIES, TPO_STRING_SEARCHING_FOR
+addi r6, REG_TEXT_PROPERTIES, TPO_STRING_OPPONENT
+b UPDATE_PRESS_START_TEXT
+PEPPY_STILL_IDLE:
+
 addi r5, REG_TEXT_PROPERTIES, TPO_STRING_PRESS_START_TO
 addi r6, REG_TEXT_PROPERTIES, TPO_STRING_SEARCH
 
