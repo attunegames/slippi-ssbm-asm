@@ -1048,18 +1048,21 @@ lwz REG_PL_TEXT, PLD_TEXT_PTR(REG_PL_DATA)
 # The Rooms row has real artwork now - a proper image in MnMaAll.usd - so there
 # is nothing left to draw or cover here, and drawing it anyway would double up
 # on the artwork. The drawn label was always a stand-in for this.
-b FN_OnlineSubmenuThink_LABEL_TEARDOWN
-
-# Still animating into place? Count it down and show nothing yet.
+#
+# The settle countdown below still has to run, though. It is not only this
+# label's: the Rooms LIST's row labels and its descriptions all wait for it to
+# reach zero, so branching straight past it leaves it stuck at its start value
+# and none of them ever draw.
 # Not r0 - it is a literal zero as the source of a subi, not the register.
 lwz r3, PLD_SETTLE(REG_PL_DATA)
 cmpwi r3, 0
-beq FN_OnlineSubmenuThink_LABEL_SETTLED
+beq FN_OnlineSubmenuThink_LABEL_TEARDOWN
 subi r3, r3, 1
 stw r3, PLD_SETTLE(REG_PL_DATA)
 b FN_OnlineSubmenuThink_LABEL_TEARDOWN
 
 FN_OnlineSubmenuThink_LABEL_SETTLED:
+
 # Still on the online submenu?
 lis r3, 0x804A
 addi r3, r3, 0x4F0
