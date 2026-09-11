@@ -1119,8 +1119,8 @@ mr r3, REG_PL_TEXT
 addi r4, REG_PL_DATA, PLD_MASK_STR
 branchl r12, Text_InitializeSubtext
 mr REG_PL_WORD_COLOR, r3 # borrowed as scratch for the subtext index
-lfs f1, PLD_SIZE(REG_PL_DATA)
-fmr f2, f1
+lfs f1, PLD_MASK_W(REG_PL_DATA)
+lfs f2, PLD_SIZE(REG_PL_DATA)
 mr r3, REG_PL_TEXT
 mr r4, REG_PL_WORD_COLOR
 branchl r12, Text_UpdateSubtextSize
@@ -1313,6 +1313,14 @@ blrl
 .float 0.86
 .set PLD_WORD_Y, PLD_WORD_SIZE+4
 .float 86.18
+# The cover is our font drawing "Update", and our font spreads that word about
+# 20% wider than the artwork does - so centred, its letters drift outward and
+# leave the artwork's inner stems showing. The stray line inside the R was the
+# right stem of the artwork's U. Squeezing the cover's WIDTH to the artwork's
+# 206px puts the letters back on top of each other; the height stays, or the
+# cover comes up short. Same fix the Rooms list's rows already use.
+.set PLD_MASK_W, PLD_WORD_Y+4
+.float 0.72
 .align 2
 
 ################################################################################
