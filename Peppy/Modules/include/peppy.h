@@ -60,6 +60,14 @@ void SceneLeave_ComingSoon(void);
  * text, so its camera has to cover the link menu text uses. */
 void SceneLoad_DebugMenu(void);
 
+/* The one base with proof behind it: Slippi's VS splash injects at 0x80186ec4,
+ * inside this function, and creates a text struct and subtexts there that do
+ * render.  Coming Soon has no text of its own and never brings up whatever
+ * menu text needs, which is why ours drew nothing on it at any position or
+ * scale. */
+void SceneLoad_ClassicModeSplash(void);
+void SceneThink_ClassicModeSplash(void);
+
 /* ------------------------------------------------------------------- EXI */
 
 #define CONST_ExiWrite 1

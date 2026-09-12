@@ -302,8 +302,10 @@ bl PeppyRoomScenePrep       #ScenePrep
 bl PeppyRoomSceneDecide     #SceneDecide
 .byte 0x51                  #Common Minor ID (Peppy room)
 .align 2
-.long 0x00000000            #Minor Data 1
-.long 0x00000000            #Minor Data 2
+# The room sits on the Classic Mode Splash scene for now, so it gets the same
+# minor data Slippi's own splash minor passes.
+.long 0x80490880            #Minor Data 1
+.long 0x804d68d0            #Minor Data 2
 #End
 .byte -1
 .align 2

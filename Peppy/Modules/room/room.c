@@ -106,6 +106,7 @@ static void peppy_room_build(void)
 
 void peppy_room_think(void)
 {
+    SceneThink_ClassicModeSplash();
 }
 
 void peppy_room_load(void)
@@ -119,7 +120,7 @@ void peppy_room_load(void)
      * not, so the text sits on a GXLink that camera does not cover.  The debug
      * menu is the one scene that is nothing but menu text, so its camera
      * covers the link menu text uses. */
-    SceneLoad_ComingSoon();
+    SceneLoad_ClassicModeSplash();
 
     s_text = 0;
     peppy_room_build();
@@ -129,5 +130,4 @@ void peppy_room_load(void)
 
 void peppy_room_leave(void)
 {
-    SceneLeave_ComingSoon();
 }
