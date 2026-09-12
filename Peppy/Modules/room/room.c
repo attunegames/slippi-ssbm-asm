@@ -44,11 +44,21 @@ static void peppy_log(const char *msg)
 #define COL_RIGHT      330.0f    /* lobby column */
 #define ROW_STEP        22.0f
 
-#define Y_TITLE         40.0f
-#define Y_HEADING      105.0f
-#define Y_FIRST_NAME   145.0f
-#define Y_ACTIONS      310.0f
-#define X_BACK         520.0f    /* top right, where the CSS keeps its BACK */
+/* The furniture lives in the bottom half now, so everything moves up and the
+ * divider sits along its top edge with the two players' names on it. */
+#define Y_DIVIDER       26.0f
+#define Y_HEADING       90.0f
+#define Y_FIRST_NAME   130.0f
+#define Y_ACTIONS      300.0f
+
+#define X_P1           110.0f
+#define X_VS           300.0f
+#define X_P2           430.0f
+#define X_BACK         560.0f    /* right end of the divider row */
+
+/* No line primitive is available and the full-width block glyph draws nothing
+ * here, so the divider is a run of hyphens - which are plain ASCII and do. */
+#define DIVIDER "--------------------------------------------------------"
 
 #define SIZE_TITLE      0.55f
 #define SIZE_HEADING    0.40f
@@ -109,7 +119,21 @@ __attribute__((unused)) static char *put_hex(char *p, u32 v)
 
 static void *s_text;
 static int s_queue_line = -1;
+static int s_p1_line = -1;
+static int s_p2_line = -1;
 static int s_queued;
+
+/* The two names on the line.  Empty when nobody is matched, which is the state
+ * the room sits in most of the time. */
+void peppy_room_set_players(const char *p1, const char *p2)
+{
+    if (!s_text)
+        return;
+    if (s_p1_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_p1_line, "%s", p1 ? p1 : "");
+    if (s_p2_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_p2_line, "%s", p2 ? p2 : "");
+}
 
 /* Called when the queue state changes; the roster will drive this once it is
  * wired up. */
@@ -277,8 +301,16 @@ static void peppy_room_build(void)
     *(float *)((char *)text + TEXT_OFS_SCALEX) = TEXT_CANVAS;
     *(float *)((char *)text + TEXT_OFS_SCALEY) = TEXT_CANVAS;
 
-    FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
-                     "PEPPY ROOM", SIZE_TITLE, COL_LEFT, Y_TITLE);
+    /* The line, and the two players sitting on it: whoever is picking a stage
+     * or a character right now, and then whoever is playing. */
+    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                     DIVIDER, SIZE_NAME, 30.0f, Y_DIVIDER + 14.0f);
+    s_p1_line = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                                 "", SIZE_HEADING, X_P1, Y_DIVIDER);
+    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                     "VS", SIZE_HEADING, X_VS, Y_DIVIDER);
+    s_p2_line = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                                 "", SIZE_HEADING, X_P2, Y_DIVIDER);
 
     FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
                      "QUEUE", SIZE_HEADING, COL_LEFT, Y_HEADING);
@@ -306,7 +338,7 @@ static void peppy_room_build(void)
      * not exist here, so this is the label in the same corner. B leaves the
      * room, and leaves the queue with it. */
     FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "BACK", SIZE_HEADING, X_BACK, Y_TITLE);
+                     "BACK", SIZE_HEADING, X_BACK, Y_DIVIDER);
 }
 
 /* ----------------------------------------------------------------- exports */
@@ -338,6 +370,8 @@ void peppy_room_load(void)
 
     s_text = 0;
     s_queue_line = -1;
+    s_p1_line = -1;
+    s_p2_line = -1;
     s_queued = 0;
     peppy_room_build();
     peppy_room_split();
