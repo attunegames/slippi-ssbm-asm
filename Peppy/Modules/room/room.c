@@ -442,11 +442,34 @@ static void peppy_room_build(void)
 
 /* ----------------------------------------------------------------- exports */
 
+/* The room's buttons.
+ *
+ * START is the only one with anything behind it yet: it swaps its own line
+ * between joining the queue and practising.  That is a local toggle until the
+ * backend has a join-queue call - the point of wiring it now is that the pad
+ * path and the line swap are proven, not that the queue works.
+ *
+ * Z and B report and do nothing; spectating needs the match-watch path and
+ * leaving needs the room told about it, and neither should be faked.
+ */
+static void peppy_room_buttons(void)
+{
+    u32 pressed = peppy_pad_pressed();
+
+    if (pressed & PAD_START)
+        peppy_room_set_queued(!s_queued);
+    if (pressed & PAD_Z)
+        peppy_log("Peppy: Z - spectate, not wired yet");
+    if (pressed & PAD_B)
+        peppy_log("Peppy: B - back, not wired yet");
+}
+
 void peppy_room_think(void)
 {
     /* The roster changes while people come and go, so it is read every frame
      * rather than once at load. */
     peppy_room_refresh();
+    peppy_room_buttons();
     /* Deliberately not SceneThink_ClassicModeSplash: its Load is what sets the
      * scene up, its Think animates the splash toward a match and reads data a
      * room does not have, which is the invalid read a few seconds in. */
