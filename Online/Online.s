@@ -379,8 +379,20 @@
 # but has not started yet is nothing to look at.
 .set MSRB_ROOM_FLAGS, MSRB_ROSTER + MSRB_ROSTER_SLOTS * MSRB_ROSTER_STRIDE # u8
 .set MSRB_ROOM_FLAG_WATCHABLE, 1
+# The screen is showing the public room list rather than a room. Dolphin knows
+# this because the menu told it, and the room scene draws whichever it is told.
+.set MSRB_ROOM_FLAG_BROWSING, 2
+# Public rooms, as of the last fetch. Same shape as the roster - fixed stride so
+# the draw can index it - and appended, so nothing above moves.
+.set MSRB_ROOMLIST_COUNT, MSRB_ROOM_FLAGS + 1 # u8
+.set MSRB_ROOMLIST, MSRB_ROOMLIST_COUNT + 1
+.set MSRB_ROOMLIST_SLOTS, 8
+.set MSRB_ROOMLIST_CODE, 0 # char[5]
+.set MSRB_ROOMLIST_PLAYERS, 5 # u8
+.set MSRB_ROOMLIST_OWNER, 6 # char[16]
+.set MSRB_ROOMLIST_STRIDE, 22
 
-.set MSRB_SIZE, MSRB_ROOM_FLAGS + 1
+.set MSRB_SIZE, MSRB_ROOMLIST + MSRB_ROOMLIST_SLOTS * MSRB_ROOMLIST_STRIDE
 
 ################################################################################
 # Rank Info Response Buffer

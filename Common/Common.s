@@ -548,6 +548,8 @@ add \reg, r3, r4
 # clear of everything Slippi uses.
 .set CONST_PeppyCmdCreateRoom,0xC5
 .set CONST_PeppyCmdSetQueued,0xC6
+.set CONST_PeppyCmdListRooms,0xC7
+.set CONST_PeppyCmdJoinRoom,0xC8
 .set CONST_SlippiCmdFetchRank,0xE4
 # For Slippi file loads
 .set CONST_SlippiCmdFileLength, 0xD1

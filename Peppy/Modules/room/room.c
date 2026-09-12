@@ -687,12 +687,40 @@ static void peppy_room_buttons(void)
         peppy_room_back();
 }
 
+/* Temporary: what is actually in a pad struct.
+ *
+ * The buttons at +0x08 are the only field the codeset ever reads, and a list
+ * that scrolls needs the stick. Rather than guess at an offset, dump the thing
+ * while the test script holds a direction and read it off. */
+static void peppy_room_probe_pad(void)
+{
+    static int frame;
+    char line[100];
+    char *p = line;
+    const u32 *pad = (const u32 *)PEPPY_PAD_MASTER;
+    int i;
+
+    if (++frame < 60)
+        return;
+    frame = 0;
+
+    p = put(p, "Peppy: pad");
+    for (i = 0; i < 9; i++)
+    {
+        *p++ = ' ';
+        p = put_hex(p, pad[i]);
+    }
+    *p = 0;
+    peppy_log(line);
+}
+
 void peppy_room_think(void)
 {
     /* The roster changes while people come and go, so it is read every frame
      * rather than once at load. */
     peppy_room_refresh();
     peppy_room_buttons();
+    peppy_room_probe_pad();
     /* Deliberately not SceneThink_ClassicModeSplash: its Load is what sets the
      * scene up, its Think animates the splash toward a match and reads data a
      * room does not have, which is the invalid read a few seconds in. */
