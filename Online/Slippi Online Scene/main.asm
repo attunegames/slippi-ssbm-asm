@@ -335,8 +335,11 @@ lbz r3, 0x5(r31)
 cmpwi r3, PEPPY_MINOR_LEAVE_MAJOR
 bne PeppyRoomSceneDecide_EXIT
 
-# Spend it either way: a sentinel left in there is a minor that does not exist.
-li r3, 0
+# 0xFF, the value that terminates a minor scene table. Zero is not "no minor" -
+# it means minor zero, which in here is the character select, and the major
+# change never got looked at. The major can only be reached once the minors
+# have run out.
+li r3, 0xFF
 stb r3, 0x5(r31)
 
 li r3, PEPPY_MAJOR_MAIN_MENU
