@@ -121,9 +121,13 @@ void peppy_room_load(void)
     /* A text object registers its own draw callback but still needs a camera
      * and a render pass to be drawn into, and nothing sets those up for a
      * scene invented from nothing -- which is why the first build of this ran
-     * at 60fps and showed a black screen.  Borrow the smallest scene in the
-     * game for them until this builds its own. */
-    SceneLoad_ComingSoon();
+     * at 60fps and showed a black screen.
+     *
+     * Coming Soon supplied a camera and its own artwork drew, but our text did
+     * not, so the text sits on a GXLink that camera does not cover.  The debug
+     * menu is the one scene that is nothing but menu text, so its camera
+     * covers the link menu text uses. */
+    SceneLoad_DebugMenu();
 
     s_text = 0;
     peppy_room_build();
@@ -133,5 +137,4 @@ void peppy_room_load(void)
 
 void peppy_room_leave(void)
 {
-    SceneLeave_ComingSoon();
 }
