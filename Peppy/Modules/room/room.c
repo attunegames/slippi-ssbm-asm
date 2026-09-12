@@ -580,6 +580,27 @@ static void peppy_room_build(void)
  * The flag rather than the roster decides it: two names in the active slots
  * mean a pair has been introduced, not that there is anything on screen yet.
  */
+/* Ask Dolphin to start looking.
+ *
+ * This is the character select's own first act, and nothing had taken it over
+ * for a room - so Dolphin never started its matchmaking thread, never ticked
+ * the room, and the queue and lobby columns sat empty for reasons that looked
+ * like a backend problem and were not.
+ *
+ * Searching is not the same as being in the queue: the tick says "present
+ * only" until Start is pressed, so this just opens the line.
+ */
+static void peppy_room_start_searching(void)
+{
+    int i;
+
+    peppy_exi_buf[0] = PEPPY_CMD_FIND_OPPONENT;
+    peppy_exi_buf[1] = ONLINE_MODE_ROOMS;
+    for (i = 2; i < PEPPY_FIND_OPPONENT_SIZE; i++)
+        peppy_exi_buf[i] = 0;   /* opponent code, Direct mode only */
+    FN_EXITransferBuffer(peppy_exi_buf, PEPPY_FIND_OPPONENT_SIZE, CONST_ExiWrite);
+}
+
 static void peppy_room_spectate(void)
 {
     void *msrb = FN_LoadMatchState(0);
@@ -680,6 +701,7 @@ void peppy_room_load(void)
             s_lobby_rows[i] = -1;
     }
     peppy_room_build();
+    peppy_room_start_searching();
     /* Not split - see peppy_room_split. The room has the screen to itself
      * until there is something to put in the other half. */
     peppy_log(s_text ? "Peppy: room scene built"
