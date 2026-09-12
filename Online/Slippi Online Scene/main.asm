@@ -148,6 +148,21 @@ MajorSceneLoad:
 blrl
 backup
 
+################################################################################
+# Peppy rooms open on their own screen
+################################################################################
+# The major transition picks the first minor itself, after Event_StoreSceneNumber
+# has set the major and flagged the minor exit - so the menu cannot choose the
+# landing scene, and this is the first place that runs inside the new major.
+lbz r3, OFST_R13_ONLINE_MODE(r13)
+cmpwi r3, ONLINE_MODE_ROOMS
+bne PEPPY_MAJOR_NOT_ROOMS
+load r4, 0x80479d30
+li r3, 6            # minor 6 = the Peppy room, not 0 (the character select)
+stb r3, 0x5(r4)
+stb r3, 0x3(r4)
+PEPPY_MAJOR_NOT_ROOMS:
+
 # Set the proper 1p port for CSS
 load r4, 0x8045abf0
 lbz r3, -0x5108(r13) # player index
