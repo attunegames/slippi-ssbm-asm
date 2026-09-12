@@ -196,6 +196,18 @@ void peppy_room_load(void)
         p = put_hex(p, slot);
         p = put(p, " data=");
         p = put_hex(p, data);
+
+        /* table[0] is null yet +0x5C is set - Text_CreateStruct fills it from
+         * its own buffer at the end regardless - so the struct is not short of
+         * glyph data and this is about render links.  A GObj keeps its link in
+         * byte 3 (GObj_DestroyGXLink reads exactly that), and Coming Soon
+         * built its camera off the byte at r13-15957. */
+        p = put(p, " textlink=");
+        p = put_u8(p, *(u8 *)((char *)s_text + 3));
+        p = put(p, " camlink=");
+        p = put_u8(p, *(u8 *)((char *)peppy_sda() - 15957));
+        p = put(p, " artlink=");
+        p = put_u8(p, *(u8 *)((char *)peppy_sda() - 15958));
         *p = 0;
         peppy_log(line);
     }

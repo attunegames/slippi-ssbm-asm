@@ -133,4 +133,14 @@ static inline void *peppy_css_text(void)
  *     screen_x = 961 + 1.886 * canvas_x
  *     screen_y = 594 + 1.886 * canvas_y                                    */
 
+/* Melee keeps its small-data base in r13 and a lot of engine globals hang off
+ * it, so a module that wants one reads the register rather than guessing where
+ * the base landed. */
+static inline void *peppy_sda(void)
+{
+    void *r13;
+    __asm__ volatile("mr %0, 13" : "=r"(r13));
+    return r13;
+}
+
 #endif /* PEPPY_H */
