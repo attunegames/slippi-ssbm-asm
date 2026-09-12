@@ -69,4 +69,39 @@ extern u8 peppy_exi_buf[PEPPY_EXI_BUF_SIZE];
 
 #define PEPPY_DEFINE_EXI_BUF     u8 peppy_exi_buf[PEPPY_EXI_BUF_SIZE] __attribute__((aligned(32)))
 
+
+/* ------------------------------------------------------------------ text */
+
+/* Melee's menu text: a struct holds a list of subtexts, each with its own
+ * colour, size and canvas position.  FG_CreateSubtext is one of the codeset's
+ * injected helpers.
+ *
+ * Its signature looks odd until you remember that PPC EABI fills the GPRs and
+ * the FPRs independently, in argument order: text/colour/mode/outline/string
+ * land in r3-r7 and size/x/y in f1-f3, which is exactly what the assembly
+ * version sets up by hand. */
+int FG_CreateSubtext(void *text, const void *color, int mode,
+                     const void *outline_color, const char *str,
+                     float size, float x, float y);
+
+#define PEPPY_SUBTEXT_PLAIN 0    /* 1 = outlined, 2 = premade text */
+
+/* Peppy's own CSS code builds the text struct in CSS_LoadFunction and parks it
+ * in the CSS data table, so a module that runs after SceneLoad_CSS can just
+ * borrow it rather than making a second one. */
+#define CSSDT_BUF_ADDR        0x80005614
+#define CSSDT_TEXT_STRUCT_OFS 0x08
+
+static inline void *peppy_css_text(void)
+{
+    void *cssdt = *(void **)CSSDT_BUF_ADDR;
+    if (!cssdt)
+        return 0;
+    return *(void **)((char *)cssdt + CSSDT_TEXT_STRUCT_OFS);
+}
+
+/* Canvas coordinates, the same space the drawn room row uses:
+ *     screen_x = 961 + 1.886 * canvas_x
+ *     screen_y = 594 + 1.886 * canvas_y                                    */
+
 #endif /* PEPPY_H */
