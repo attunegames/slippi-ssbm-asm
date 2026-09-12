@@ -125,6 +125,33 @@ static void peppy_room_clear_borrowed_scene(void)
     }
 }
 
+/* Does our text follow the camera, or is it drawn in screen space?
+ *
+ * The spectator view wants the match squeezed into the top half with the room
+ * furniture below it, and which of those two this is decides the whole design:
+ * if the text follows, the furniture needs a camera of its own, and if it does
+ * not, the split is nearly free.  Squeezing every camera on this scene and
+ * looking at where the room text ends up answers it in one run.
+ */
+static void peppy_room_squeeze_cameras(void)
+{
+    void **heads = peppy_gobj_heads();
+    void *g = heads[PEPPY_CLASS_CAMERA];
+
+    while (g)
+    {
+        void *cobj = *(void **)((char *)g + PEPPY_GOBJ_OBJECT);
+
+        if (cobj)
+        {
+            CObj_SetViewport(cobj, 0.0f, (float)PEPPY_SCREEN_W,
+                             0.0f, (float)PEPPY_SCREEN_H / 2.0f);
+            CObj_SetScissor(cobj, 0, PEPPY_SCREEN_W, 0, PEPPY_SCREEN_H / 2);
+        }
+        g = *(void **)((char *)g + PEPPY_GOBJ_NEXT);
+    }
+}
+
 static void peppy_room_build(void)
 {
     void *text = Text_CreateStruct(0, 0);
@@ -203,6 +230,7 @@ void peppy_room_load(void)
     s_queue_line = -1;
     s_queued = 0;
     peppy_room_build();
+    peppy_room_squeeze_cameras();
     peppy_log(s_text ? "Peppy: room scene built"
                      : "Peppy: room scene FAILED to make a text struct");
 }

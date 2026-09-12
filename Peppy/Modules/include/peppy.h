@@ -102,6 +102,17 @@ static inline void **peppy_gobj_heads(void)
     return *(void ***)((char *)peppy_sda() + PEPPY_GOBJ_HEADS);
 }
 
+/* A camera's viewport is four floats at cobj+0x0C and its scissor four
+ * halfwords at cobj+0x1C; Melee renders 640x480, so the top half is
+ * (0, 640, 0, 240).  GObj_AddObject parks the object on its GObj at +0x28, so
+ * a camera GObj (class 20) hands over its CObj. */
+void CObj_SetViewport(void *cobj, float left, float right, float top, float bottom);
+void CObj_SetScissor(void *cobj, int left, int right, int top, int bottom);
+
+#define PEPPY_GOBJ_OBJECT  0x28
+#define PEPPY_SCREEN_W     640
+#define PEPPY_SCREEN_H     480
+
 void GObj_Destroy(void *gobj);
 void GObj_DestroyGXLink(void *gobj);
 void GObj_AddGXLink(void *gobj, void *callback, int link, int priority);
