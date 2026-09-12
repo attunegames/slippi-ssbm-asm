@@ -193,21 +193,41 @@ static void peppy_room_viewport(void *gobj, int top_half)
 
 static void peppy_room_split(void)
 {
+    char line[120];
+    char *p = line;
     void **heads = peppy_gobj_heads();
     void *g = heads[PEPPY_CLASS_CAMERA];
+    u8 link;
     u32 text_bit;
+    int i = 0;
 
     if (!s_text)
         return;
-    text_bit = 1u << (*(u8 *)((char *)s_text + 3) & 31);
+
+    /* Read the link rather than assume it: it was 0 on the Coming Soon scene,
+     * and that was a different scene with a different text group. */
+    link = *(u8 *)((char *)s_text + 3);
+    text_bit = 1u << (link & 31);
+
+    p = put(p, "Peppy: textlink=");
+    p = put_u8(p, link);
 
     while (g)
     {
         u32 links = *(u32 *)((char *)g + PEPPY_GOBJ_LINKS0);
+        int bottom = (links & text_bit) != 0;
 
-        peppy_room_viewport(g, (links & text_bit) ? 0 : 1);
+        peppy_room_viewport(g, bottom ? 0 : 1);
+
+        *p++ = ' ';
+        p = put_u8(p, (u8)i);
+        *p++ = '=';
+        p = put(p, bottom ? "bottom" : "top");
+        i++;
         g = *(void **)((char *)g + PEPPY_GOBJ_NEXT);
     }
+    *p = 0;
+    peppy_log(line);
 }
 
 static void peppy_room_build(void)
