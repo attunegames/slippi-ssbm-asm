@@ -62,6 +62,14 @@ void SceneThink_MainMenu(void);
 void SceneLoad_MainMenu(void);
 void Scene_ExitMinor(void);
 
+/* Sets the major scene to go to next and flags the current one to end. The
+ * minor is not its business - the new major's Load picks that. */
+void Event_StoreSceneNumber(int major);
+
+/* Melee's own menu, which is where backing out of a room lands. Slippi's
+ * FN_OnReturnFromOnline already puts the cursor back on Rooms from here. */
+#define SCENE_MAJOR_MAIN_MENU 1
+
 /* A scene needs a camera and a render pass before anything draws, and that is
  * the scene Load's job.  Ours is our own, so until it builds its own camera it
  * borrows the simplest one in the game: Melee's unused "Coming Soon" screen,
