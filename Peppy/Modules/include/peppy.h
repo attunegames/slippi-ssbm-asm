@@ -54,6 +54,12 @@ void Scene_ExitMinor(void);
 void SceneLoad_ComingSoon(void);
 void SceneLeave_ComingSoon(void);
 
+/* Coming Soon gives a camera and a render pass -- its artwork draws -- but our
+ * text still does not, so the text object is on a GXLink that camera does not
+ * cover.  The debug menu is the one scene in the game that is nothing but menu
+ * text, so its camera has to cover the link menu text uses. */
+void SceneLoad_DebugMenu(void);
+
 /* ------------------------------------------------------------------- EXI */
 
 #define CONST_ExiWrite 1
