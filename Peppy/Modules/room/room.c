@@ -58,7 +58,10 @@ static const u8 COL_GOLD[4]  = {0xF5, 0xC4, 0x42, 0xFF};
 /* Text struct fields Melee expects set before anything is drawn, taken from
  * the values Slippi's own CSS text uses. */
 #define TEXT_Z          0.0f
-#define TEXT_CANVAS     0.1f
+/* Measured off the probe: at 0.1 this camera gave about 0.2px per canvas
+ * unit, against 1.886 on the character select - the markers landed in a corner
+ * a few pixels across. Ten times that puts the two in the same ballpark. */
+#define TEXT_CANVAS     1.0f
 #define TEXT_OFS_Z      0x08
 #define TEXT_OFS_SCALEX 0x24
 #define TEXT_OFS_SCALEY 0x28
@@ -70,43 +73,53 @@ static void *s_text;
 static void peppy_room_build(void)
 {
     void *text = Text_CreateStruct(0, 0);
+    int i;
 
     if (!text)
         return;
     s_text = text;
 
-    *(u8 *)((char *)text + TEXT_OFS_KERN)  = 1;
-    *(u8 *)((char *)text + TEXT_OFS_ALIGN) = 0;
+    *(u8 *)((char *)text + TEXT_OFS_KERN)  = 1;   /* close kerning */
+    *(u8 *)((char *)text + TEXT_OFS_ALIGN) = 0;   /* align left   */
     *(float *)((char *)text + TEXT_OFS_Z)      = TEXT_Z;
     *(float *)((char *)text + TEXT_OFS_SCALEX) = TEXT_CANVAS;
     *(float *)((char *)text + TEXT_OFS_SCALEY) = TEXT_CANVAS;
 
-    /* Probe, not layout. The room laid out at canvas (-430, -250) drew
-     * nothing, but those numbers were measured off the CHARACTER SELECT's
-     * camera, and canvas coordinates are camera-relative -- on this scene's
-     * camera the same numbers could put every line off screen. Markers at
-     * known positions and sizes say which it is: if any of them appear, the
-     * text renders fine and only the mapping is wrong. */
-    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                     "CENTRE", 1.0f, 0.0f, 0.0f);
     FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
-                     "LEFT", 1.0f, -200.0f, 0.0f);
-    FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
-                     "RIGHT", 1.0f, 200.0f, 0.0f);
-    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "UP", 1.0f, 0.0f, -200.0f);
-    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "DOWN", 1.0f, 0.0f, 200.0f);
-    /* And one at the scale the CSS text uses, in case 1.0 is enormous here. */
+                     "PEPPY ROOM", SIZE_TITLE, COL_LEFT, Y_TITLE);
+
     FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                     "small centre", 0.05f, 0.0f, 30.0f);
+                     "QUEUE", SIZE_HEADING, COL_LEFT, Y_HEADING);
+    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                     "LOBBY", SIZE_HEADING, COL_RIGHT, Y_HEADING);
+
+    /* Placeholders until the roster is wired in, so the shape of the screen is
+     * visible and the per-frame update only ever rewrites contents. */
+    for (i = 0; i < QUEUE_ROWS; i++)
+        FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                         i == 0 ? "1. Alpha" : "",
+                         SIZE_NAME, COL_LEFT, Y_FIRST_NAME + ROW_STEP * i);
+    for (i = 0; i < LOBBY_ROWS; i++)
+        FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0, "",
+                         SIZE_NAME, COL_RIGHT, Y_FIRST_NAME + ROW_STEP * i);
+
+    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                     "START    Join Queue", SIZE_ACTION, COL_LEFT, Y_ACTIONS);
+    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                     "X        Spectate", SIZE_ACTION, COL_LEFT,
+                     Y_ACTIONS + ROW_STEP);
+    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                     "Z        Training", SIZE_ACTION, COL_LEFT,
+                     Y_ACTIONS + ROW_STEP * 2);
 }
 
 /* ----------------------------------------------------------------- exports */
 
 void peppy_room_think(void)
 {
-    SceneThink_ClassicModeSplash();
+    /* Deliberately not SceneThink_ClassicModeSplash: its Load is what sets the
+     * scene up, its Think animates the splash toward a match and reads data a
+     * room does not have, which is the invalid read a few seconds in. */
 }
 
 void peppy_room_load(void)
