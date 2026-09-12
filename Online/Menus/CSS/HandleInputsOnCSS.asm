@@ -34,6 +34,38 @@ lwz REG_MSRB_ADDR, CSSDT_MSRB_ADDR(REG_CSSDT_ADDR) # Load where buf is stored
 li REG_ZERO, 0 # set to zero just in case :)
 
 ################################################################################
+# Peppy: a room is the queue, the character select is not
+################################################################################
+# The character select was where a Rooms player waited, because a room had no
+# screen of its own. It has one now, so being here with nobody to play against
+# means a game just ended - and the room is where the queue, the lobby and the
+# choice to play again live.
+#
+# Staying is for the two cases where this screen is the right one: an opponent
+# has been found and is being picked against, and watching somebody else's
+# match, which drives this screen from their inputs.
+lbz r3, OFST_R13_ONLINE_MODE(r13)
+cmpwi r3, ONLINE_MODE_ROOMS
+bne PEPPY_CSS_STAY
+
+lbz r3, MSRB_CONNECTION_STATE(REG_MSRB_ADDR)
+cmpwi r3, MM_STATE_CONNECTION_SUCCESS
+beq PEPPY_CSS_STAY
+
+lbz r3, MSRB_ROOM_FLAGS(REG_MSRB_ADDR)
+andi. r3, r3, MSRB_ROOM_FLAG_WATCHABLE
+bne PEPPY_CSS_STAY
+
+# Minor 6 of this major is the room, and this byte is one-based.
+load r4, 0x80479d30
+li r3, 7
+stb r3, 0x5(r4)
+branchl r12, Scene_ExitMinor
+b SKIP_START_MATCH
+
+PEPPY_CSS_STAY:
+
+################################################################################
 # Play sound on lock-in state 1 -> 0 transition
 ################################################################################
 lbz r3, CSSDT_PREV_LOCK_IN_STATE(REG_CSSDT_ADDR)

@@ -504,6 +504,7 @@ add \reg, r3, r4
 .set RenewInputs_Prefunction,0x800195fc
 .set PadAlarmCheck,0x80019894
 .set Event_StoreSceneNumber,0x80229860
+.set Scene_ExitMinor,0x801a4b60
 .set EventMatch_Store,0x801beb74
 .set PadRead,0x8034da00
 
