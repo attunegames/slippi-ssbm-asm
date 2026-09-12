@@ -114,6 +114,11 @@ static void peppy_room_build(void)
         return;
     s_text = text;
 
+    /* The text object comes out on render link 0 and this scene's camera is on
+     * link 1, so nothing ever renders it - which is why Melee's own artwork
+     * drew here and ours did not. A GObj keeps its link in byte 3. */
+    *(u8 *)((char *)text + 3) = *(u8 *)((char *)peppy_sda() - 15957);
+
     *(u8 *)((char *)text + TEXT_OFS_KERN)  = 1;   /* close kerning */
     *(u8 *)((char *)text + TEXT_OFS_ALIGN) = 0;   /* align left   */
     *(float *)((char *)text + TEXT_OFS_Z)      = TEXT_Z;
