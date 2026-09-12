@@ -163,6 +163,15 @@ void SceneThink_ClassicModeSplash(void);
 #define PAD_START  0x1000
 #define PAD_B      0x0200
 #define PAD_Z      0x0010
+#define PAD_A      0x0100
+
+/* Melee puts the control stick's direction into the same word as the buttons,
+ * so a menu can read a flick without touching the analog values at all.
+ * Measured by dumping a pad struct while the test script held each direction:
+ * up came out 0x00010000 and down 0x00020000. Left and right were not measured
+ * and are not guessed at here. */
+#define PAD_STICK_UP   0x00010000
+#define PAD_STICK_DOWN 0x00020000
 
 /* Any port: a room is watched by whoever is sitting there, not by a fixed
  * controller slot. */
@@ -208,6 +217,10 @@ void *FN_LoadMatchState(int unused);
  *
  * Payload is the online mode and eighteen shift-JIS bytes of opponent code,
  * which only Direct mode reads. */
+/* Joining a room somebody else made: the mode, then the four characters of its
+ * code. Melee does not terminate it - the length is the terminator. */
+#define PEPPY_CMD_JOIN_ROOM 0xC8
+
 #define PEPPY_CMD_FIND_OPPONENT 0xB4
 #define PEPPY_FIND_OPPONENT_SIZE 20
 
