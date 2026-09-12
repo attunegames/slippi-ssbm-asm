@@ -307,7 +307,7 @@ static void peppy_room_build(void)
                      DIVIDER, SIZE_NAME, 30.0f, Y_DIVIDER + 14.0f);
     s_p1_line = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
                                  "", SIZE_HEADING, X_P1, Y_DIVIDER);
-    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+    FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
                      "VS", SIZE_HEADING, X_VS, Y_DIVIDER);
     s_p2_line = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
                                  "", SIZE_HEADING, X_P2, Y_DIVIDER);
