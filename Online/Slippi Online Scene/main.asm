@@ -335,11 +335,15 @@ lbz r3, 0x5(r31)
 cmpwi r3, PEPPY_MINOR_LEAVE_MAJOR
 bne PeppyRoomSceneDecide_EXIT
 
-# 0xFF, the value that terminates a minor scene table. Zero is not "no minor" -
-# it means minor zero, which in here is the character select, and the major
-# change never got looked at. The major can only be reached once the minors
-# have run out.
-li r3, 0xFF
+# Zero, which is the character select - one screen from the menu, and Melee's
+# own BACK gets the rest of the way. It is not what this wants.
+#
+# What it wants is to end the MAJOR, and that is still unsolved. From here, with
+# the major already named, 0xFF - the value that terminates a minor scene table
+# - freezes the picture exactly as it did from the module's Think. So does
+# every other way tried; see peppy_room_back in room.c for the full list. Zero
+# at least always lands somewhere.
+li r3, 0
 stb r3, 0x5(r31)
 
 li r3, PEPPY_MAJOR_MAIN_MENU
