@@ -105,60 +105,47 @@ static char *put_hex(char *p, u32 v)
 
 static void *s_text;
 
+/* Link probe.
+ *
+ * The text object is created on render link 0 and nothing renders it here,
+ * but moving it to the camera's own link did not help either - so guessing
+ * one link at a time is wasteful.  Build one text object per link, label each,
+ * and whichever shows up names the link this camera actually draws. */
 static void peppy_room_build(void)
 {
-    void *text = Text_CreateStruct(0, 0);
-    int i;
+    int link;
 
-    if (!text)
-        return;
-    s_text = text;
-
-    /* The text object comes out on render link 0 and this scene's camera is on
-     * link 1, so nothing ever renders it - which is why Melee's own artwork
-     * drew here and ours did not.  Setting the link byte is not enough: the
-     * object is already threaded onto link 0's list, so take it off and add it
-     * back on the camera's link, the same way the text system put it there. */
+    for (link = 0; link < 8; link++)
     {
-        int link = *(u8 *)((char *)peppy_sda() - 15957);
-        int pri  = *(u8 *)((char *)text + 5);
+        void *text = Text_CreateStruct(0, 0);
+        char label[8];
+        char *p = label;
 
-        GObj_DestroyGXLink(text);
-        GObj_AddGXLink(text, TEXT_DRAW_EACH_FRAME, link, pri);
+        if (!text)
+            continue;
+        if (!s_text)
+            s_text = text;
+
+        if (link != *(u8 *)((char *)text + 3))
+        {
+            int pri = *(u8 *)((char *)text + 5);
+            GObj_DestroyGXLink(text);
+            GObj_AddGXLink(text, TEXT_DRAW_EACH_FRAME, link, pri);
+        }
+
+        *(u8 *)((char *)text + TEXT_OFS_KERN)  = 1;
+        *(u8 *)((char *)text + TEXT_OFS_ALIGN) = 0;
+        *(float *)((char *)text + TEXT_OFS_Z)      = TEXT_Z;
+        *(float *)((char *)text + TEXT_OFS_SCALEX) = TEXT_CANVAS;
+        *(float *)((char *)text + TEXT_OFS_SCALEY) = TEXT_CANVAS;
+
+        p = put(p, "LINK ");
+        p = put_u8(p, (u8)link);
+        *p = 0;
+
+        FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0, label,
+                         0.6f, 60.0f, 60.0f + 40.0f * (float)link);
     }
-
-    *(u8 *)((char *)text + TEXT_OFS_KERN)  = 1;   /* close kerning */
-    *(u8 *)((char *)text + TEXT_OFS_ALIGN) = 0;   /* align left   */
-    *(float *)((char *)text + TEXT_OFS_Z)      = TEXT_Z;
-    *(float *)((char *)text + TEXT_OFS_SCALEX) = TEXT_CANVAS;
-    *(float *)((char *)text + TEXT_OFS_SCALEY) = TEXT_CANVAS;
-
-    FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
-                     "PEPPY ROOM", SIZE_TITLE, COL_LEFT, Y_TITLE);
-
-    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                     "QUEUE", SIZE_HEADING, COL_LEFT, Y_HEADING);
-    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                     "LOBBY", SIZE_HEADING, COL_RIGHT, Y_HEADING);
-
-    /* Placeholders until the roster is wired in, so the shape of the screen is
-     * visible and the per-frame update only ever rewrites contents. */
-    for (i = 0; i < QUEUE_ROWS; i++)
-        FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                         i == 0 ? "1. Alpha" : "",
-                         SIZE_NAME, COL_LEFT, Y_FIRST_NAME + ROW_STEP * i);
-    for (i = 0; i < LOBBY_ROWS; i++)
-        FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0, "",
-                         SIZE_NAME, COL_RIGHT, Y_FIRST_NAME + ROW_STEP * i);
-
-    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                     "START    Join Queue", SIZE_ACTION, COL_LEFT, Y_ACTIONS);
-    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "X        Spectate", SIZE_ACTION, COL_LEFT,
-                     Y_ACTIONS + ROW_STEP);
-    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "Z        Training", SIZE_ACTION, COL_LEFT,
-                     Y_ACTIONS + ROW_STEP * 2);
 }
 
 /* ----------------------------------------------------------------- exports */
