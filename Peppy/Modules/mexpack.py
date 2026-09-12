@@ -122,33 +122,47 @@ def build(elf_path, out_path, exports):
             relocs.append((rtype, off - base, target))
     relocs.sort(key=lambda r: r[1])
 
-    # --- append the reloc table, export table and mnFunction root ---------
-    # Layout mirrors Slippi's: relocs first at offset 0, then code, then the
-    # tables.  We keep code where the linker put it and append instead.
-    def pad(b, n=4):
-        while len(b) % n:
-            b.append(0)
+    # --- lay the module out the way Slippi's do -----------------------
+    # relocation table, code, mnFunction, export table.  Matching their order
+    # is not cosmetic: in SlippiCSS.dat the header is followed by 36 more
+    # bytes of data block, so mnFunction is 0x20 wide with three spare words
+    # after the five documented fields.  A packer that stops at 0x14 leaves
+    # the loader writing its scratch straight past the end of the data block
+    # and into the DAT relocation table.
+    FN_SIZE = 0x20
 
-    data = bytearray(image)
-    pad(data)
+    data = bytearray()
+
+    def align(n):
+        while len(data) % n:
+            data.append(0)
+
     reloc_off = len(data)
     for rtype, off, tgt in relocs:
         data += struct.pack(">II", (rtype << 24) | off, tgt)
 
+    align(32)                      # code is cache-flushed; keep it on a line
+    code_off = len(data)
+    data += image
+
+    align(4)
+    fn_off = len(data)
+    export_off = fn_off + FN_SIZE
+    data += struct.pack(">IIIII", code_off, reloc_off, len(relocs),
+                        export_off, len(exports))
+    data += bytes(FN_SIZE - 20)
+
     name_to_off = {s["name"]: s["value"] - base for s in syms}
-    export_off = len(data)
+    assert len(data) == export_off
     for eid, sym in exports:
         if sym not in name_to_off:
             raise ValueError(f"export {eid}: no symbol {sym!r} in {elf_path}")
         data += struct.pack(">II", eid, name_to_off[sym])
+    align(4)
 
-    fn_off = len(data)
-    data += struct.pack(">IIIII", 0, reloc_off, len(relocs),
-                        export_off, len(exports))
-    pad(data)
-
-    # code / relocs / exports are the three pointers the loader fixes up
-    dat_relocs = [fn_off + 0x00, fn_off + 0x04, fn_off + 0x0C]
+    # code / relocs / exports are the three pointers the loader fixes up, in
+    # the order Slippi's files list them.
+    dat_relocs = [fn_off + 0x0C, fn_off + 0x00, fn_off + 0x04]
 
     # --- wrap in a HAL DAT with the single `mnFunction` root --------------
     ds = len(data)
@@ -160,7 +174,8 @@ def build(elf_path, out_path, exports):
         out += struct.pack(">I", r)
     out += struct.pack(">II", fn_off, 0)    # root: mnFunction
     out += b"mnFunction\0"
-    pad(out)
+    while len(out) % 4:
+        out.append(0)
     struct.pack_into(">I", out, 0, len(out))
     open(out_path, "wb").write(out)
     return dict(image=len(image), relocs=len(relocs),
