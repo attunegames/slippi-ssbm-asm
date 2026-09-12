@@ -128,6 +128,11 @@ static const char *const MODE_NAMES[] = {
 #define STR_JOIN      "Press START to Join the Queue"
 #define STR_PRACTICE  "Press START to Practice"
 
+/* The refresh runs every frame and is written top-down; these two are the
+ * ways out of the scene and read better next to each other, further down. */
+static void peppy_room_go_to_css(const char *why);
+static void peppy_room_check_paired(void *msrb);
+
 static void *s_text;
 static int s_room_line;
 static int s_queue_head;
@@ -493,6 +498,7 @@ static void peppy_room_refresh(void)
         Text_UpdateSubtextContents(s_text, s_lobby_rows[0], "nobody here");
 
     peppy_room_show_code(msrb);
+    peppy_room_check_paired(msrb);
 }
 
 static void peppy_room_build(void)
@@ -580,6 +586,18 @@ static void peppy_room_build(void)
  * The flag rather than the roster decides it: two names in the active slots
  * mean a pair has been introduced, not that there is anything on screen yet.
  */
+/* Hand the screen to Melee's own character select.
+ *
+ * Both ways out of the room end here: getting matched, and pressing Z to watch
+ * somebody else's match. The scene is the same either way - what differs is
+ * whose inputs drive it, and that is Dolphin's business, not this module's. */
+static void peppy_room_go_to_css(const char *why)
+{
+    peppy_log(why);
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_CSS);
+    Scene_ExitMinor();
+}
+
 /* Ask Dolphin to start looking.
  *
  * This is the character select's own first act, and nothing had taken it over
@@ -612,9 +630,24 @@ static void peppy_room_spectate(void)
         return;
     }
 
-    peppy_log("Peppy: watching the match");
-    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_CSS);
-    Scene_ExitMinor();
+    peppy_room_go_to_css("Peppy: watching the match");
+}
+
+/* Paired up: the room's job is done and the character select takes over.
+ *
+ * The handoff waits for CONNECTION_SUCCESS and not a moment earlier. The
+ * character select forks on the same byte, and anything below that lands it in
+ * its "searching" branch, where it will not let you lock a character in - you
+ * would arrive at a character select that refuses to start. At
+ * CONNECTION_SUCCESS it opens on the branch that takes a pick and a Start,
+ * which is the screen the player is expecting.
+ */
+static void peppy_room_check_paired(void *msrb)
+{
+    u8 state = *(u8 *)((char *)msrb + MSRB_CONNECTION_STATE);
+
+    if (state == MM_STATE_CONNECTION_SUCCESS)
+        peppy_room_go_to_css("Peppy: matched - handing over to the character select");
 }
 
 /* Leaving the room.
