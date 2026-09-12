@@ -560,8 +560,8 @@ static void peppy_room_build_browser(void *text)
     s_browse_hint = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
                                      "", SIZE_ACTION, COL_LEFT, Y_ACTIONS);
     FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "Up and Down to choose", SIZE_ACTION, COL_LEFT,
-                     Y_ACTIONS + 30.0f);
+                     "Up and Down to choose, B to go back", SIZE_ACTION,
+                     COL_LEFT, Y_ACTIONS + 30.0f);
 }
 
 /* One row: a marker for the row the cursor is on, the code, the host and how
@@ -675,8 +675,12 @@ static void peppy_room_browse_buttons(void *msrb)
         s_browse_cursor++;
     if (pressed & PAD_A)
         peppy_room_browse_join(msrb);
-    /* No B here either, for the same reason as peppy_room_back - and a list
-     * with nothing in it is a dead end until that is solved. */
+    if (pressed & PAD_B)
+    {
+        peppy_log("Peppy: leaving the room list");
+        SCENE_CTRL.pending_minor = SCENE_MINOR_LEAVE_MAJOR;
+        Scene_ExitMinor();
+    }
 }
 
 /* The text object both shapes of this screen are drawn into. Made before either
@@ -755,11 +759,9 @@ static void peppy_room_build(void)
                      "Press Z to Spectate", SIZE_ACTION, COL_LEFT,
                      Y_ACTIONS + 30.0f);
 
-    /* The character select's own BACK sits in this corner, and this is the
-     * same corner - but it cannot say BACK until B actually goes back. See
-     * peppy_room_back. */
+    /* The same corner the character select keeps its own BACK in. */
     FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "B LEAVE QUEUE", SIZE_NAME, X_BACK, Y_DIVIDER);
+                     "BACK", SIZE_HEADING, X_BACK, Y_DIVIDER);
 }
 
 /* ----------------------------------------------------------------- exports */
@@ -839,41 +841,22 @@ static void peppy_room_check_paired(void *msrb)
         peppy_room_go_to_css("Peppy: matched - handing over to the character select");
 }
 
-/* Leaving the queue.
+/* Leaving the room.
  *
- * Not the room: getting out of the online major from here is unsolved. The
- * minor transitions work - that is how a matched player reaches the character
- * select and how Z hands the screen to a match - but every way of ending the
- * MAJOR from this scene's Think freezes the picture with the scene already
- * left. Tried and recorded so none of it gets tried again:
- *
- *   Event_StoreSceneNumber(1)                  the minor exits, byte 5 still
- *                                              held our own minor, hang
- *   ... with pending_minor 0                   goes to minor 0, the character
- *                                              select, major unchanged
- *   ... with pending_minor 40 (ExitSceneID)    hangs before Leave even runs
- *   ... with pending_minor 0xFF                hang
- *   Scene_SetNextMajor(1) + Scene_ExitMajor    byte 1 does change to 1, and it
- *                                              still hangs
- *   Event_StoreSceneNumber((40 << 8) | 1)      character select again
- *
- *   from a GObj proc of its own                GObj_Create(0, 1, 128) itself
- *     (GObj_Create + GObj_AddProc, which       never came back - no proc ever
- *      is how the menu gives itself one)       ran and nothing was logged
- *
- * The menu's own Event_StoreSceneNumber(8) works, so the call is fine and the
- * difference is where it is made from. The next thing to try is the scene's
- * Decide, in the codeset, where every other transition in Slippi's online
- * scene is made - the Think would only raise a flag. Until then B does the
- * part of leaving that works.
+ * The request is raised here and spent in the scene's Decide, over in the
+ * codeset. Every way of making it from this Think froze the picture with the
+ * scene already left - six of them, all tried - and a Decide is where every
+ * other transition in Slippi's online scene is made. The sentinel rides in the
+ * scene controller's own next-minor byte, so there is no new state to keep in
+ * step between the two sides.
  */
 static void peppy_room_back(void)
 {
     if (s_queued)
-    {
         peppy_room_set_queued(0);
-        peppy_log("Peppy: left the queue");
-    }
+    peppy_log("Peppy: leaving the room");
+    SCENE_CTRL.pending_minor = SCENE_MINOR_LEAVE_MAJOR;
+    Scene_ExitMinor();
 }
 
 /* The room's buttons.
