@@ -202,8 +202,11 @@ blrl
 .float -107
 .set PRD_X_CODE, PRD_X_ROOM_LABEL+4
 .float -37
+# Clear of the value, not of the mask. A revealed code renders wider than four
+# asterisks do, so spacing this against the masked row leaves the separator
+# touching the code the moment somebody holds a trigger.
 .set PRD_X_SEP, PRD_X_CODE+4
-.float 21
+.float 33
 .set PRD_X_PASS_LABEL, PRD_X_SEP+4
 .float 53
 .set PRD_X_PASS, PRD_X_PASS_LABEL+4
