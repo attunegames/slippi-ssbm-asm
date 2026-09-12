@@ -143,8 +143,11 @@ static void peppy_room_build(void)
         p = put_u8(p, (u8)link);
         *p = 0;
 
-        FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0, label,
+        FG_CreateSubtext(text, (link & 1) ? COL_GOLD : COL_WHITE,
+                         PEPPY_SUBTEXT_PLAIN, 0, label,
                          0.6f, 60.0f, 60.0f + 40.0f * (float)link);
+        FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0, label,
+                         0.3f, 400.0f, 60.0f + 40.0f * (float)link);
     }
 }
 
