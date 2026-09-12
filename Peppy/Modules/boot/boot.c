@@ -58,6 +58,29 @@ static char *put_u8(char *p, u8 v)
     return p;
 }
 
+/* RGBA, the same values the drawn room row uses. */
+static const u8 COL_WHITE[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+static const u8 COL_GRAY[4]  = {0x8E, 0x91, 0x96, 0xFF};
+
+/* "+ Select your character" sits at roughly canvas (90, 49); these go under it,
+ * a row apart, in the empty column to the right of the port panels. */
+#define ROW_X       90.0f
+#define ROW1_Y      72.0f
+#define ROW2_Y      89.0f
+#define ROW_SIZE    0.45f
+
+static void peppy_draw_room_actions(void)
+{
+    void *text = peppy_css_text();
+    if (!text)
+        return;
+
+    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                     "Press START to Join Queue", ROW_SIZE, ROW_X, ROW1_Y);
+    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                     "Press X to Spectate", ROW_SIZE, ROW_X, ROW2_Y);
+}
+
 static int announced;
 
 void peppy_boot_think(void)
@@ -76,7 +99,7 @@ void peppy_boot_think(void)
 
         /* Reading the scene controller proves the module can reach Melee's
          * globals, not just call into its code. */
-        p = put(p, "Peppy: m-ex module running on the CSS (major ");
+        p = put(p, "Peppy: room actions drawn from the module (major ");
         p = put_u8(p, SCENE_CTRL.major);
         p = put(p, ", minor ");
         p = put_u8(p, SCENE_CTRL.minor);
@@ -90,6 +113,10 @@ void peppy_boot_think(void)
 void peppy_boot_load(void)
 {
     SceneLoad_CSS();
+
+    /* Only after the original: Peppy's CSS code builds the text struct inside
+     * CSS_LoadFunction, which SceneLoad_CSS is what reaches. */
+    peppy_draw_room_actions();
 }
 
 void peppy_boot_leave(void)
