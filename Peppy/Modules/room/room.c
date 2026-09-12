@@ -121,6 +121,7 @@ static void *s_text;
 static int s_queue_line = -1;
 static int s_p1_line = -1;
 static int s_p2_line = -1;
+static int s_queue_rows[QUEUE_ROWS];
 static int s_queued;
 
 /* The two names on the line.  Empty when nobody is matched, which is the state
@@ -286,6 +287,67 @@ static void peppy_room_split(void)
     peppy_log(line);
 }
 
+/* The roster arrives in the match state buffer as eight fixed 16-byte slots:
+ * slot 0 and 1 are the two who are matched - the names that belong on the line
+ * - and 2 onwards are the queue in order.  The names are not promised to be
+ * terminated when they fill the slot, so copy rather than point.
+ *
+ * LOBBY stays empty for now: the backend sends "active" and "queue" and has no
+ * notion yet of somebody who is in the room but not queued. */
+static void peppy_room_name(char *out, const char *slot)
+{
+    int i;
+
+    for (i = 0; i < MSRB_ROSTER_STRIDE && slot[i]; i++)
+        out[i] = slot[i];
+    out[i] = 0;
+}
+
+static void peppy_room_refresh(void)
+{
+    char name[MSRB_ROSTER_STRIDE + 1];
+    char row[MSRB_ROSTER_STRIDE + 8];
+    const char *roster;
+    void *msrb;
+    int i;
+
+    if (!s_text)
+        return;
+    msrb = FN_LoadMatchState(0);
+    if (!msrb)
+        return;
+    roster = (const char *)msrb + MSRB_ROSTER;
+
+    if (s_p1_line >= 0)
+    {
+        peppy_room_name(name, roster + 0 * MSRB_ROSTER_STRIDE);
+        Text_UpdateSubtextContents(s_text, s_p1_line, "%s", name);
+    }
+    if (s_p2_line >= 0)
+    {
+        peppy_room_name(name, roster + 1 * MSRB_ROSTER_STRIDE);
+        Text_UpdateSubtextContents(s_text, s_p2_line, "%s", name);
+    }
+
+    for (i = 0; i < QUEUE_ROWS; i++)
+    {
+        char *p = row;
+
+        if (s_queue_rows[i] < 0)
+            continue;
+        peppy_room_name(name, roster + (2 + i) * MSRB_ROSTER_STRIDE);
+        if (name[0])
+        {
+            p = put_u8(p, (u8)(i + 1));
+            *p++ = '.';
+            *p++ = ' ';
+            p = put(p, name);
+        }
+        *p = 0;
+        Text_UpdateSubtextContents(s_text, s_queue_rows[i], "%s", row);
+    }
+}
+
 static void peppy_room_build(void)
 {
     void *text = Text_CreateStruct(0, 0);
@@ -318,9 +380,9 @@ static void peppy_room_build(void)
                      "LOBBY", SIZE_HEADING, COL_RIGHT, Y_HEADING);
 
     for (i = 0; i < QUEUE_ROWS; i++)
-        FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                         i == 0 ? "1. Alpha" : "",
-                         SIZE_NAME, COL_LEFT, Y_FIRST_NAME + ROW_STEP * i);
+        s_queue_rows[i] = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN,
+                                           0, "", SIZE_NAME, COL_LEFT,
+                                           Y_FIRST_NAME + ROW_STEP * i);
     for (i = 0; i < LOBBY_ROWS; i++)
         FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0, "",
                          SIZE_NAME, COL_RIGHT, Y_FIRST_NAME + ROW_STEP * i);
@@ -345,6 +407,9 @@ static void peppy_room_build(void)
 
 void peppy_room_think(void)
 {
+    /* The roster changes while people come and go, so it is read every frame
+     * rather than once at load. */
+    peppy_room_refresh();
     /* Deliberately not SceneThink_ClassicModeSplash: its Load is what sets the
      * scene up, its Think animates the splash toward a match and reads data a
      * room does not have, which is the invalid read a few seconds in. */
@@ -373,6 +438,12 @@ void peppy_room_load(void)
     s_p1_line = -1;
     s_p2_line = -1;
     s_queued = 0;
+    {
+        int i;
+
+        for (i = 0; i < QUEUE_ROWS; i++)
+            s_queue_rows[i] = -1;
+    }
     peppy_room_build();
     peppy_room_split();
     peppy_log(s_text ? "Peppy: room scene built"
