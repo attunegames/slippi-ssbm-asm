@@ -72,6 +72,16 @@ void SceneLoad_ClassicModeSplash(void);
  * the splash's stage and item loading, and Melee ships a function for taking
  * its widgets away - which leaves the background and nothing else. */
 void MainMenu_HideAllElements(void);
+
+/* A GObj is registered on a render link with a draw callback and a priority -
+ * this is how Text_AllocateTextObject puts the text object on link 0 in the
+ * first place.  Poking the link byte afterwards does nothing, because the
+ * object is already threaded onto link 0's list; it has to be taken off and
+ * put back on. */
+void GObj_DestroyGXLink(void *gobj);
+void GObj_AddGXLink(void *gobj, void *callback, int link, int priority);
+
+#define TEXT_DRAW_EACH_FRAME ((void *)0x803A84BC)
 void SceneThink_ClassicModeSplash(void);
 
 /* ------------------------------------------------------------------- EXI */
