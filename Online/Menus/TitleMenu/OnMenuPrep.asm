@@ -1001,7 +1001,7 @@ b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 
 FN_OnlineSubmenuThink_HANDLE_SINGLES:
 li r3, ONLINE_MODE_ROOMS
-b FN_OnlineSubmenuThink_GO_TO_CSS
+b FN_OnlineSubmenuThink_GO_TO_ROOM
 
 FN_OnlineSubmenuThink_HANDLE_PARTY:
 li r3, ONLINE_MODE_PARTY
@@ -1043,6 +1043,24 @@ branchl r12, SFX_Menu_CommonSound
 # Go to online mode CSS
 li r3, 0x8
 branchl r12, Event_StoreSceneNumber
+b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
+
+FN_OnlineSubmenuThink_GO_TO_ROOM:
+# A room opens on Peppy's own screen - the queue and what you can do from it -
+# not on the character select. The character select comes later, once two
+# people are matched, which is what the room's SceneDecide will hand off to.
+stb r3, OFST_R13_ONLINE_MODE(r13)
+
+li	r3, 1
+branchl r12, SFX_Menu_CommonSound
+
+li r3, 0x8
+branchl r12, Event_StoreSceneNumber
+
+# Minor 6 of the online major, rather than 0 (the character select).
+load r4, 0x80479d30
+li r3, 6
+stb r3, 0x5(r4)
 b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 
 FN_OnlineSubmenuThink_TRIGGER_EXI_MSG:

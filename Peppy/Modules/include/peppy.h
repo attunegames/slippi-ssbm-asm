@@ -80,6 +80,8 @@ extern u8 peppy_exi_buf[PEPPY_EXI_BUF_SIZE];
  * the FPRs independently, in argument order: text/colour/mode/outline/string
  * land in r3-r7 and size/x/y in f1-f3, which is exactly what the assembly
  * version sets up by hand. */
+void *Text_CreateStruct(int a, int b);
+
 int FG_CreateSubtext(void *text, const void *color, int mode,
                      const void *outline_color, const char *str,
                      float size, float x, float y);

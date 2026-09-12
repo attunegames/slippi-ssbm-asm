@@ -31,7 +31,10 @@ SCRIPTS := module.ld melee_symbols.ld slippi_symbols.ld
 boot_DAT     := PeppyBoot.dat
 boot_EXPORTS := 0=peppy_boot_think 1=peppy_boot_load 2=peppy_boot_leave
 
-MODULES := boot
+room_DAT     := PeppyRoom.dat
+room_EXPORTS := 0=peppy_room_think 1=peppy_room_load 2=peppy_room_leave
+
+MODULES := boot room
 
 all: $(foreach m,$(MODULES),$(OUT)/$($(m)_DAT))
 

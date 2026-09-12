@@ -274,9 +274,33 @@ bl GamePrepSceneDecide    #SceneDecide
 .align 2
 bl GamePrepData           #Minor Data 1
 bl GamePrepData           #Minor Data 2
+#Peppy room
+# Peppy's own screen: the queue and what you can do from it. Common minor 0x51
+# is a scene we added to MxScn.dat with no Melee functions behind it, so the
+# whole thing is PeppyRoom.dat. Slippi's scenes above are untouched - the
+# character select still comes after this one, unchanged, once two people are
+# matched.
+.byte 6                     #Minor Scene ID
+.byte 3                     #Amount of persistent heaps
+.align 2
+bl PeppyRoomScenePrep       #ScenePrep
+bl PeppyRoomSceneDecide     #SceneDecide
+.byte 0x51                  #Common Minor ID (Peppy room)
+.align 2
+.long 0x00000000            #Minor Data 1
+.long 0x00000000            #Minor Data 2
 #End
 .byte -1
 .align 2
+
+# The screen is built by the module; these only exist because every minor
+# needs a prep and a decide. The decide will pick the next scene once the
+# queue can match two people.
+PeppyRoomScenePrep:
+blr
+
+PeppyRoomSceneDecide:
+blr
 
 DATA_BLRL:
 blrl
