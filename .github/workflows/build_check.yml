@@ -33,12 +33,6 @@ jobs:
         if: success()
         working-directory: ${{ github.workspace }}
         run: |
-          sudo docker run --volume=${PWD}:/work --workdir=/work/Peppy/Modules nikhilnarayana/devkitpro-slippi:latest             bash -lc 'echo "PATH=$PATH"; echo "DEVKITPRO=$DEVKITPRO DEVKITPPC=$DEVKITPPC";
-                      ls /opt 2>&1 | head;
-                      ls /opt/devkitpro 2>&1 | head;
-                      find / -maxdepth 7 -name "powerpc-eabi-gcc*" 2>/dev/null | head;
-                      find / -maxdepth 7 -name "powerpc-eabi-ld*" 2>/dev/null | head;
-                      for t in python3 python make ld gcc; do printf "%s: " "$t"; (command -v $t || echo -); done'
           sudo docker run --volume=${PWD}:/work --workdir=/work/Peppy/Modules nikhilnarayana/devkitpro-slippi:latest make
           ls -l Peppy/Modules/out
       - name: "Upload m-ex modules"
