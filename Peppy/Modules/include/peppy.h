@@ -144,6 +144,10 @@ extern u8 peppy_exi_buf[PEPPY_EXI_BUF_SIZE];
  * version sets up by hand. */
 void *Text_CreateStruct(int a, int b);
 
+/* Rewrites one subtext in place, by the index FG_CreateSubtext handed back.
+ * Printf-style, so a plain string with no % in it can be passed directly. */
+void Text_UpdateSubtextContents(void *text, int index, const char *fmt, ...);
+
 int FG_CreateSubtext(void *text, const void *color, int mode,
                      const void *outline_color, const char *str,
                      float size, float x, float y);
