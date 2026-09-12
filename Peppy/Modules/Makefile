@@ -25,16 +25,18 @@ LDFLAGS := --emit-relocs -T module.ld -T melee_symbols.ld -T slippi_symbols.ld
 OUT     := out
 SCRIPTS := module.ld melee_symbols.ld slippi_symbols.ld
 
-# Each module's exports, in scene-table slot order: 0 = Think, 1 = Load,
-# 2 = Leave.  mexpack.py looks these symbols up by name in the linked ELF.
+# Per module: the shipped filename (it has to match what mxscn.py wrote into
+# MxScn.dat, case included) and the exports in scene-table slot order --
+# 0 = Think, 1 = Load, 2 = Leave.  mexpack.py looks the symbols up by name.
+boot_DAT     := PeppyBoot.dat
 boot_EXPORTS := 0=peppy_boot_think 1=peppy_boot_load 2=peppy_boot_leave
 
 MODULES := boot
 
-all: $(patsubst %,$(OUT)/Peppy%.dat,$(MODULES))
+all: $(foreach m,$(MODULES),$(OUT)/$($(m)_DAT))
 
 define MODULE_RULE
-$$(OUT)/Peppy$(1).dat: $$(wildcard $(1)/*.c) $$(wildcard include/*.h) $$(SCRIPTS) mexpack.py | $$(OUT)
+$$(OUT)/$$($(1)_DAT): $$(wildcard $(1)/*.c) $$(wildcard include/*.h) $$(SCRIPTS) mexpack.py | $$(OUT)
 	@mkdir -p $$(OUT)/$(1)
 	$$(foreach src,$$(wildcard $(1)/*.c),\
 	    $$(CC) $$(CFLAGS) -c $$(src) -o $$(OUT)/$(1)/$$(notdir $$(src:.c=.o)) &&) true
