@@ -345,9 +345,20 @@ blr
 .set PEPPY_MINOR_LEAVE_MAJOR, 0xFE
 .set PEPPY_MAJOR_MAIN_MENU, 1
 
+# An in-game scene will not load until there is a match for it to load. That is
+# what kept this sitting on the room's last frame with the game still running
+# and no files ever requested: the scene resolved, the prep ran, and then the
+# loader waited on a match nobody had set up.
+#
+# MajorSetup_TrainingMode is what fills that in when training runs as a major of
+# its own, so it is what fills it in here.
+.set MajorSetup_TrainingMode, 0x801b2298
+
 PeppyTrainScenePrep:
 backup
 logf LOG_LEVEL_NOTICE, "Peppy: training prep, minor %d", "loadbz r5, 0x80479d33"
+branchl r12, MajorSetup_TrainingMode
+logf LOG_LEVEL_NOTICE, "Peppy: training set up"
 restore
 blr
 
