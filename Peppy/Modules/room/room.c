@@ -864,10 +864,13 @@ static void peppy_room_back(void)
      * set sends the engine to a minor of a major that is going away - which it
      * does not come back from. Zero means "no minor in particular", which is
      * what a major change wants. */
-    /* 40 is what the codeset calls this major's ExitSceneID, and it is the only
-     * number anywhere that names where the online major goes when it ends. */
-    SCENE_CTRL.pending_minor = 40;
-    Scene_SetNextMajor(SCENE_MAJOR_MAIN_MENU);
+    /* A scene number is (minor << 8) | major - the same shape getMinorMajor
+     * builds. The menu passes 8, which is major 8 minor 0, and lands on the
+     * character select. 40 is what the codeset calls this major's ExitSceneID,
+     * and read as a minor of the menu's major it is the only number anywhere
+     * that names where the online major goes when it ends. */
+    SCENE_CTRL.pending_minor = 0;
+    Event_StoreSceneNumber((40 << 8) | SCENE_MAJOR_MAIN_MENU);
     {
         char line[80];
         char *p = line;
@@ -883,7 +886,6 @@ static void peppy_room_back(void)
         *p = 0;
         peppy_log(line);
     }
-    Scene_ExitMajor();
 }
 
 /* The room's buttons.
