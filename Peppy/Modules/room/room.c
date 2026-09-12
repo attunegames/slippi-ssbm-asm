@@ -550,9 +550,6 @@ static void peppy_room_build_browser(void *text)
     FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
                      "PUBLIC ROOMS", SIZE_HEADING, COL_LEFT, Y_DIVIDER);
     FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "BACK", SIZE_HEADING, X_BACK, Y_DIVIDER);
-
-    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
                      "ROOM   HOST", SIZE_NAME, COL_LEFT, Y_ROOM);
 
     for (i = 0; i < BROWSE_ROWS; i++)
@@ -563,7 +560,7 @@ static void peppy_room_build_browser(void *text)
     s_browse_hint = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
                                      "", SIZE_ACTION, COL_LEFT, Y_ACTIONS);
     FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "Press B to go back", SIZE_ACTION, COL_LEFT,
+                     "Up and Down to choose", SIZE_ACTION, COL_LEFT,
                      Y_ACTIONS + 30.0f);
 }
 
@@ -678,11 +675,8 @@ static void peppy_room_browse_buttons(void *msrb)
         s_browse_cursor++;
     if (pressed & PAD_A)
         peppy_room_browse_join(msrb);
-    if (pressed & PAD_B)
-    {
-        peppy_log("Peppy: leaving the room list");
-        Event_StoreSceneNumber(SCENE_MAJOR_MAIN_MENU);
-    }
+    /* No B here either, for the same reason as peppy_room_back - and a list
+     * with nothing in it is a dead end until that is solved. */
 }
 
 /* The text object both shapes of this screen are drawn into. Made before either
@@ -863,36 +857,23 @@ static void peppy_room_check_paired(void *msrb)
  *                                              still hangs
  *   Event_StoreSceneNumber((40 << 8) | 1)      character select again
  *
+ *   from a GObj proc of its own                GObj_Create(0, 1, 128) itself
+ *     (GObj_Create + GObj_AddProc, which       never came back - no proc ever
+ *      is how the menu gives itself one)       ran and nothing was logged
+ *
  * The menu's own Event_StoreSceneNumber(8) works, so the call is fine and the
- * difference is where it is made from - most likely this has to happen in the
- * scene's Decide, where every other transition in the codeset happens, rather
- * than in its Think. Until then B does the part of leaving that works.
+ * difference is where it is made from. The next thing to try is the scene's
+ * Decide, in the codeset, where every other transition in Slippi's online
+ * scene is made - the Think would only raise a flag. Until then B does the
+ * part of leaving that works.
  */
-static void peppy_room_leave_proc(void *gobj)
-{
-    (void)gobj;
-    peppy_log("Peppy: asking for the menu from a process");
-    SCENE_CTRL.pending_minor = 0;
-    Event_StoreSceneNumber(SCENE_MAJOR_MAIN_MENU);
-}
-
 static void peppy_room_back(void)
 {
-    void *gobj;
-
     if (s_queued)
+    {
         peppy_room_set_queued(0);
-    peppy_log("Peppy: leaving the room");
-
-    /* From a process of its own, not from here. The menu's own way out of a
-     * major is a GObj proc - GObj_Create(0, 1, 128) then GObj_AddProc - and
-     * that is the one difference left between the call that works and every
-     * version of it above that did not. */
-    gobj = GObj_Create(0, 1, 128);
-    if (gobj)
-        GObj_AddProc(gobj, peppy_room_leave_proc, 0);
-    else
-        peppy_log("Peppy: no process to leave from");
+        peppy_log("Peppy: left the queue");
+    }
 }
 
 /* The room's buttons.
