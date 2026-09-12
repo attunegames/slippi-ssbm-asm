@@ -118,8 +118,13 @@ void peppy_room_think(void)
 
 void peppy_room_load(void)
 {
-    /* Nothing to chain to: scene 0x51 is ours, with no Melee functions behind
-     * it, so this builds the screen from nothing. */
+    /* A text object registers its own draw callback but still needs a camera
+     * and a render pass to be drawn into, and nothing sets those up for a
+     * scene invented from nothing -- which is why the first build of this ran
+     * at 60fps and showed a black screen.  Borrow the smallest scene in the
+     * game for them until this builds its own. */
+    SceneLoad_ComingSoon();
+
     s_text = 0;
     peppy_room_build();
     peppy_log(s_text ? "Peppy: room scene built"
@@ -128,4 +133,5 @@ void peppy_room_load(void)
 
 void peppy_room_leave(void)
 {
+    SceneLeave_ComingSoon();
 }

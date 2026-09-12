@@ -47,6 +47,13 @@ void SceneThink_MainMenu(void);
 void SceneLoad_MainMenu(void);
 void Scene_ExitMinor(void);
 
+/* A scene needs a camera and a render pass before anything draws, and that is
+ * the scene Load's job.  Ours is our own, so until it builds its own camera it
+ * borrows the simplest one in the game: Melee's unused "Coming Soon" screen,
+ * which is a camera, a render pass and almost nothing else. */
+void SceneLoad_ComingSoon(void);
+void SceneLeave_ComingSoon(void);
+
 /* ------------------------------------------------------------------- EXI */
 
 #define CONST_ExiWrite 1
