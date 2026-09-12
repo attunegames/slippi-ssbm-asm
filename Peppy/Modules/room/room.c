@@ -869,8 +869,11 @@ static void peppy_room_back(void)
      * character select. 40 is what the codeset calls this major's ExitSceneID,
      * and read as a minor of the menu's major it is the only number anywhere
      * that names where the online major goes when it ends. */
-    SCENE_CTRL.pending_minor = 0;
-    Event_StoreSceneNumber((40 << 8) | SCENE_MAJOR_MAIN_MENU);
+    /* 0xFF, the same value that terminates a minor scene table. Zero is not
+     * "no minor": it sent the engine to minor 0, which from here is the
+     * character select. The major can only end once the minors run out. */
+    SCENE_CTRL.pending_minor = 0xFF;
+    Event_StoreSceneNumber(SCENE_MAJOR_MAIN_MENU);
     {
         char line[80];
         char *p = line;
