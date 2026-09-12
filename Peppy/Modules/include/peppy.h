@@ -78,6 +78,10 @@ void SceneLeave_CSS(void);
 void SceneThink_MainMenu(void);
 void SceneLoad_MainMenu(void);
 void Scene_ExitMinor(void);
+/* Ends the MAJOR scene. Event_StoreSceneNumber only names the next one and
+ * flags the minor - on its own the engine went to the current major's first
+ * minor instead, which from a room is the character select. */
+void Scene_ExitMajor(void);
 
 /* Sets the major scene to go to next and flags the current one to end. The
  * minor is not its business - the new major's Load picks that. */
