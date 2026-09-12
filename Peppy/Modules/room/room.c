@@ -47,9 +47,10 @@ static void peppy_log(const char *msg)
 /* The furniture lives in the bottom half now, so everything moves up and the
  * divider sits along its top edge with the two players' names on it. */
 #define Y_DIVIDER       26.0f
-#define Y_HEADING       90.0f
-#define Y_FIRST_NAME   130.0f
-#define Y_ACTIONS      300.0f
+#define Y_ROOM          66.0f    /* which room this is */
+#define Y_HEADING      100.0f
+#define Y_FIRST_NAME   132.0f
+#define Y_ACTIONS      290.0f
 
 #define X_P1           110.0f
 #define X_VS           300.0f
@@ -114,10 +115,21 @@ __attribute__((unused)) static char *put_hex(char *p, u32 v)
     return p;
 }
 
+/* The room list this room came from, in the order the menu shows them. 0xFF is
+ * a room that did not come from the menus at all - joined by code from
+ * peppy.json, say - and has no list to name. */
+static const char *const MODE_NAMES[] = {
+    "SINGLES", "DOUBLES", "IRON MAN", "CREW BATTLES", "TOURNAMENTS"
+};
+#define MODE_COUNT ((int)(sizeof(MODE_NAMES) / sizeof(MODE_NAMES[0])))
+
 #define STR_JOIN      "Press START to Join the Queue"
 #define STR_PRACTICE  "Press START to Practice"
 
 static void *s_text;
+static int s_room_line;
+static int s_queue_head;
+static int s_lobby_head;
 static int s_queue_line = -1;
 static int s_p1_line = -1;
 static int s_p2_line = -1;
@@ -342,13 +354,49 @@ static void peppy_room_report_roster(void *msrb)
     peppy_log(line);
 }
 
+/* The room's own name line: which list it came from, its code, and the
+ * passcode if it has one.
+ *
+ * Written once. It cannot change while the scene is up - you are in one room
+ * until you leave - and a Text_UpdateSubtextContents every frame for a string
+ * that never moves is sixty pointless rebuilds a second.
+ */
+static void peppy_room_show_code(void *msrb)
+{
+    char line[48];
+    char *p = line;
+    const char *code = (const char *)msrb + MSRB_ROOM_CODE;
+    const char *pass = (const char *)msrb + MSRB_ROOM_PASS;
+    u8 mode = *(u8 *)((char *)msrb + MSRB_ROOM_MODE);
+
+    if (s_room_line < 0 || !code[0])
+        return;
+
+    if (mode < MODE_COUNT)
+    {
+        p = put(p, MODE_NAMES[mode]);
+        p = put(p, "   ");
+    }
+    p = put(p, "ROOM ");
+    p = put(p, code);
+    if (pass[0])
+    {
+        p = put(p, "   KEY ");
+        p = put(p, pass);
+    }
+    *p = 0;
+
+    Text_UpdateSubtextContents(s_text, s_room_line, "%s", line);
+    s_room_line = -1;
+}
+
 static void peppy_room_refresh(void)
 {
     char name[MSRB_ROSTER_STRIDE + 1];
     char row[MSRB_ROSTER_STRIDE + 8];
     const char *roster;
     void *msrb;
-    int i;
+    int i, queue, lobby;
 
     if (!s_text)
         return;
@@ -374,32 +422,49 @@ static void peppy_room_refresh(void)
         Text_UpdateSubtextContents(s_text, s_p2_line, "%s", name);
     }
 
+    lobby = 0;
     for (i = 0; i < LOBBY_ROWS; i++)
     {
-        if (s_lobby_rows[i] < 0)
-            continue;
         peppy_room_name(name, roster + (MSRB_ROSTER_ACTIVE + MSRB_ROSTER_QUEUE
                                         + i) * MSRB_ROSTER_STRIDE);
-        Text_UpdateSubtextContents(s_text, s_lobby_rows[i], "%s", name);
+        if (name[0])
+            lobby++;
+        if (s_lobby_rows[i] >= 0)
+            Text_UpdateSubtextContents(s_text, s_lobby_rows[i], "%s", name);
     }
 
+    queue = 0;
     for (i = 0; i < QUEUE_ROWS; i++)
     {
         char *p = row;
 
-        if (s_queue_rows[i] < 0)
-            continue;
         peppy_room_name(name, roster + (MSRB_ROSTER_ACTIVE + i) * MSRB_ROSTER_STRIDE);
         if (name[0])
         {
+            queue++;
             p = put_u8(p, (u8)(i + 1));
             *p++ = '.';
             *p++ = ' ';
             p = put(p, name);
         }
         *p = 0;
-        Text_UpdateSubtextContents(s_text, s_queue_rows[i], "%s", row);
+        if (s_queue_rows[i] >= 0)
+            Text_UpdateSubtextContents(s_text, s_queue_rows[i], "%s", row);
     }
+
+    /* An empty column and a column that is not working look identical, so say
+     * which one it is. The count in the heading does the same job for a full
+     * one, and it is how you tell at a glance that the room is live. */
+    if (s_queue_head >= 0)
+        Text_UpdateSubtextContents(s_text, s_queue_head, "QUEUE (%d)", queue);
+    if (s_lobby_head >= 0)
+        Text_UpdateSubtextContents(s_text, s_lobby_head, "LOBBY (%d)", lobby);
+    if (!queue && s_queue_rows[0] >= 0)
+        Text_UpdateSubtextContents(s_text, s_queue_rows[0], "nobody waiting");
+    if (!lobby && s_lobby_rows[0] >= 0)
+        Text_UpdateSubtextContents(s_text, s_lobby_rows[0], "nobody here");
+
+    peppy_room_show_code(msrb);
 }
 
 static void peppy_room_build(void)
@@ -428,10 +493,15 @@ static void peppy_room_build(void)
     s_p2_line = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
                                  "", SIZE_HEADING, X_P2, Y_DIVIDER);
 
-    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                     "QUEUE", SIZE_HEADING, COL_LEFT, Y_HEADING);
-    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                     "LOBBY", SIZE_HEADING, COL_RIGHT, Y_HEADING);
+    /* Which room you are actually in. It was nowhere on the screen, which is
+     * fine right up until somebody wants to tell a friend the code. */
+    s_room_line = FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
+                                   "", SIZE_NAME, COL_LEFT, Y_ROOM);
+
+    s_queue_head = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                                    "QUEUE", SIZE_HEADING, COL_LEFT, Y_HEADING);
+    s_lobby_head = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                                    "LOBBY", SIZE_HEADING, COL_RIGHT, Y_HEADING);
 
     for (i = 0; i < QUEUE_ROWS; i++)
         s_queue_rows[i] = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN,
@@ -555,6 +625,9 @@ void peppy_room_load(void)
 
     s_text = 0;
     s_queue_line = -1;
+    s_room_line = -1;
+    s_queue_head = -1;
+    s_lobby_head = -1;
     s_p1_line = -1;
     s_p2_line = -1;
     s_queued = 0;
