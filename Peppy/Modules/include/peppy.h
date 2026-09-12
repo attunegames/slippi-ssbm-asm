@@ -131,6 +131,32 @@ void GObj_AddGXLink(void *gobj, void *callback, int link, int priority);
 #define TEXT_DRAW_EACH_FRAME ((void *)0x803A84BC)
 void SceneThink_ClassicModeSplash(void);
 
+/* -------------------------------------------------------------------- pad */
+
+/* Melee's pad array: four ports, 0x44 apart.  Held buttons sit at +0x00 and
+ * the newly-pressed word at +0x08, which is the one a menu wants. */
+#define PEPPY_PAD_MASTER   0x804c1fac
+#define PEPPY_PAD_STRIDE   0x44
+#define PEPPY_PAD_PORTS    4
+#define PEPPY_PAD_PRESSED  0x08
+
+#define PAD_START  0x1000
+#define PAD_B      0x0200
+#define PAD_Z      0x0010
+
+/* Any port: a room is watched by whoever is sitting there, not by a fixed
+ * controller slot. */
+static inline u32 peppy_pad_pressed(void)
+{
+    const char *pad = (const char *)PEPPY_PAD_MASTER;
+    u32 all = 0;
+    int i;
+
+    for (i = 0; i < PEPPY_PAD_PORTS; i++)
+        all |= *(u32 *)(pad + i * PEPPY_PAD_STRIDE + PEPPY_PAD_PRESSED);
+    return all;
+}
+
 /* ------------------------------------------------------------------- EXI */
 
 #define CONST_ExiWrite 1
