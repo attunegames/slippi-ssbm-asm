@@ -866,6 +866,7 @@ static void peppy_room_back(void)
      * what a major change wants. */
     SCENE_CTRL.pending_minor = 0;
     Event_StoreSceneNumber(SCENE_MAJOR_MAIN_MENU);
+    Scene_ExitMajor();
 }
 
 /* The room's buttons.
