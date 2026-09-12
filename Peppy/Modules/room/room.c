@@ -129,7 +129,14 @@ static const char *const MODE_NAMES[] = {
 #define MODE_COUNT ((int)(sizeof(MODE_NAMES) / sizeof(MODE_NAMES[0])))
 
 #define STR_JOIN      "Press START to Join the Queue"
-#define STR_PRACTICE  "Press START to Practice"
+/* This should say "Press START to Practice" - that is the design, and waiting
+ * in a queue is exactly when somebody wants to be in training. It cannot yet:
+ * training is a different major scene and leaving the online major is the same
+ * unsolved problem that stops B reaching the menu, so Start would have had
+ * nowhere to go. Until then the line says what the button does, because a
+ * button that promises practice and quietly drops you out of the queue is
+ * worse than one that admits it. */
+#define STR_PRACTICE  "In the Queue - START to Leave"
 
 /* The refresh runs every frame and is written top-down; these two are the
  * ways out of the scene and read better next to each other, further down. */
