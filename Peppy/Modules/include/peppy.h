@@ -66,6 +66,12 @@ void SceneLoad_DebugMenu(void);
  * menu text needs, which is why ours drew nothing on it at any position or
  * scale. */
 void SceneLoad_ClassicModeSplash(void);
+
+/* Better base than the splash: the main menu is the blue grid Peppy's own
+ * menus already sit on, it is a real scene so text renders, it carries none of
+ * the splash's stage and item loading, and Melee ships a function for taking
+ * its widgets away - which leaves the background and nothing else. */
+void MainMenu_HideAllElements(void);
 void SceneThink_ClassicModeSplash(void);
 
 /* ------------------------------------------------------------------- EXI */
