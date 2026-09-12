@@ -908,8 +908,11 @@ static void peppy_room_back(void)
 {
     if (s_queued)
         peppy_room_set_queued(0);
-    peppy_log("Peppy: leaving the room");
-    Event_StoreSceneNumber(SCENE_MAJOR_MAIN_MENU);
+    /* EXPERIMENT: a minor-only change now that the right byte is being written.
+     * The major version flagged the exit and then hung with the picture still
+     * up, so find out whether that is true of every scene change from here or
+     * only of leaving the major. */
+    peppy_room_go_to_css("Peppy: leaving the room - to the character select");
 }
 
 /* The room's buttons.
@@ -1058,4 +1061,5 @@ void peppy_room_load(void)
 
 void peppy_room_leave(void)
 {
+    peppy_log("Peppy: room scene leaving");
 }
