@@ -141,6 +141,18 @@ def build(elf_path, out_path, exports):
     for rtype, off, tgt in relocs:
         data += struct.pack(">II", (rtype << 24) | off, tgt)
 
+    # The loader ORs a REL24 displacement into the instruction it finds rather
+    # than replacing it (`or r3, r3, r4` at 0x803d71a0), so the field has to be
+    # zero in the file or the result is the linker's displacement OR'd with the
+    # real one. Every one of the 187 REL24 sites in SlippiCSS.dat is zero for
+    # exactly this reason. The other relocation types use stores, which replace,
+    # and internal branches carry no relocation at all and must keep the value
+    # the linker computed.
+    for rtype, off, _ in relocs:
+        if rtype == R_PPC_REL24:
+            w = struct.unpack_from(">I", image, off)[0]
+            struct.pack_into(">I", image, off, w & ~0x03FFFFFC & 0xFFFFFFFF)
+
     align(32)                      # code is cache-flushed; keep it on a line
     code_off = len(data)
     data += image
