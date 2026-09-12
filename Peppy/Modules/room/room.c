@@ -171,6 +171,8 @@ void peppy_room_load(void)
      * the next thing to go. */
     SceneLoad_ClassicModeSplash();
 
+    peppy_room_clear_borrowed_scene();
+
     s_text = 0;
     peppy_room_build();
     /* Coming Soon renders Melee's own artwork but never our text, so either
@@ -243,6 +245,38 @@ void peppy_room_load(void)
         }
         *p = 0;
         peppy_log(line);
+    }
+}
+
+/* The room borrows the splash's camera, and the splash's artwork comes with it.
+ * The census says our text is alone in class 0 and the cameras are class 20, so
+ * everything else on the scene belongs to the splash and can go - which leaves
+ * a camera, a render pass, and the room's own text on a clean background.
+ *
+ * Take the next pointer before destroying, or the walk follows a freed object. */
+#define PEPPY_CLASS_TEXT    0
+#define PEPPY_CLASS_CAMERA  20
+
+static void peppy_room_clear_borrowed_scene(void)
+{
+    void **heads = peppy_gobj_heads();
+    int c;
+
+    for (c = 0; c < 64; c++)
+    {
+        void *g;
+
+        if (c == PEPPY_CLASS_TEXT || c == PEPPY_CLASS_CAMERA)
+            continue;
+
+        g = heads[c];
+        while (g)
+        {
+            void *next = *(void **)((char *)g + PEPPY_GOBJ_NEXT);
+
+            GObj_Destroy(g);
+            g = next;
+        }
     }
 }
 
