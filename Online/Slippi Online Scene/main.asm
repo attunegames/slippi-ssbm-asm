@@ -316,7 +316,34 @@ bl PeppyRoomSceneDecide     #SceneDecide
 PeppyRoomScenePrep:
 blr
 
+# The room asks to leave the online major by writing a minor nothing else uses
+# and then ending its own scene. It cannot make the request itself: every way of
+# ending the major from the module's Think froze the picture with the scene
+# already left, and a scene's Decide is where every other transition in here is
+# made - so the module raises the flag and this spends it.
+#
+# The sentinel travels in the scene controller's own next-minor byte, so there
+# is no new state anywhere and nothing to keep in step.
+.set PEPPY_MINOR_LEAVE_MAJOR, 0xFE
+.set PEPPY_MAJOR_MAIN_MENU, 1
+
 PeppyRoomSceneDecide:
+backup
+
+load r31, 0x80479d30
+lbz r3, 0x5(r31)
+cmpwi r3, PEPPY_MINOR_LEAVE_MAJOR
+bne PeppyRoomSceneDecide_EXIT
+
+# Spend it either way: a sentinel left in there is a minor that does not exist.
+li r3, 0
+stb r3, 0x5(r31)
+
+li r3, PEPPY_MAJOR_MAIN_MENU
+branchl r12, Event_StoreSceneNumber
+
+PeppyRoomSceneDecide_EXIT:
+restore
 blr
 
 DATA_BLRL:

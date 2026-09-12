@@ -64,6 +64,12 @@ typedef struct SceneController {
 #define ONLINE_MINOR_ROOM       6
 #define SCENE_NEXT_MINOR(id)    ((u8)((id) + 1))
 
+/* Not a minor at all: the room writes this and ends its own scene, and the
+ * scene's Decide - in the codeset, where every other transition in the online
+ * major is made - spends it on leaving for the menu. Kept in step with
+ * PEPPY_MINOR_LEAVE_MAJOR in Online/Slippi Online Scene/main.asm. */
+#define SCENE_MINOR_LEAVE_MAJOR 0xFE
+
 #define MAJOR_ONLINE        0x08
 
 #define MINOR_MAIN_MENU     0x01
