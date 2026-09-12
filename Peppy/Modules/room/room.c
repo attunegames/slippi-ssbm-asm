@@ -135,6 +135,12 @@ static const char *const MODE_NAMES[] = {
  * ways out of the scene and read better next to each other, further down. */
 static void peppy_room_go_to_css(const char *why);
 static void peppy_room_check_paired(void *msrb);
+/* Joining from the list turns the browser back into a room without leaving the
+ * scene, so it needs both builders before either is defined. */
+static void *peppy_room_new_text(void);
+static void peppy_room_build(void);
+static void peppy_room_set_queued(int queued);
+static void peppy_room_start_searching(void);
 
 static void *s_text;
 /* The screen has two shapes: a room, and the list of public rooms you pick one
@@ -170,7 +176,7 @@ void peppy_room_set_players(const char *p1, const char *p2)
 
 /* Called when the queue state changes; the roster will drive this once it is
  * wired up. */
-void peppy_room_set_queued(int queued)
+static void peppy_room_set_queued(int queued)
 {
     if (!s_text || s_queue_line < 0 || queued == s_queued)
         return;
@@ -634,8 +640,28 @@ static void peppy_room_browse_join(void *msrb)
     FN_EXITransferBuffer(peppy_exi_buf, 6, CONST_ExiWrite);
 
     peppy_log("Peppy: joining a public room");
-    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_ROOM);
-    Scene_ExitMinor();
+
+    /* Rebuilt here rather than by asking for the scene again. Leaving a minor
+     * scene to re-enter the same one left a black screen - whatever the engine
+     * does with that, it is not "run Load again" - and the room is a text
+     * object, so throwing that one away and making another is the whole job. */
+    {
+        void *gobj = peppy_find_text_gobj();
+
+        if (gobj)
+            GObj_Destroy(gobj);
+    }
+    s_text = peppy_room_new_text();
+    if (!s_text)
+    {
+        peppy_log("Peppy: joined, but could not build the room");
+        return;
+    }
+    s_browsing = 0;
+    peppy_room_build();
+    peppy_room_set_queued(0);
+    peppy_room_start_searching();
+    peppy_log("Peppy: room scene built");
 }
 
 static void peppy_room_browse_buttons(void *msrb)
