@@ -209,6 +209,41 @@ void peppy_room_load(void)
         *p = 0;
         peppy_log(line);
     }
+
+    /* Census before demolition: which GObj classes this scene has and which
+     * one our text is.  The splash's artwork comes from GObj_Create(11, 3, 0),
+     * so class 3 - but the camera and the text are objects too, and destroying
+     * the wrong list takes the screen with them. */
+    {
+        char line[120];
+        char *p = line;
+        void **heads = peppy_gobj_heads();
+        int c;
+
+        p = put(p, "Peppy: textclass=");
+        p = put_u8(p, s_text ? *(u8 *)((char *)s_text + PEPPY_GOBJ_CLASS) : 255);
+        p = put(p, " classes:");
+        for (c = 0; c < 64 && p < line + 100; c++)
+        {
+            void *g = heads[c];
+            int n = 0;
+
+            while (g && n < 99)
+            {
+                n++;
+                g = *(void **)((char *)g + PEPPY_GOBJ_NEXT);
+            }
+            if (n)
+            {
+                *p++ = ' ';
+                p = put_u8(p, (u8)c);
+                *p++ = '=';
+                p = put_u8(p, (u8)n);
+            }
+        }
+        *p = 0;
+        peppy_log(line);
+    }
 }
 
 void peppy_room_leave(void)
