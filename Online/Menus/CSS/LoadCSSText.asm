@@ -194,22 +194,26 @@ blrl
 # sat at x 848 for canvas -60 and the passcode at 980 for canvas 10, so
 #     screen = 961 + 1.886 * canvas_x
 # The row below spans roughly 640 to 1260, centred on the grid.
+# Measured off the last build: a label renders 104px wide and a four-character
+# value 80px. The first attempt put the label at 640, which ran into the 1-P
+# badge, and left no gap at all before the value. The clear band between that
+# badge and BACK is about 700 to 1370, so the row sits inside it.
 .set PRD_X_ROOM_LABEL, PRD_HINT_SIZE+4
-.float -170
+.float -107
 .set PRD_X_CODE, PRD_X_ROOM_LABEL+4
-.float -114
+.float -37
 .set PRD_X_SEP, PRD_X_CODE+4
-.float -11
+.float 21
 .set PRD_X_PASS_LABEL, PRD_X_SEP+4
-.float 55
+.float 53
 .set PRD_X_PASS, PRD_X_PASS_LABEL+4
-.float 111
+.float 122
 .set PRD_X_HINT, PRD_X_PASS+4
-.float -32
+.float -8
 # Melee's text has no weight to set, so the bold is the same string drawn again
 # about a pixel and a half over - which thickens every stroke.
 .set PRD_X_HINT_B, PRD_X_HINT+4
-.float -31.2
+.float -7.2
 .set PRD_ROW1_Y, PRD_X_HINT_B+4
 .float -251
 .set PRD_ROW2_Y, PRD_ROW1_Y+4
@@ -442,7 +446,7 @@ branchl r12, FG_CreateSubtext
 bl PEPPY_ROOM_DATA
 mflr r6
 mr r3, REG_TEXT_STRUCT
-addi r4, r6, PRD_COL_GRAY
+addi r4, r6, PRD_COL_WHITE
 li r5, 0
 lfs f1, PRD_SIZE(r6)
 lfs f2, PRD_X_SEP(r6)
