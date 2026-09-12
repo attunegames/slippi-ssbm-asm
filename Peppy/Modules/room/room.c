@@ -169,34 +169,97 @@ static void peppy_room_clear_borrowed_scene(void)
  *
  * Players are not split at all - they get Melee's screens full size, untouched.
  */
-/* Which camera actually draws the text?
+/* The spectator split: the match in the top half, the room's furniture below.
  *
- * Its link is 0 and only one camera's mask has bit 0, yet giving that camera
- * the bottom half left the text at the top - while squeezing every camera did
- * move it.  So the mask is not telling the whole story.  Give each camera a
- * different third of the screen: wherever the text lands names its camera,
- * with no inference involved.
+ * Text follows the camera, so the two halves have to be different cameras, and
+ * a camera GObj's 64-bit link mask at +0x20/+0x24 says which links it draws.
+ *
+ * Finding the text's own link took a wrong turn worth recording: Text_CreateStruct
+ * returns the text STRUCT, not its GObj, so reading a link out of it gave a
+ * byte of the wrong object - which is why the camera whose mask matched was
+ * the wrong one and the furniture stayed at the top.  The GObj is the one
+ * whose render callback is Text_DrawEachFrame, and that is unambiguous.
+ *
+ * Players are not split at all: they keep Melee's screens full size.
  */
-static void peppy_room_thirds(void)
+static void *peppy_find_text_gobj(void)
 {
     void **heads = peppy_gobj_heads();
-    void *g = heads[PEPPY_CLASS_CAMERA];
+    int c;
+
+    for (c = 0; c < 64; c++)
+    {
+        void *g = heads[c];
+
+        while (g)
+        {
+            if (*(void **)((char *)g + PEPPY_GOBJ_DRAWFN) == TEXT_DRAW_EACH_FRAME)
+                return g;
+            g = *(void **)((char *)g + PEPPY_GOBJ_NEXT);
+        }
+    }
+    return 0;
+}
+
+static void peppy_room_viewport(void *gobj, int top_half)
+{
+    void *cobj = *(void **)((char *)gobj + PEPPY_GOBJ_OBJECT);
+    float half = (float)PEPPY_SCREEN_H / 2.0f;
+
+    if (!cobj)
+        return;
+
+    if (top_half)
+    {
+        CObj_SetViewport(cobj, 0.0f, (float)PEPPY_SCREEN_W, 0.0f, half);
+        CObj_SetScissor(cobj, 0, PEPPY_SCREEN_W, 0, PEPPY_SCREEN_H / 2);
+    }
+    else
+    {
+        CObj_SetViewport(cobj, 0.0f, (float)PEPPY_SCREEN_W, half,
+                         (float)PEPPY_SCREEN_H);
+        CObj_SetScissor(cobj, 0, PEPPY_SCREEN_W, PEPPY_SCREEN_H / 2,
+                        PEPPY_SCREEN_H);
+    }
+}
+
+static void peppy_room_split(void)
+{
+    char line[100];
+    char *p = line;
+    void **heads = peppy_gobj_heads();
+    void *text_gobj = peppy_find_text_gobj();
+    void *g;
+    u8 link;
+    u32 text_bit;
     int i = 0;
 
-    while (g)
+    if (!text_gobj)
     {
-        void *cobj = *(void **)((char *)g + PEPPY_GOBJ_OBJECT);
-        float top = (float)(PEPPY_SCREEN_H / 3 * i);
-        float bot = (float)(PEPPY_SCREEN_H / 3 * (i + 1));
-
-        if (cobj && i < 3)
-        {
-            CObj_SetViewport(cobj, 0.0f, (float)PEPPY_SCREEN_W, top, bot);
-            CObj_SetScissor(cobj, 0, PEPPY_SCREEN_W, (int)top, (int)bot);
-        }
-        i++;
-        g = *(void **)((char *)g + PEPPY_GOBJ_NEXT);
+        peppy_log("Peppy: split skipped, no text gobj");
+        return;
     }
+
+    link = *(u8 *)((char *)text_gobj + PEPPY_GOBJ_LINK);
+    text_bit = 1u << (link & 31);
+
+    p = put(p, "Peppy: textlink=");
+    p = put_u8(p, link);
+
+    for (g = heads[PEPPY_CLASS_CAMERA]; g;
+         g = *(void **)((char *)g + PEPPY_GOBJ_NEXT))
+    {
+        u32 links = *(u32 *)((char *)g + PEPPY_GOBJ_LINKS0);
+        int bottom = (links & text_bit) != 0;
+
+        peppy_room_viewport(g, bottom ? 0 : 1);
+        *p++ = ' ';
+        p = put_u8(p, (u8)i++);
+        *p++ = '=';
+        p = put(p, bottom ? "bottom" : "top");
+    }
+    *p = 0;
+    peppy_log(line);
 }
 
 static void peppy_room_build(void)
@@ -277,7 +340,7 @@ void peppy_room_load(void)
     s_queue_line = -1;
     s_queued = 0;
     peppy_room_build();
-    peppy_room_thirds();
+    peppy_room_split();
     peppy_log(s_text ? "Peppy: room scene built"
                      : "Peppy: room scene FAILED to make a text struct");
 }

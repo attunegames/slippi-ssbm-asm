@@ -114,6 +114,8 @@ void CObj_SetScissor(void *cobj, int left, int right, int top, int bottom);
  * camera draws what is editable, and the split needs no new camera. */
 #define PEPPY_GOBJ_LINKS32 0x20   /* links 32..63 */
 #define PEPPY_GOBJ_LINKS0  0x24   /* links 0..31  */
+#define PEPPY_GOBJ_DRAWFN  0x1C   /* GObj_AddGXLink stores the callback here */
+#define PEPPY_GOBJ_LINK    0x03   /* ...and the render link here */
 #define PEPPY_GOBJ_OBJECT  0x28
 #define PEPPY_SCREEN_W     640
 #define PEPPY_SCREEN_H     480
