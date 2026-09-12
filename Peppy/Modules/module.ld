@@ -9,9 +9,22 @@
 OUTPUT_FORMAT("elf32-powerpc")
 OUTPUT_ARCH(powerpc)
 
+/* Link base.  A module gets relocated to wherever the loader puts it, so this
+ * address is never where the code actually runs -- but a bl to Melee has to
+ * ENCODE at link time, and REL24 only reaches +/-32MB.  Linking at zero puts
+ * the whole game out of range ("relocation truncated to fit"); linking at the
+ * game's own base puts every call within 4MB.  The loader recomputes each of
+ * those displacements from the absolute target at load time, so the value the
+ * linker writes is thrown away either way.
+ *
+ * It also gives the packer its test for what to relocate: an address inside
+ * [BASE, BASE + image) is ours and becomes an offset, anything else is the
+ * game's and is stored absolute. */
+BASE = 0x80000000;
+
 SECTIONS
 {
-    . = 0;
+    . = BASE;
 
     .text : ALIGN(4) {
         *(.init)
