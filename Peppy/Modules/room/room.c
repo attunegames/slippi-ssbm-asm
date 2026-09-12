@@ -460,15 +460,32 @@ static void peppy_room_build(void)
 
 /* ----------------------------------------------------------------- exports */
 
+/* Leaving the room.
+ *
+ * The queue is dropped first and on its own tick, because the scene is about
+ * to go away and a client that vanishes while still marked as searching is one
+ * that other people can be matched against for as long as the backend's window
+ * lasts.  Then the major scene ends; Slippi's FN_OnReturnFromOnline is what
+ * puts the menu cursor back on Rooms, so nothing here has to.
+ */
+static void peppy_room_back(void)
+{
+    if (s_queued)
+        peppy_room_set_queued(0);
+    peppy_log("Peppy: leaving the room");
+    Event_StoreSceneNumber(SCENE_MAJOR_MAIN_MENU);
+}
+
 /* The room's buttons.
  *
- * START is the only one with anything behind it yet: it swaps its own line
- * between joining the queue and practising.  That is a local toggle until the
- * backend has a join-queue call - the point of wiring it now is that the pad
- * path and the line swap are proven, not that the queue works.
+ * START joins or leaves the queue - both the line it prints and the message
+ * that decides whether this client is offered a game.
  *
- * Z and B report and do nothing; spectating needs the match-watch path and
- * leaving needs the room told about it, and neither should be faked.
+ * B leaves the room entirely.
+ *
+ * Z still only reports: spectating means being fed a match's inputs, and the
+ * watch path covers matches in progress, not two people picking characters.
+ * Wiring it to half of that would look like it worked and then stop.
  */
 static void peppy_room_buttons(void)
 {
@@ -479,7 +496,7 @@ static void peppy_room_buttons(void)
     if (pressed & PAD_Z)
         peppy_log("Peppy: Z - spectate, not wired yet");
     if (pressed & PAD_B)
-        peppy_log("Peppy: B - back, not wired yet");
+        peppy_room_back();
 }
 
 void peppy_room_think(void)
