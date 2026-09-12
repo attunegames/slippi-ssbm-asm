@@ -16,6 +16,10 @@ typedef signed char    s8;
 typedef short          s16;
 typedef int            s32;
 
+/* Structure offsets lifted straight from the codeset rather than copied by
+ * hand - see gen_slippi_consts.py. */
+#include "slippi_consts.h"
+
 /* Melee keeps its small-data base in r13 and a lot of engine globals hang off
  * it, so a module that wants one reads the register rather than guessing where
  * the base landed. */
@@ -132,7 +136,9 @@ void SceneThink_ClassicModeSplash(void);
 #define CONST_ExiWrite 1
 
 void FN_EXITransferBuffer(void *buf, int len, int mode);
-void FN_LoadMatchState(void);
+/* Returns the match state read buffer: the block Dolphin fills and Melee reads,
+ * which is where the room's roster arrives. */
+void *FN_LoadMatchState(int unused);
 
 /* Slippi's logf macro transfers out of a scratch buffer hung off r13 at
  * OFST_R13_SB_ADDR, but every caller of that macro is online code -- there is
