@@ -122,6 +122,7 @@ static int s_queue_line = -1;
 static int s_p1_line = -1;
 static int s_p2_line = -1;
 static int s_queue_rows[QUEUE_ROWS];
+static int s_lobby_rows[LOBBY_ROWS];
 static int s_queued;
 
 /* The two names on the line.  Empty when nobody is matched, which is the state
@@ -366,13 +367,22 @@ static void peppy_room_refresh(void)
         Text_UpdateSubtextContents(s_text, s_p2_line, "%s", name);
     }
 
+    for (i = 0; i < LOBBY_ROWS; i++)
+    {
+        if (s_lobby_rows[i] < 0)
+            continue;
+        peppy_room_name(name, roster + (MSRB_ROSTER_ACTIVE + MSRB_ROSTER_QUEUE
+                                        + i) * MSRB_ROSTER_STRIDE);
+        Text_UpdateSubtextContents(s_text, s_lobby_rows[i], "%s", name);
+    }
+
     for (i = 0; i < QUEUE_ROWS; i++)
     {
         char *p = row;
 
         if (s_queue_rows[i] < 0)
             continue;
-        peppy_room_name(name, roster + (2 + i) * MSRB_ROSTER_STRIDE);
+        peppy_room_name(name, roster + (MSRB_ROSTER_ACTIVE + i) * MSRB_ROSTER_STRIDE);
         if (name[0])
         {
             p = put_u8(p, (u8)(i + 1));
@@ -421,8 +431,9 @@ static void peppy_room_build(void)
                                            0, "", SIZE_NAME, COL_LEFT,
                                            Y_FIRST_NAME + ROW_STEP * i);
     for (i = 0; i < LOBBY_ROWS; i++)
-        FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0, "",
-                         SIZE_NAME, COL_RIGHT, Y_FIRST_NAME + ROW_STEP * i);
+        s_lobby_rows[i] = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN,
+                                           0, "", SIZE_NAME, COL_RIGHT,
+                                           Y_FIRST_NAME + ROW_STEP * i);
 
     /* Start is the only thing that changes: once you are in the queue it stops
      * offering to put you there and offers practice instead, which is where
@@ -504,6 +515,8 @@ void peppy_room_load(void)
 
         for (i = 0; i < QUEUE_ROWS; i++)
             s_queue_rows[i] = -1;
+        for (i = 0; i < LOBBY_ROWS; i++)
+            s_lobby_rows[i] = -1;
     }
     peppy_room_build();
     peppy_room_split();

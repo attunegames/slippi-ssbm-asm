@@ -367,10 +367,13 @@
 .set MSRB_ROOM_MODE, MSRB_ROOM_PASS + 5 # u8
 # Who is in the room. Slots 0 and 1 are the pair playing or up next, 2 up are
 # the queue in order. Fixed stride so the draw can index it.
-.set MSRB_ROSTER, MSRB_ROOM_MODE + 1 # char[8][16]
-.set MSRB_ROSTER_SLOTS, 8
+.set MSRB_ROSTER, MSRB_ROOM_MODE + 1 # char[MSRB_ROSTER_SLOTS][16]
+.set MSRB_ROSTER_ACTIVE, 2 # the two who are paired
+.set MSRB_ROSTER_QUEUE, 6 # waiting for a game
+.set MSRB_ROSTER_LOBBY, 6 # in the room, not waiting
+.set MSRB_ROSTER_SLOTS, MSRB_ROSTER_ACTIVE + MSRB_ROSTER_QUEUE + MSRB_ROSTER_LOBBY
 .set MSRB_ROSTER_STRIDE, 16
-.set MSRB_SIZE, MSRB_ROSTER + 128
+.set MSRB_SIZE, MSRB_ROSTER + MSRB_ROSTER_SLOTS * MSRB_ROSTER_STRIDE
 
 ################################################################################
 # Rank Info Response Buffer
