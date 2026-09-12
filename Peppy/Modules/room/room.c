@@ -844,11 +844,31 @@ static void peppy_room_check_paired(void *msrb)
 /* Leaving the room.
  *
  * The request is raised here and spent in the scene's Decide, over in the
- * codeset. Every way of making it from this Think froze the picture with the
- * scene already left - six of them, all tried - and a Decide is where every
- * other transition in Slippi's online scene is made. The sentinel rides in the
- * scene controller's own next-minor byte, so there is no new state to keep in
- * step between the two sides.
+ * codeset - a Decide is where every other transition in Slippi's online scene
+ * is made. The sentinel rides in the scene controller's own next-minor byte,
+ * so there is no new state to keep in step between the two sides.
+ *
+ * It gets you to the character select, which is one screen from the menu and
+ * has Melee's own BACK on it. Ending the online MAJOR outright is unsolved:
+ * seven ways tried, from the Think and from the Decide, and every one of them
+ * freezes the picture with the scene already left -
+ *
+ *   Event_StoreSceneNumber(1)                  minor exits, byte 5 still held
+ *                                              our own minor, hang
+ *   ... with pending_minor 0                   character select, major
+ *                                              unchanged
+ *   ... with pending_minor 40 (ExitSceneID)    hangs before Leave even runs
+ *   ... with pending_minor 0xFF                hang
+ *   ... 0xFF again, from the Decide, with the
+ *       next major already named               hang
+ *   Scene_SetNextMajor(1) + Scene_ExitMajor    byte 1 does change to 1, hang
+ *   Event_StoreSceneNumber((40 << 8) | 1)      character select again
+ *   from a GObj proc of its own                GObj_Create(0, 1, 128) never
+ *                                              came back at all
+ *
+ * The menu's own Event_StoreSceneNumber(8) works, so the call is fine. What is
+ * missing is whatever tells the engine the minor chain is over - zero means
+ * minor zero, not "none", and nothing else tried means "none" either.
  */
 static void peppy_room_back(void)
 {
