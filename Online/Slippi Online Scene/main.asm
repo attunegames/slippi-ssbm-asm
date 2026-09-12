@@ -320,7 +320,7 @@ bl PeppyRoomSceneDecide     #SceneDecide
 .align 2
 bl PeppyTrainScenePrep      #ScenePrep
 bl PeppyTrainSceneDecide    #SceneDecide
-.byte 0x04                  #EXPERIMENT: Melee's own training scene, no module
+.byte 0x52                  #Common Minor ID (Peppy training)
 .align 2
 .long 0x80480530            #Minor Data 1, as VS mode uses
 .long 0x80479d98            #Minor Data 2
@@ -345,33 +345,27 @@ blr
 .set PEPPY_MINOR_LEAVE_MAJOR, 0xFE
 .set PEPPY_MAJOR_MAIN_MENU, 1
 
-# An in-game scene will not load until there is a match for it to load. That is
-# what kept this sitting on the room's last frame with the game still running
-# and no files ever requested: the scene resolved, the prep ran, and then the
-# loader waited on a match nobody had set up.
+# UNFINISHED - nothing routes here yet. See peppy_room_buttons in room.c.
 #
-# MajorSetup_TrainingMode is what fills that in when training runs as a major of
-# its own, so it is what fills it in here.
-.set MajorSetup_TrainingMode, 0x801b2298
-
+# The scene resolves and this prep runs; what does not happen is the load. An
+# in-game scene waits for a match to load, and nothing here sets one up, so it
+# sits on the previous scene's last frame with the game still running and no
+# files ever requested. It is not this entry - Melee's own training scene
+# (common minor 0x04) does exactly the same thing in this slot - and it is not
+# major setup either; MajorSetup_TrainingMode runs to completion and changes
+# nothing.
+#
+# What is left to try is the match block itself. Slippi's GameSetup scene
+# (common minor 0x50) exists to prepare a match before the VS minor is entered,
+# which is the same problem one step over.
 PeppyTrainScenePrep:
-backup
-logf LOG_LEVEL_NOTICE, "Peppy: training prep, minor %d", "loadbz r5, 0x80479d33"
-branchl r12, MajorSetup_TrainingMode
-logf LOG_LEVEL_NOTICE, "Peppy: training set up"
-restore
 blr
 
 PeppyTrainSceneDecide:
-backup
-logf LOG_LEVEL_NOTICE, "Peppy: training decide"
-restore
 blr
 
 PeppyRoomSceneDecide:
 backup
-
-logf LOG_LEVEL_NOTICE, "Peppy: room decide, next minor %d", "loadbz r5, 0x80479d35"
 
 load r31, 0x80479d30
 lbz r3, 0x5(r31)

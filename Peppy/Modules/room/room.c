@@ -129,7 +129,10 @@ static const char *const MODE_NAMES[] = {
 #define MODE_COUNT ((int)(sizeof(MODE_NAMES) / sizeof(MODE_NAMES[0])))
 
 #define STR_JOIN      "Press START to Join the Queue"
-#define STR_PRACTICE  "Press START to Practice"
+/* Not "Press START to Practice" yet - practice is built but does not load, and
+ * a line that offers it would be the second time this screen promised training
+ * and did something else. See peppy_room_train. */
+#define STR_PRACTICE  "In the Queue"
 
 /* The refresh runs every frame and is written top-down; these two are the
  * ways out of the scene and read better next to each other, further down. */
@@ -858,9 +861,11 @@ static void peppy_room_check_paired(void *msrb)
  */
 static void peppy_room_train(void)
 {
-    peppy_log("Peppy: off to practise");
-    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN);
-    Scene_ExitMinor();
+    /* The scene exists, the transition works and its prep runs - what does not
+     * happen is the load, because an in-game scene waits on a match and nothing
+     * sets one up. Going there strands you on this screen with the game still
+     * running, so until that is solved this says so and stays put. */
+    peppy_log("Peppy: practice is not ready yet");
 }
 
 /* Leaving the room.
