@@ -142,12 +142,34 @@ void peppy_room_load(void)
      * The splash is the one where our text renders, so it stays until the room
      * builds a camera of its own.  Its artwork showing through is cosmetic and
      * the next thing to go. */
-    SceneLoad_ClassicModeSplash();
+    SceneLoad_ComingSoon();
 
     s_text = 0;
     peppy_room_build();
-    peppy_log(s_text ? "Peppy: room scene built"
-                     : "Peppy: room scene FAILED to make a text struct");
+    /* Coming Soon renders Melee's own artwork but never our text, so either
+     * the text object is on a render link that camera does not cover, or the
+     * struct never got any glyph data.  Text_CreateStruct ends by reading the
+     * struct's id at +0x4F, looking it up in the table at 0x804D1124 and
+     * storing the result at +0x5C - a null there says the text has nothing to
+     * draw with and the camera was never the problem. */
+    {
+        char line[96];
+        char *p = line;
+        u8 id = s_text ? *(u8 *)((char *)s_text + 0x4F) : 0;
+        u32 slot = *(u32 *)(0x804D1124 + 4 * (u32)id);
+        u32 data = s_text ? *(u32 *)((char *)s_text + 0x5C) : 0;
+
+        p = put(p, "Peppy: text=");
+        p = put_hex(p, (u32)s_text);
+        p = put(p, " id=");
+        p = put_u8(p, id);
+        p = put(p, " table=");
+        p = put_hex(p, slot);
+        p = put(p, " data=");
+        p = put_hex(p, data);
+        *p = 0;
+        peppy_log(line);
+    }
 }
 
 void peppy_room_leave(void)
