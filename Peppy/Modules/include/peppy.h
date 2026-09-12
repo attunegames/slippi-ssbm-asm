@@ -47,6 +47,18 @@ typedef struct SceneController {
 
 #define SCENE_CTRL (*(volatile SceneController *)0x80479D30)
 
+/* pending_minor is one-based: zero means "carry on as normal" and anything else
+ * is the minor scene id plus one. Every store in the codeset reads that way -
+ * the stage select sets 5 to reach the splash (id 4), the character select sets
+ * 6 to reach game prep (id 5). Getting this off by one lands on the neighbour,
+ * which is a whole different screen.
+ *
+ * These are minor ids within the online major, from the table in
+ * Online/Slippi Online Scene/main.asm - not the global MxScn ids above. */
+#define ONLINE_MINOR_CSS        0
+#define ONLINE_MINOR_ROOM       6
+#define SCENE_NEXT_MINOR(id)    ((u8)((id) + 1))
+
 #define MAJOR_ONLINE        0x08
 
 #define MINOR_MAIN_MENU     0x01
