@@ -864,7 +864,9 @@ static void peppy_room_back(void)
      * set sends the engine to a minor of a major that is going away - which it
      * does not come back from. Zero means "no minor in particular", which is
      * what a major change wants. */
-    SCENE_CTRL.pending_minor = 0;
+    /* 40 is what the codeset calls this major's ExitSceneID, and it is the only
+     * number anywhere that names where the online major goes when it ends. */
+    SCENE_CTRL.pending_minor = 40;
     Scene_SetNextMajor(SCENE_MAJOR_MAIN_MENU);
     {
         char line[80];
