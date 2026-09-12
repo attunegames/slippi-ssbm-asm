@@ -268,7 +268,21 @@ static void peppy_room_viewport(void *gobj, int top_half)
     }
 }
 
-static void peppy_room_split(void)
+/* Squeeze the game's cameras into the top half and put the room's text in the
+ * bottom half, by render link: whichever camera draws the text is the one that
+ * gets the lower viewport.
+ *
+ * Proven and then switched off, because it was solving the problem from the
+ * wrong end. The drawing has the match in the top half and the queue below it,
+ * and a match is not something this scene can render - the picks and the game
+ * are Melee's own scenes, and a spectator has to be *in* them for the replayed
+ * inputs to drive anything. So the split belongs on those scenes, drawing the
+ * room over them, not here drawing a match that was never going to arrive.
+ * Until then the room has the screen to itself and Z hands it over.
+ *
+ * Left standing because the hard part - finding the text's GObj, reading its
+ * render link, matching it to a camera - is what that will need. */
+__attribute__((unused)) static void peppy_room_split(void)
 {
     char line[100];
     char *p = line;
@@ -361,6 +375,25 @@ static void peppy_room_report_roster(void *msrb)
  * until you leave - and a Text_UpdateSubtextContents every frame for a string
  * that never moves is sixty pointless rebuilds a second.
  */
+/* A heading with its count. The number is spelled out here and handed over as
+ * a string: Melee's text formatter is not printf, and the one %d I tried came
+ * out as the heading with everything from the "(" onwards missing. */
+static void peppy_room_count(int line, const char *label, int n)
+{
+    char buf[24];
+    char *p = buf;
+
+    if (line < 0)
+        return;
+    p = put(p, label);
+    *p++ = ' ';
+    *p++ = '(';
+    p = put_u8(p, (u8)n);
+    *p++ = ')';
+    *p = 0;
+    Text_UpdateSubtextContents(s_text, line, "%s", buf);
+}
+
 static void peppy_room_show_code(void *msrb)
 {
     char line[48];
@@ -455,10 +488,8 @@ static void peppy_room_refresh(void)
     /* An empty column and a column that is not working look identical, so say
      * which one it is. The count in the heading does the same job for a full
      * one, and it is how you tell at a glance that the room is live. */
-    if (s_queue_head >= 0)
-        Text_UpdateSubtextContents(s_text, s_queue_head, "QUEUE (%d)", queue);
-    if (s_lobby_head >= 0)
-        Text_UpdateSubtextContents(s_text, s_lobby_head, "LOBBY (%d)", lobby);
+    peppy_room_count(s_queue_head, "QUEUE", queue);
+    peppy_room_count(s_lobby_head, "LOBBY", lobby);
     if (!queue && s_queue_rows[0] >= 0)
         Text_UpdateSubtextContents(s_text, s_queue_rows[0], "nobody waiting");
     if (!lobby && s_lobby_rows[0] >= 0)
@@ -641,7 +672,8 @@ void peppy_room_load(void)
             s_lobby_rows[i] = -1;
     }
     peppy_room_build();
-    peppy_room_split();
+    /* Not split - see peppy_room_split. The room has the screen to itself
+     * until there is something to put in the other half. */
     peppy_log(s_text ? "Peppy: room scene built"
                      : "Peppy: room scene FAILED to make a text struct");
 }
