@@ -112,8 +112,8 @@ void CObj_SetScissor(void *cobj, int left, int right, int top, int bottom);
 /* A camera GObj carries a 64-bit render-link mask at +0x20/+0x24 -
  * CObj_RenderGXLinks walks exactly the links whose bits are set - so which
  * camera draws what is editable, and the split needs no new camera. */
-#define PEPPY_GOBJ_LINKHI  0x20
-#define PEPPY_GOBJ_LINKLO  0x24
+#define PEPPY_GOBJ_LINKS32 0x20   /* links 32..63 */
+#define PEPPY_GOBJ_LINKS0  0x24   /* links 0..31  */
 #define PEPPY_GOBJ_OBJECT  0x28
 #define PEPPY_SCREEN_W     640
 #define PEPPY_SCREEN_H     480
