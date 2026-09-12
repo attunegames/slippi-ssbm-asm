@@ -460,6 +460,33 @@ static void peppy_room_build(void)
 
 /* ----------------------------------------------------------------- exports */
 
+/* Watching the match.
+ *
+ * Dolphin has already joined the broadcast by the time the flag is set - the
+ * room tick starts that on its own for anyone who is not playing - so this is
+ * only about the screen. The watcher goes to the online character select and
+ * the replayed inputs drive it from there exactly as they drive a player's,
+ * which is how a spectator sees the picks and then the game.
+ *
+ * The flag rather than the roster decides it: two names in the active slots
+ * mean a pair has been introduced, not that there is anything on screen yet.
+ */
+static void peppy_room_spectate(void)
+{
+    void *msrb = FN_LoadMatchState(0);
+
+    if (!msrb || !(*(u8 *)((char *)msrb + MSRB_ROOM_FLAGS)
+                   & MSRB_ROOM_FLAG_WATCHABLE))
+    {
+        peppy_log("Peppy: Z - nothing to watch yet");
+        return;
+    }
+
+    peppy_log("Peppy: watching the match");
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_CSS);
+    Scene_ExitMinor();
+}
+
 /* Leaving the room.
  *
  * The queue is dropped first and on its own tick, because the scene is about
@@ -483,9 +510,7 @@ static void peppy_room_back(void)
  *
  * B leaves the room entirely.
  *
- * Z still only reports: spectating means being fed a match's inputs, and the
- * watch path covers matches in progress, not two people picking characters.
- * Wiring it to half of that would look like it worked and then stop.
+ * Z watches the match, when there is one.
  */
 static void peppy_room_buttons(void)
 {
@@ -494,7 +519,7 @@ static void peppy_room_buttons(void)
     if (pressed & PAD_START)
         peppy_room_set_queued(!s_queued);
     if (pressed & PAD_Z)
-        peppy_log("Peppy: Z - spectate, not wired yet");
+        peppy_room_spectate();
     if (pressed & PAD_B)
         peppy_room_back();
 }

@@ -373,7 +373,14 @@
 .set MSRB_ROSTER_LOBBY, 6 # in the room, not waiting
 .set MSRB_ROSTER_SLOTS, MSRB_ROSTER_ACTIVE + MSRB_ROSTER_QUEUE + MSRB_ROSTER_LOBBY
 .set MSRB_ROSTER_STRIDE, 16
-.set MSRB_SIZE, MSRB_ROSTER + MSRB_ROSTER_SLOTS * MSRB_ROSTER_STRIDE
+# What the room can do right now, rather than who is in it. Bit 0 says a match
+# is being watched and can be shown - the watch path is Dolphin's and the game
+# cannot tell from the roster alone, because a pair that has been introduced
+# but has not started yet is nothing to look at.
+.set MSRB_ROOM_FLAGS, MSRB_ROSTER + MSRB_ROSTER_SLOTS * MSRB_ROSTER_STRIDE # u8
+.set MSRB_ROOM_FLAG_WATCHABLE, 1
+
+.set MSRB_SIZE, MSRB_ROOM_FLAGS + 1
 
 ################################################################################
 # Rank Info Response Buffer
