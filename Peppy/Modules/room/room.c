@@ -105,50 +105,71 @@ static char *put_hex(char *p, u32 v)
 
 static void *s_text;
 
-/* Link probe.
- *
- * The text object is created on render link 0 and nothing renders it here,
- * but moving it to the camera's own link did not help either - so guessing
- * one link at a time is wasteful.  Build one text object per link, label each,
- * and whichever shows up names the link this camera actually draws. */
+/* Melee's font is Shift-JIS and carries the full-width block at 0x81A1.  A
+ * scene invented from nothing has no camera, so the room borrows one from the
+ * splash - and the splash's own artwork comes with it.  Rows of black blocks
+ * laid down before anything else cover it, which is a backdrop made out of the
+ * one drawing primitive that is known to work here.  It goes when the room
+ * gets a camera of its own. */
+#define BLOCK_ROW "¡¡¡¡¡¡¡¡"                   "¡¡¡¡¡¡¡¡"                   "¡¡¡¡¡¡¡¡"
+
+static const u8 COL_BLACK[4] = {0x0A, 0x0C, 0x12, 0xFF};
+
+#define BACKDROP_ROWS   16
+#define BACKDROP_STEP   36.0f
+#define BACKDROP_SIZE   0.75f
+
+static void peppy_room_backdrop(void *text)
+{
+    int i;
+
+    for (i = 0; i < BACKDROP_ROWS; i++)
+        FG_CreateSubtext(text, COL_BLACK, PEPPY_SUBTEXT_PLAIN, 0, BLOCK_ROW,
+                         BACKDROP_SIZE, 0.0f, BACKDROP_STEP * (float)i);
+}
+
 static void peppy_room_build(void)
 {
-    int link;
+    void *text = Text_CreateStruct(0, 0);
+    int i;
 
-    for (link = 0; link < 8; link++)
-    {
-        void *text = Text_CreateStruct(0, 0);
-        char label[8];
-        char *p = label;
+    if (!text)
+        return;
+    s_text = text;
 
-        if (!text)
-            continue;
-        if (!s_text)
-            s_text = text;
+    *(u8 *)((char *)text + TEXT_OFS_KERN)  = 1;   /* close kerning */
+    *(u8 *)((char *)text + TEXT_OFS_ALIGN) = 0;   /* align left   */
+    *(float *)((char *)text + TEXT_OFS_Z)      = TEXT_Z;
+    *(float *)((char *)text + TEXT_OFS_SCALEX) = TEXT_CANVAS;
+    *(float *)((char *)text + TEXT_OFS_SCALEY) = TEXT_CANVAS;
 
-        if (link != *(u8 *)((char *)text + 3))
-        {
-            int pri = *(u8 *)((char *)text + 5);
-            GObj_DestroyGXLink(text);
-            GObj_AddGXLink(text, TEXT_DRAW_EACH_FRAME, link, pri);
-        }
+    /* First, so everything else lands on top of it. */
+    peppy_room_backdrop(text);
 
-        *(u8 *)((char *)text + TEXT_OFS_KERN)  = 1;
-        *(u8 *)((char *)text + TEXT_OFS_ALIGN) = 0;
-        *(float *)((char *)text + TEXT_OFS_Z)      = TEXT_Z;
-        *(float *)((char *)text + TEXT_OFS_SCALEX) = TEXT_CANVAS;
-        *(float *)((char *)text + TEXT_OFS_SCALEY) = TEXT_CANVAS;
+    FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
+                     "PEPPY ROOM", SIZE_TITLE, COL_LEFT, Y_TITLE);
 
-        p = put(p, "LINK ");
-        p = put_u8(p, (u8)link);
-        *p = 0;
+    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                     "QUEUE", SIZE_HEADING, COL_LEFT, Y_HEADING);
+    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                     "LOBBY", SIZE_HEADING, COL_RIGHT, Y_HEADING);
 
-        FG_CreateSubtext(text, (link & 1) ? COL_GOLD : COL_WHITE,
-                         PEPPY_SUBTEXT_PLAIN, 0, label,
-                         0.6f, 60.0f, 60.0f + 40.0f * (float)link);
-        FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0, label,
-                         0.3f, 400.0f, 60.0f + 40.0f * (float)link);
-    }
+    for (i = 0; i < QUEUE_ROWS; i++)
+        FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                         i == 0 ? "1. Alpha" : "",
+                         SIZE_NAME, COL_LEFT, Y_FIRST_NAME + ROW_STEP * i);
+    for (i = 0; i < LOBBY_ROWS; i++)
+        FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0, "",
+                         SIZE_NAME, COL_RIGHT, Y_FIRST_NAME + ROW_STEP * i);
+
+    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                     "START    Join Queue", SIZE_ACTION, COL_LEFT, Y_ACTIONS);
+    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                     "X        Spectate", SIZE_ACTION, COL_LEFT,
+                     Y_ACTIONS + ROW_STEP);
+    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                     "Z        Training", SIZE_ACTION, COL_LEFT,
+                     Y_ACTIONS + ROW_STEP * 2);
 }
 
 /* ----------------------------------------------------------------- exports */
@@ -174,7 +195,7 @@ void peppy_room_load(void)
      * The splash is the one where our text renders, so it stays until the room
      * builds a camera of its own.  Its artwork showing through is cosmetic and
      * the next thing to go. */
-    SceneLoad_ComingSoon();
+    SceneLoad_ClassicModeSplash();
 
     s_text = 0;
     peppy_room_build();
