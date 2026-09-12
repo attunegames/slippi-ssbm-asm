@@ -31,22 +31,28 @@ static void peppy_log(const char *msg)
 
 /* ------------------------------------------------------------------ layout */
 
-/* Canvas space, the same one the CSS text uses:
- *     screen_x = 961 + 1.886 * canvas_x   ->  x spans about -509 .. 509
- *     screen_y = 594 + 1.886 * canvas_y   ->  y spans about -315 .. 258     */
-#define COL_LEFT     (-430.0f)   /* queue column */
-#define COL_RIGHT      (40.0f)   /* lobby column */
-#define ROW_STEP       (26.0f)
+/* Canvas space on this camera, measured off the probe markers rather than
+ * assumed: canvas (0,0) lands near the TOP-LEFT of the picture, about screen
+ * (300, 3), and +y runs down -- not the centre-origin the character select
+ * uses.  That is why the first layout, written in the CSS's coordinates with
+ * negative values, put every line off the top-left corner.
+ *
+ * At a canvas scale of 1.0 a unit is roughly 2 screen pixels, and the game
+ * renders 4:3 between screen x 300 and 1620, so usable canvas is about
+ * x 40..640, y 40..520.  Glyph height is roughly 80 * size. */
+#define COL_LEFT        40.0f    /* queue column */
+#define COL_RIGHT      330.0f    /* lobby column */
+#define ROW_STEP        22.0f
 
-#define Y_TITLE      (-250.0f)
-#define Y_HEADING    (-180.0f)
-#define Y_FIRST_NAME (-140.0f)
-#define Y_ACTIONS      (120.0f)
+#define Y_TITLE         40.0f
+#define Y_HEADING      105.0f
+#define Y_FIRST_NAME   145.0f
+#define Y_ACTIONS      310.0f
 
-#define SIZE_TITLE      0.70f
-#define SIZE_HEADING    0.50f
-#define SIZE_NAME       0.45f
-#define SIZE_ACTION     0.50f
+#define SIZE_TITLE      0.55f
+#define SIZE_HEADING    0.40f
+#define SIZE_NAME       0.32f
+#define SIZE_ACTION     0.38f
 
 #define QUEUE_ROWS   6
 #define LOBBY_ROWS   6
