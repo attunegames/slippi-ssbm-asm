@@ -137,9 +137,11 @@ void peppy_room_load(void)
      *
      * Coming Soon supplied a camera and its own artwork drew, but our text did
      * not, so the text sits on a GXLink that camera does not cover.  The debug
-     * menu is the one scene that is nothing but menu text, so its camera
-     * covers the link menu text uses. */
-    SceneLoad_ClassicModeSplash();
+     * The splash rendered our text but drags in stage, item and effect loading
+     * and its own artwork.  The main menu is the blue grid Peppy's menus
+     * already use, and Melee ships a function for taking its widgets away. */
+    SceneLoad_MainMenu();
+    MainMenu_HideAllElements();
 
     s_text = 0;
     peppy_room_build();
