@@ -15,3 +15,6 @@
 *.PDF	 diff=astextplain
 *.rtf	 diff=astextplain
 *.RTF	 diff=astextplain
+
+# Peppy m-ex modules are built in a Linux container; CRLF would break the Makefile.
+Peppy/Modules/** text eol=lf
