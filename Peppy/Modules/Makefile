@@ -36,10 +36,18 @@ room_EXPORTS := 0=peppy_room_think 1=peppy_room_load 2=peppy_room_leave
 
 MODULES := boot room
 
-all: $(foreach m,$(MODULES),$(OUT)/$($(m)_DAT))
+# The MSRB offsets a module reads are the codeset's own .set values. They are
+# generated rather than copied, and generated *here* rather than checked in and
+# trusted: a field added to Online.s and not regenerated compiles perfectly
+# against the stale header and reads the wrong bytes at runtime.
+CONST_SRC := ../../Online/Online.s ../../Common/Common.s
+include/slippi_consts.h: gen_slippi_consts.py $(CONST_SRC)
+	$(PYTHON) gen_slippi_consts.py $(CONST_SRC) $@
+
+all: include/slippi_consts.h $(foreach m,$(MODULES),$(OUT)/$($(m)_DAT))
 
 define MODULE_RULE
-$$(OUT)/$$($(1)_DAT): $$(wildcard $(1)/*.c) $$(wildcard include/*.h) $$(SCRIPTS) mexpack.py | $$(OUT)
+$$(OUT)/$$($(1)_DAT): $$(wildcard $(1)/*.c) $$(wildcard include/*.h) include/slippi_consts.h $$(SCRIPTS) mexpack.py | $$(OUT)
 	@mkdir -p $$(OUT)/$(1)
 	$$(foreach src,$$(wildcard $(1)/*.c),\
 	    $$(CC) $$(CFLAGS) -c $$(src) -o $$(OUT)/$(1)/$$(notdir $$(src:.c=.o)) &&) true
