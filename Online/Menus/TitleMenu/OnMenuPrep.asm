@@ -930,13 +930,16 @@ b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 ################################################################################
 # Create / Join / Public
 ################################################################################
-# Create picks a room type next. Join wants a room code and Public wants a list
-# of rooms to show - neither exists yet, so they say no rather than pretending.
+# Create picks a room type next. Public opens the room screen on the list of
+# public rooms. Join wants a room code typed in and there is nowhere to type it
+# yet, so it says no rather than pretending.
 .set ACTION_OPT_CREATE, 0
 .set ACTION_OPT_JOIN, 1
 .set ACTION_OPT_PUBLIC, 2
 
 FN_OnlineSubmenuThink_ACTION_DISPATCH:
+cmpwi r0, ACTION_OPT_PUBLIC
+beq FN_OnlineSubmenuThink_BROWSE
 cmpwi r0, ACTION_OPT_CREATE
 bne FN_OnlineSubmenuThink_NOT_BUILT
 
@@ -987,6 +990,29 @@ stb r4, 0x0(r3)
 stb r5, 0x1(r3)
 stb r6, 0x2(r3)
 li r4, 3
+li r5, CONST_ExiWrite
+branchl r12, FN_EXITransferBuffer
+
+b FN_OnlineSubmenuThink_HANDLE_SINGLES
+
+################################################################################
+# Public: browse the room list
+################################################################################
+# The same screen as a room, showing a list instead of a queue. Dolphin starts
+# fetching the list when this says so, and the screen reads it out of the match
+# state buffer like everything else.
+FN_OnlineSubmenuThink_BROWSE:
+bl PEPPY_LABEL_DATA
+mflr r3
+lbz r5, PLD_SEL+1(r3)
+cmpwi r5, ROOMS_OPT_SINGLES
+bne FN_OnlineSubmenuThink_NOT_BUILT
+
+lwz r3, OFST_R13_SB_ADDR(r13)
+li r4, CONST_PeppyCmdListRooms
+stb r4, 0x0(r3)
+stb r5, 0x1(r3)
+li r4, 2
 li r5, CONST_ExiWrite
 branchl r12, FN_EXITransferBuffer
 
