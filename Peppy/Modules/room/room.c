@@ -146,6 +146,13 @@ void peppy_room_set_queued(int queued)
     s_queued = queued;
     Text_UpdateSubtextContents(s_text, s_queue_line,
                                queued ? STR_PRACTICE : STR_JOIN);
+
+    /* Dolphin is what talks to the room, so tell it: until this says otherwise
+     * the client is present and watching, and pd_tick leaves it out of the
+     * pairing and lists it in the lobby instead of the queue. */
+    peppy_exi_buf[0] = PEPPY_CMD_SET_QUEUED;
+    peppy_exi_buf[1] = (u8)(queued ? 1 : 0);
+    FN_EXITransferBuffer(peppy_exi_buf, 2, CONST_ExiWrite);
 }
 
 /* The room borrows the splash's camera, and the splash's artwork comes with it.

@@ -177,6 +177,10 @@ void *FN_LoadMatchState(int unused);
  * back over it. */
 #define PEPPY_EXI_BUF_SIZE 128
 
+/* Tells Dolphin whether this client wants a game. Being in a room is not the
+ * same as being in the queue, so nothing pairs until this says so. */
+#define PEPPY_CMD_SET_QUEUED 0xC6
+
 extern u8 peppy_exi_buf[PEPPY_EXI_BUF_SIZE];
 
 #define PEPPY_DEFINE_EXI_BUF     u8 peppy_exi_buf[PEPPY_EXI_BUF_SIZE] __attribute__((aligned(32)))
