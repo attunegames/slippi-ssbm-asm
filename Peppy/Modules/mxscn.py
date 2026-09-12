@@ -61,6 +61,47 @@ class Scn:
     def cstr(self, off):
         return self.data[off:self.data.index(b"\0", off)].decode()
 
+    def add(self, minor_id, filename, think=0, load=0, leave=0):
+        """Append a brand-new scene to the table.
+
+        Melee never enters an id it does not know, so a scene invented here is
+        ours alone -- which is how Slippi's GameSetup (id 0x50) works.  The
+        table is immediately followed by the filename strings, so growing it
+        pushes those along and every pointer at them has to move with it."""
+        for _, _, ident, _ in self.entries():
+            if ident == minor_id:
+                raise ValueError(f"scene {minor_id:#04x} already exists")
+        end = None
+        for _, off, _, _ in self.entries():
+            end = off + STRIDE
+        if end is None:
+            raise ValueError("no entries found")
+
+        # Everything at or past the insertion point slides up by one entry.
+        self.data[end:end] = bytes(STRIDE)
+        for i, r in enumerate(self.relocs):
+            if r >= end:
+                self.relocs[i] = r + STRIDE
+        for r in self.relocs:
+            v = self.u32(r)
+            if v >= end:
+                struct.pack_into(">I", self.data, r, v + STRIDE)
+
+        self.data[end] = minor_id
+        for k, fn in ((0x04, think), (0x08, load), (0x0C, leave)):
+            struct.pack_into(">I", self.data, end + k, fn)
+
+        while len(self.data) % 4:
+            self.data.append(0)
+        name_off = len(self.data)
+        self.data += filename.encode() + bytes(1)
+        while len(self.data) % 4:
+            self.data.append(0)
+        struct.pack_into(">I", self.data, end + FILE_FIELD, name_off)
+        self.relocs.append(end + FILE_FIELD)
+        self.relocs.sort()
+        return end, name_off
+
     def attach(self, minor_id, filename):
         off, existing = self.find(minor_id)
         if existing:
@@ -104,6 +145,8 @@ def main():
     ap.add_argument("module", nargs="?")
     ap.add_argument("-o", "--out")
     ap.add_argument("-l", "--list", action="store_true")
+    ap.add_argument("--add", action="store_true",
+                    help="create the scene instead of attaching to an existing one")
     a = ap.parse_args()
 
     scn = Scn(a.scn)
@@ -111,8 +154,14 @@ def main():
         for i, off, ident, f in scn.entries():
             print(f"  {ident:#04x} @{off:#06x}  {scn.cstr(f) if f else ''}")
         return
-    off = scn.attach(int(a.minor, 0), a.module)
-    print(f"scene {int(a.minor, 0):#04x} -> {a.module} (string at {off:#x})")
+    minor = int(a.minor, 0)
+    if a.add:
+        off, name_off = scn.add(minor, a.module)
+        print(f"scene {minor:#04x} created at {off:#06x} -> {a.module} "
+              f"(string at {name_off:#x})")
+    else:
+        off = scn.attach(minor, a.module)
+        print(f"scene {minor:#04x} -> {a.module} (string at {off:#x})")
     scn.write(a.out or a.scn)
 
 
