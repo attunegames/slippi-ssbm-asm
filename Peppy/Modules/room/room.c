@@ -858,7 +858,10 @@ static void peppy_room_back(void)
     if (s_queued)
         peppy_room_set_queued(0);
     peppy_log("Peppy: leaving the room");
-    Event_StoreSceneNumber(SCENE_MAJOR_MAIN_MENU);
+    /* EXPERIMENT: the online major, which is the one value known to work from
+     * the menu. If the room reloads, a major change from this Think is fine and
+     * only the number was wrong. */
+    Event_StoreSceneNumber(MAJOR_ONLINE);
 }
 
 /* The room's buttons.
@@ -882,6 +885,31 @@ static void peppy_room_buttons(void)
         peppy_room_back();
 }
 
+/* EXPERIMENT: what the scene controller actually says, once a second. */
+static void peppy_room_probe_scene(void)
+{
+    static int frame;
+    char line[80];
+    char *p = line;
+
+    if (++frame < 60)
+        return;
+    frame = 0;
+
+    p = put(p, "Peppy: scene maj=");
+    p = put_u8(p, SCENE_CTRL.major);
+    p = put(p, " pmaj=");
+    p = put_u8(p, SCENE_CTRL.pending_major);
+    p = put(p, " min=");
+    p = put_u8(p, SCENE_CTRL.minor);
+    p = put(p, " pmin=");
+    p = put_u8(p, SCENE_CTRL.pending_minor);
+    p = put(p, " prev=");
+    p = put_u8(p, SCENE_CTRL.previous_minor);
+    *p = 0;
+    peppy_log(line);
+}
+
 void peppy_room_think(void)
 {
     /* The roster changes while people come and go, so it is read every frame
@@ -898,6 +926,7 @@ void peppy_room_think(void)
         return;
     }
 
+    peppy_room_probe_scene();
     peppy_room_refresh();
     peppy_room_buttons();
     /* Deliberately not SceneThink_ClassicModeSplash: its Load is what sets the
