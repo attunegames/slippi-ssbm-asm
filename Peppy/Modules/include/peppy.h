@@ -82,6 +82,9 @@ void Scene_ExitMinor(void);
  * flags the minor - on its own the engine went to the current major's first
  * minor instead, which from a room is the character select. */
 void Scene_ExitMajor(void);
+/* Names the major to go to next. Event_StoreSceneNumber was supposed to do
+ * this and the controller never changed, so this is the one that says it. */
+void Scene_SetNextMajor(int major);
 
 /* Sets the major scene to go to next and flags the current one to end. The
  * minor is not its business - the new major's Load picks that. */
