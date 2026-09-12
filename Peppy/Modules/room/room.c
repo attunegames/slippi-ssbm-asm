@@ -105,29 +105,6 @@ static char *put_hex(char *p, u32 v)
 
 static void *s_text;
 
-/* Melee's font is Shift-JIS and carries the full-width block at 0x81A1.  A
- * scene invented from nothing has no camera, so the room borrows one from the
- * splash - and the splash's own artwork comes with it.  Rows of black blocks
- * laid down before anything else cover it, which is a backdrop made out of the
- * one drawing primitive that is known to work here.  It goes when the room
- * gets a camera of its own. */
-#define BLOCK_ROW "¡¡¡¡¡¡¡¡"                   "¡¡¡¡¡¡¡¡"                   "¡¡¡¡¡¡¡¡"
-
-static const u8 COL_BLACK[4] = {0x0A, 0x0C, 0x12, 0xFF};
-
-#define BACKDROP_ROWS   16
-#define BACKDROP_STEP   36.0f
-#define BACKDROP_SIZE   0.75f
-
-static void peppy_room_backdrop(void *text)
-{
-    int i;
-
-    for (i = 0; i < BACKDROP_ROWS; i++)
-        FG_CreateSubtext(text, COL_BLACK, PEPPY_SUBTEXT_PLAIN, 0, BLOCK_ROW,
-                         BACKDROP_SIZE, 0.0f, BACKDROP_STEP * (float)i);
-}
-
 static void peppy_room_build(void)
 {
     void *text = Text_CreateStruct(0, 0);
@@ -142,9 +119,6 @@ static void peppy_room_build(void)
     *(float *)((char *)text + TEXT_OFS_Z)      = TEXT_Z;
     *(float *)((char *)text + TEXT_OFS_SCALEX) = TEXT_CANVAS;
     *(float *)((char *)text + TEXT_OFS_SCALEY) = TEXT_CANVAS;
-
-    /* First, so everything else lands on top of it. */
-    peppy_room_backdrop(text);
 
     FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
                      "PEPPY ROOM", SIZE_TITLE, COL_LEFT, Y_TITLE);
