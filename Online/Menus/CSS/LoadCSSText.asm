@@ -190,13 +190,27 @@ blrl
 .float 0.55
 .set PRD_HINT_SIZE, PRD_SIZE+4
 .float 0.35
-.set PRD_CODE_X, PRD_HINT_SIZE+4
-.float -60
-.set PRD_PASS_X, PRD_CODE_X+4
-.float 10
-.set PRD_HINT_X, PRD_PASS_X+4
-.float -52
-.set PRD_ROW1_Y, PRD_HINT_X+4
+# Screen positions, measured off the last build rather than predicted: the code
+# sat at x 848 for canvas -60 and the passcode at 980 for canvas 10, so
+#     screen = 961 + 1.886 * canvas_x
+# The row below spans roughly 640 to 1260, centred on the grid.
+.set PRD_X_ROOM_LABEL, PRD_HINT_SIZE+4
+.float -170
+.set PRD_X_CODE, PRD_X_ROOM_LABEL+4
+.float -114
+.set PRD_X_SEP, PRD_X_CODE+4
+.float -11
+.set PRD_X_PASS_LABEL, PRD_X_SEP+4
+.float 55
+.set PRD_X_PASS, PRD_X_PASS_LABEL+4
+.float 111
+.set PRD_X_HINT, PRD_X_PASS+4
+.float -32
+# Melee's text has no weight to set, so the bold is the same string drawn again
+# about a pixel and a half over - which thickens every stroke.
+.set PRD_X_HINT_B, PRD_X_HINT+4
+.float -31.2
+.set PRD_ROW1_Y, PRD_X_HINT_B+4
 .float -251
 .set PRD_ROW2_Y, PRD_ROW1_Y+4
 .float -234
@@ -206,9 +220,9 @@ blrl
 .long 0x8E9196FF
 .set PRD_S_EMPTY, PRD_COL_GRAY+4
 .string ""
-# Shift-JIS, not ASCII. There is no asterisk glyph at 0x2A - an ASCII "****"
-# draws nothing at all - but the font carries the full-width punctuation row,
-# which is where the spinner above gets its + and x from.
+# Shift-JIS, not ASCII. There is no asterisk at 0x2A and no bar at 0x7C - both
+# draw nothing - but the font carries the full-width punctuation row, which is
+# where the spinner above gets its + and x from.
 .set PRD_S_MASK, PRD_S_EMPTY+1
 .short 0x8196 # ＊
 .short 0x8196
@@ -217,6 +231,13 @@ blrl
 .byte 0x00
 .set PRD_S_HINT, PRD_S_MASK+9
 .string "Hold L or R"
+.set PRD_S_ROOM, PRD_S_HINT+12
+.string "Room"
+.set PRD_S_PASS, PRD_S_ROOM+5
+.string "Pass"
+.set PRD_S_SEP, PRD_S_PASS+5
+.short 0x8162 # ｜
+.byte 0x00
 .align 2
 
 ################################################################################
@@ -402,7 +423,7 @@ mr r3, REG_TEXT_STRUCT
 addi r4, r6, PRD_COL_WHITE
 li r5, 0
 lfs f1, PRD_SIZE(r6)
-lfs f2, PRD_CODE_X(r6)
+lfs f2, PRD_X_ROOM_LABEL(r6)
 lfs f3, PRD_ROW1_Y(r6)
 addi r7, r6, PRD_S_EMPTY
 branchl r12, FG_CreateSubtext
@@ -413,7 +434,7 @@ mr r3, REG_TEXT_STRUCT
 addi r4, r6, PRD_COL_WHITE
 li r5, 0
 lfs f1, PRD_SIZE(r6)
-lfs f2, PRD_PASS_X(r6)
+lfs f2, PRD_X_CODE(r6)
 lfs f3, PRD_ROW1_Y(r6)
 addi r7, r6, PRD_S_EMPTY
 branchl r12, FG_CreateSubtext
@@ -423,8 +444,52 @@ mflr r6
 mr r3, REG_TEXT_STRUCT
 addi r4, r6, PRD_COL_GRAY
 li r5, 0
+lfs f1, PRD_SIZE(r6)
+lfs f2, PRD_X_SEP(r6)
+lfs f3, PRD_ROW1_Y(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
+lfs f1, PRD_SIZE(r6)
+lfs f2, PRD_X_PASS_LABEL(r6)
+lfs f3, PRD_ROW1_Y(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
+lfs f1, PRD_SIZE(r6)
+lfs f2, PRD_X_PASS(r6)
+lfs f3, PRD_ROW1_Y(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
 lfs f1, PRD_HINT_SIZE(r6)
-lfs f2, PRD_HINT_X(r6)
+lfs f2, PRD_X_HINT(r6)
+lfs f3, PRD_ROW2_Y(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
+lfs f1, PRD_HINT_SIZE(r6)
+lfs f2, PRD_X_HINT_B(r6)
 lfs f3, PRD_ROW2_Y(r6)
 addi r7, r6, PRD_S_EMPTY
 branchl r12, FG_CreateSubtext
@@ -507,9 +572,13 @@ blrl
 .set STIDX_ERR_LINE4, 14
 # Peppy: the room, above the character grid. Added last so the indices above
 # keep their meaning.
-.set STIDX_ROOM_CODE, 15
-.set STIDX_ROOM_PASS, 16
-.set STIDX_ROOM_HINT, 17
+.set STIDX_ROOM_LABEL, 15
+.set STIDX_ROOM_CODE, 16
+.set STIDX_ROOM_SEP, 17
+.set STIDX_PASS_LABEL, 18
+.set STIDX_ROOM_PASS, 19
+.set STIDX_ROOM_HINT, 20
+.set STIDX_ROOM_HINT_B, 21 # the same words a hair to the right, which is the bold
 .set LINE_IDX_GAP, 2
 .set LINE_COUNT, 3
 
@@ -1094,15 +1163,25 @@ sth r3, CSSDT_FRAME_COUNTER(REG_CSSDT_ADDR)
 ################################################################################
 # Peppy: the room, above the character grid
 ################################################################################
+#     Room ****      |      Pass ****
+#              Hold L or R
+#
 # Masked unless a trigger is held, so a private room's passcode does not go out
 # on somebody's stream just because they sat at the character select.
 #
 # No room code means this is not a Peppy room - a Slippi match, or one that came
-# from peppy.json - so the whole row stays blank rather than showing stars for
-# something that does not exist.
+# from peppy.json - so the whole row stays blank rather than labelling something
+# that does not exist.
 lbz r3, MSRB_ROOM_CODE(REG_MSRB_ADDR)
 cmpwi r3, 0
 beq PEPPY_ROOM_BLANK
+
+# The labels are on whenever there is a room, held or not.
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_ROOM
+li r4, STIDX_ROOM_LABEL
+bl FN_UPDATE_TEXT
 
 # Any port holding L or R will do. Held buttons are at +0x00 of the pad, which
 # is what the LRAS check reads; +0x08 is the newly-pressed word instead.
@@ -1120,7 +1199,7 @@ cmpwi r6, 4
 blt PEPPY_ROOM_TRIGGER
 
 ################################################################################
-# Nothing held: stars, and a line saying how to read it
+# Nothing held: stars, and a line saying how to read them
 ################################################################################
 bl PEPPY_ROOM_DATA
 mflr r3
@@ -1134,19 +1213,27 @@ addi r5, r3, PRD_S_HINT
 li r4, STIDX_ROOM_HINT
 bl FN_UPDATE_TEXT
 
-# A public room has no passcode, so there is nothing to hide there either.
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_HINT
+li r4, STIDX_ROOM_HINT_B
+bl FN_UPDATE_TEXT
+
+# A public room has no passcode, so there is nothing to hide on that side and no
+# reason to label it.
 lbz r3, MSRB_ROOM_PASS(REG_MSRB_ADDR)
 cmpwi r3, 0
 beq PEPPY_ROOM_PASS_BLANK
+
 bl PEPPY_ROOM_DATA
 mflr r3
 addi r5, r3, PRD_S_MASK
 li r4, STIDX_ROOM_PASS
 bl FN_UPDATE_TEXT
-b PEPPY_ROOM_DONE
+b PEPPY_ROOM_PASS_LABELS
 
 ################################################################################
-# Held: the real thing
+# Held: the real thing, and the hint gets out of the way
 ################################################################################
 PEPPY_ROOM_SHOW:
 addi r5, REG_MSRB_ADDR, MSRB_ROOM_CODE
@@ -1159,24 +1246,53 @@ addi r5, r3, PRD_S_EMPTY
 li r4, STIDX_ROOM_HINT
 bl FN_UPDATE_TEXT
 
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_EMPTY
+li r4, STIDX_ROOM_HINT_B
+bl FN_UPDATE_TEXT
+
 lbz r3, MSRB_ROOM_PASS(REG_MSRB_ADDR)
 cmpwi r3, 0
 beq PEPPY_ROOM_PASS_BLANK
+
 addi r5, REG_MSRB_ADDR, MSRB_ROOM_PASS
 li r4, STIDX_ROOM_PASS
+bl FN_UPDATE_TEXT
+
+################################################################################
+# The separator and the Pass label belong to the passcode, not the room
+################################################################################
+PEPPY_ROOM_PASS_LABELS:
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_SEP
+li r4, STIDX_ROOM_SEP
+bl FN_UPDATE_TEXT
+
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_PASS
+li r4, STIDX_PASS_LABEL
 bl FN_UPDATE_TEXT
 b PEPPY_ROOM_DONE
 
 PEPPY_ROOM_PASS_BLANK:
+li REG_SUBTEXT_IDX, STIDX_ROOM_SEP
+
+PEPPY_ROOM_PASS_BLANK_LOOP:
 bl PEPPY_ROOM_DATA
 mflr r3
 addi r5, r3, PRD_S_EMPTY
-li r4, STIDX_ROOM_PASS
+mr r4, REG_SUBTEXT_IDX
 bl FN_UPDATE_TEXT
+addi REG_SUBTEXT_IDX, REG_SUBTEXT_IDX, 1
+cmpwi REG_SUBTEXT_IDX, STIDX_ROOM_PASS
+ble PEPPY_ROOM_PASS_BLANK_LOOP
 b PEPPY_ROOM_DONE
 
 PEPPY_ROOM_BLANK:
-li REG_SUBTEXT_IDX, STIDX_ROOM_CODE
+li REG_SUBTEXT_IDX, STIDX_ROOM_LABEL
 
 PEPPY_ROOM_BLANK_LOOP:
 bl PEPPY_ROOM_DATA
@@ -1185,7 +1301,7 @@ addi r5, r3, PRD_S_EMPTY
 mr r4, REG_SUBTEXT_IDX
 bl FN_UPDATE_TEXT
 addi REG_SUBTEXT_IDX, REG_SUBTEXT_IDX, 1
-cmpwi REG_SUBTEXT_IDX, STIDX_ROOM_HINT
+cmpwi REG_SUBTEXT_IDX, STIDX_ROOM_HINT_B
 ble PEPPY_ROOM_BLANK_LOOP
 
 PEPPY_ROOM_DONE:
