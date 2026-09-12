@@ -206,9 +206,16 @@ blrl
 .long 0x8E9196FF
 .set PRD_S_EMPTY, PRD_COL_GRAY+4
 .string ""
+# Shift-JIS, not ASCII. There is no asterisk glyph at 0x2A - an ASCII "****"
+# draws nothing at all - but the font carries the full-width punctuation row,
+# which is where the spinner above gets its + and x from.
 .set PRD_S_MASK, PRD_S_EMPTY+1
-.string "****"
-.set PRD_S_HINT, PRD_S_MASK+5
+.short 0x8196 # ＊
+.short 0x8196
+.short 0x8196
+.short 0x8196
+.byte 0x00
+.set PRD_S_HINT, PRD_S_MASK+9
 .string "Hold L or R"
 .align 2
 
