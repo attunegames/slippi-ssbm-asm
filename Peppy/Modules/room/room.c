@@ -75,14 +75,16 @@ static const u8 COL_GOLD[4]  = {0xF5, 0xC4, 0x42, 0xFF};
 #define TEXT_OFS_KERN   0x49
 #define TEXT_OFS_ALIGN  0x4A
 
-static char *put(char *p, const char *str)
+/* Kept through the diagnostics coming and going: the roster needs them the
+ * moment real names go into the columns. */
+__attribute__((unused)) static char *put(char *p, const char *str)
 {
     while (*str)
         *p++ = *str++;
     return p;
 }
 
-static char *put_u8(char *p, u8 v)
+__attribute__((unused)) static char *put_u8(char *p, u8 v)
 {
     if (v >= 100)
         *p++ = (char)('0' + v / 100);
@@ -92,7 +94,7 @@ static char *put_u8(char *p, u8 v)
     return p;
 }
 
-static char *put_hex(char *p, u32 v)
+__attribute__((unused)) static char *put_hex(char *p, u32 v)
 {
     static const char digits[] = "0123456789abcdef";
     int i;
