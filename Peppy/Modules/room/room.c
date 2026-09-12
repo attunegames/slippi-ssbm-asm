@@ -68,6 +68,9 @@ static void peppy_log(const char *msg)
 #define SIZE_NAME       0.32f
 #define SIZE_ACTION     0.38f
 
+#define BROWSE_ROWS  8           /* matches MSRB_ROOMLIST_SLOTS */
+#define X_CURSOR        26.0f    /* the marker, left of the row */
+
 #define QUEUE_ROWS   6
 #define LOBBY_ROWS   6
 
@@ -134,6 +137,14 @@ static void peppy_room_go_to_css(const char *why);
 static void peppy_room_check_paired(void *msrb);
 
 static void *s_text;
+/* The screen has two shapes: a room, and the list of public rooms you pick one
+ * from. Same scene, same text object - only what gets built and what the pad
+ * does differ, because a browser that was its own scene would be a second
+ * module and a second MxScn entry for one column of text. */
+static int s_browsing;
+static int s_browse_rows[BROWSE_ROWS];
+static int s_browse_cursor;
+static int s_browse_hint;
 static int s_room_line;
 static int s_queue_head;
 static int s_lobby_head;
@@ -501,20 +512,163 @@ static void peppy_room_refresh(void)
     peppy_room_check_paired(msrb);
 }
 
-static void peppy_room_build(void)
+/* ------------------------------------------------------------- the browser */
+
+/* The public room list.
+ *
+ * Deliberately the same furniture as the room: the divider, the heading line,
+ * a column of rows and a line of what the buttons do. Somebody who has seen
+ * one has seen the other.
+ */
+static void peppy_room_build_browser(void *text)
 {
-    void *text = Text_CreateStruct(0, 0);
     int i;
 
-    if (!text)
+    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                     DIVIDER, SIZE_NAME, 30.0f, Y_DIVIDER + 14.0f);
+    FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
+                     "PUBLIC ROOMS", SIZE_HEADING, COL_LEFT, Y_DIVIDER);
+    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                     "BACK", SIZE_HEADING, X_BACK, Y_DIVIDER);
+
+    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                     "ROOM   HOST", SIZE_NAME, COL_LEFT, Y_ROOM);
+
+    for (i = 0; i < BROWSE_ROWS; i++)
+        s_browse_rows[i] = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN,
+                                            0, "", SIZE_NAME, COL_LEFT,
+                                            Y_HEADING + ROW_STEP * i);
+
+    s_browse_hint = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                                     "", SIZE_ACTION, COL_LEFT, Y_ACTIONS);
+    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                     "Press B to go back", SIZE_ACTION, COL_LEFT,
+                     Y_ACTIONS + 30.0f);
+}
+
+/* One row: a marker for the row the cursor is on, the code, the host and how
+ * many people are in there. */
+static void peppy_room_browse_row(const char *entry, int selected, int line)
+{
+    char row[48];
+    char *p = row;
+    const char *code = entry + MSRB_ROOMLIST_CODE;
+    const char *owner = entry + MSRB_ROOMLIST_OWNER;
+    u8 players = *(const u8 *)(entry + MSRB_ROOMLIST_PLAYERS);
+    int i;
+
+    if (line < 0)
         return;
-    s_text = text;
+    if (!code[0])
+    {
+        Text_UpdateSubtextContents(s_text, line, "%s", "");
+        return;
+    }
+
+    *p++ = selected ? '>' : ' ';
+    *p++ = ' ';
+    p = put(p, code);
+    p = put(p, "   ");
+    for (i = 0; i < MSRB_ROOMLIST_STRIDE - MSRB_ROOMLIST_OWNER && owner[i]; i++)
+        *p++ = owner[i];
+    p = put(p, "   ");
+    p = put_u8(p, players);
+    *p = 0;
+    Text_UpdateSubtextContents(s_text, line, "%s", row);
+}
+
+static void peppy_room_browse_refresh(void *msrb)
+{
+    const char *list = (const char *)msrb + MSRB_ROOMLIST;
+    u8 count = *(u8 *)((char *)msrb + MSRB_ROOMLIST_COUNT);
+    int i;
+
+    if (count > BROWSE_ROWS)
+        count = BROWSE_ROWS;
+    if (s_browse_cursor >= count)
+        s_browse_cursor = count ? count - 1 : 0;
+
+    for (i = 0; i < BROWSE_ROWS; i++)
+        peppy_room_browse_row(list + i * MSRB_ROOMLIST_STRIDE,
+                              i == s_browse_cursor, s_browse_rows[i]);
+
+    if (s_browse_hint >= 0)
+        Text_UpdateSubtextContents(s_text, s_browse_hint, "%s",
+                                   count ? "Press A to Join"
+                                         : "No public rooms open right now");
+}
+
+/* Joining moves the cursor off this screen entirely: Dolphin is told which room
+ * it is, and then the scene is asked for again so it comes back up as a room.
+ * Rebuilding the text in place would work too and would be more code for the
+ * same picture. */
+static void peppy_room_browse_join(void *msrb)
+{
+    const char *entry = (const char *)msrb + MSRB_ROOMLIST
+                        + s_browse_cursor * MSRB_ROOMLIST_STRIDE;
+    const char *code = entry + MSRB_ROOMLIST_CODE;
+    int i;
+
+    if (!code[0])
+        return;
+
+    peppy_exi_buf[0] = PEPPY_CMD_JOIN_ROOM;
+    peppy_exi_buf[1] = *(u8 *)((char *)msrb + MSRB_ROOM_MODE);
+    for (i = 0; i < 4; i++)
+        peppy_exi_buf[2 + i] = (u8)code[i];
+    FN_EXITransferBuffer(peppy_exi_buf, 6, CONST_ExiWrite);
+
+    peppy_log("Peppy: joining a public room");
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_ROOM);
+    Scene_ExitMinor();
+}
+
+static void peppy_room_browse_buttons(void *msrb)
+{
+    u32 pressed = peppy_pad_pressed();
+    u8 count = *(u8 *)((char *)msrb + MSRB_ROOMLIST_COUNT);
+
+    if (count > BROWSE_ROWS)
+        count = BROWSE_ROWS;
+
+    if ((pressed & PAD_STICK_UP) && s_browse_cursor > 0)
+        s_browse_cursor--;
+    if ((pressed & PAD_STICK_DOWN) && s_browse_cursor + 1 < count)
+        s_browse_cursor++;
+    if (pressed & PAD_A)
+        peppy_room_browse_join(msrb);
+    if (pressed & PAD_B)
+    {
+        peppy_log("Peppy: leaving the room list");
+        Event_StoreSceneNumber(SCENE_MAJOR_MAIN_MENU);
+    }
+}
+
+/* The text object both shapes of this screen are drawn into. Made before either
+ * of them, because which one gets built depends on what the match state buffer
+ * says and that is no reason to set the canvas up twice. */
+static void *peppy_room_new_text(void)
+{
+    void *text = Text_CreateStruct(0, 0);
+
+    if (!text)
+        return 0;
 
     *(u8 *)((char *)text + TEXT_OFS_KERN)  = 1;   /* close kerning */
     *(u8 *)((char *)text + TEXT_OFS_ALIGN) = 0;   /* align left   */
     *(float *)((char *)text + TEXT_OFS_Z)      = TEXT_Z;
     *(float *)((char *)text + TEXT_OFS_SCALEX) = TEXT_CANVAS;
     *(float *)((char *)text + TEXT_OFS_SCALEY) = TEXT_CANVAS;
+    return text;
+}
+
+static void peppy_room_build(void)
+{
+    void *text = s_text;
+    int i;
+
+    if (!text)
+        return;
 
     /* The line, and the two players sitting on it: whoever is picking a stage
      * or a character right now, and then whoever is playing. */
@@ -687,40 +841,24 @@ static void peppy_room_buttons(void)
         peppy_room_back();
 }
 
-/* Temporary: what is actually in a pad struct.
- *
- * The buttons at +0x08 are the only field the codeset ever reads, and a list
- * that scrolls needs the stick. Rather than guess at an offset, dump the thing
- * while the test script holds a direction and read it off. */
-static void peppy_room_probe_pad(void)
-{
-    static int frame;
-    char line[100];
-    char *p = line;
-    const u32 *pad = (const u32 *)PEPPY_PAD_MASTER;
-    int i;
-
-    if (++frame < 60)
-        return;
-    frame = 0;
-
-    p = put(p, "Peppy: pad");
-    for (i = 0; i < 9; i++)
-    {
-        *p++ = ' ';
-        p = put_hex(p, pad[i]);
-    }
-    *p = 0;
-    peppy_log(line);
-}
-
 void peppy_room_think(void)
 {
     /* The roster changes while people come and go, so it is read every frame
      * rather than once at load. */
+    if (s_browsing)
+    {
+        void *msrb = FN_LoadMatchState(0);
+
+        if (msrb)
+        {
+            peppy_room_browse_refresh(msrb);
+            peppy_room_browse_buttons(msrb);
+        }
+        return;
+    }
+
     peppy_room_refresh();
     peppy_room_buttons();
-    peppy_room_probe_pad();
     /* Deliberately not SceneThink_ClassicModeSplash: its Load is what sets the
      * scene up, its Think animates the splash toward a match and reads data a
      * room does not have, which is the invalid read a few seconds in. */
@@ -753,6 +891,8 @@ void peppy_room_load(void)
     s_p2_line = -1;
     s_queued = 0;
     s_roster_reported = 0;
+    s_browse_cursor = 0;
+    s_browse_hint = -1;
     {
         int i;
 
@@ -760,7 +900,32 @@ void peppy_room_load(void)
             s_queue_rows[i] = -1;
         for (i = 0; i < LOBBY_ROWS; i++)
             s_lobby_rows[i] = -1;
+        for (i = 0; i < BROWSE_ROWS; i++)
+            s_browse_rows[i] = -1;
     }
+
+    s_text = peppy_room_new_text();
+    if (!s_text)
+    {
+        peppy_log("Peppy: room scene FAILED to make a text struct");
+        return;
+    }
+
+    {
+        void *msrb = FN_LoadMatchState(0);
+
+        s_browsing = msrb && (*(u8 *)((char *)msrb + MSRB_ROOM_FLAGS)
+                              & MSRB_ROOM_FLAG_BROWSING);
+    }
+
+    if (s_browsing)
+    {
+        /* No room yet, so nothing to search for and nothing to queue for. */
+        peppy_room_build_browser(s_text);
+        peppy_log("Peppy: room list built");
+        return;
+    }
+
     peppy_room_build();
     /* Say it rather than assume it. s_queued starts at zero here, but Dolphin
      * remembers across scenes - walk out of a room and back into one and it
@@ -769,8 +934,7 @@ void peppy_room_load(void)
     peppy_room_start_searching();
     /* Not split - see peppy_room_split. The room has the screen to itself
      * until there is something to put in the other half. */
-    peppy_log(s_text ? "Peppy: room scene built"
-                     : "Peppy: room scene FAILED to make a text struct");
+    peppy_log("Peppy: room scene built");
 }
 
 void peppy_room_leave(void)
