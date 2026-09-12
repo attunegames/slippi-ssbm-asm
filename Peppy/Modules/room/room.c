@@ -75,6 +75,33 @@ static const u8 COL_GOLD[4]  = {0xF5, 0xC4, 0x42, 0xFF};
 #define TEXT_OFS_KERN   0x49
 #define TEXT_OFS_ALIGN  0x4A
 
+static char *put(char *p, const char *str)
+{
+    while (*str)
+        *p++ = *str++;
+    return p;
+}
+
+static char *put_u8(char *p, u8 v)
+{
+    if (v >= 100)
+        *p++ = (char)('0' + v / 100);
+    if (v >= 10)
+        *p++ = (char)('0' + (v / 10) % 10);
+    *p++ = (char)('0' + v % 10);
+    return p;
+}
+
+static char *put_hex(char *p, u32 v)
+{
+    static const char digits[] = "0123456789abcdef";
+    int i;
+
+    for (i = 28; i >= 0; i -= 4)
+        *p++ = digits[(v >> i) & 0xF];
+    return p;
+}
+
 #define STR_JOIN      "Press START to Join the Queue"
 #define STR_PRACTICE  "Press START to Practice"
 
@@ -125,31 +152,40 @@ static void peppy_room_clear_borrowed_scene(void)
     }
 }
 
-/* Does our text follow the camera, or is it drawn in screen space?
+/* The text follows the camera - squeezing every camera took the whole room
+ * with it - so the split puts the furniture on a different camera from the
+ * match.  No new camera is needed: a camera GObj's 64-bit link mask says what
+ * it draws, so one of the ones already here can be given the text link and the
+ * bottom half while the rest take the top.
  *
- * The spectator view wants the match squeezed into the top half with the room
- * furniture below it, and which of those two this is decides the whole design:
- * if the text follows, the furniture needs a camera of its own, and if it does
- * not, the split is nearly free.  Squeezing every camera on this scene and
- * looking at where the room text ends up answers it in one run.
- */
-static void peppy_room_squeeze_cameras(void)
+ * Report the masks first, and which camera currently owns the text's link. */
+static void peppy_room_report_cameras(void)
 {
+    char line[120];
+    char *p = line;
     void **heads = peppy_gobj_heads();
     void *g = heads[PEPPY_CLASS_CAMERA];
+    int i = 0;
 
-    while (g)
+    p = put(p, "Peppy: cams");
+    while (g && p < line + 100)
     {
-        void *cobj = *(void **)((char *)g + PEPPY_GOBJ_OBJECT);
+        u32 hi = *(u32 *)((char *)g + PEPPY_GOBJ_LINKHI);
+        u32 lo = *(u32 *)((char *)g + PEPPY_GOBJ_LINKLO);
 
-        if (cobj)
-        {
-            CObj_SetViewport(cobj, 0.0f, (float)PEPPY_SCREEN_W,
-                             0.0f, (float)PEPPY_SCREEN_H / 2.0f);
-            CObj_SetScissor(cobj, 0, PEPPY_SCREEN_W, 0, PEPPY_SCREEN_H / 2);
-        }
+        *p++ = ' ';
+        p = put_u8(p, (u8)i);
+        *p++ = '=';
+        p = put_hex(p, hi);
+        *p++ = ':';
+        p = put_hex(p, lo);
+        if (s_text && (hi & (1u << *(u8 *)((char *)s_text + 3))))
+            p = put(p, "<-text");
+        i++;
         g = *(void **)((char *)g + PEPPY_GOBJ_NEXT);
     }
+    *p = 0;
+    peppy_log(line);
 }
 
 static void peppy_room_build(void)
@@ -230,7 +266,7 @@ void peppy_room_load(void)
     s_queue_line = -1;
     s_queued = 0;
     peppy_room_build();
-    peppy_room_squeeze_cameras();
+    peppy_room_report_cameras();
     peppy_log(s_text ? "Peppy: room scene built"
                      : "Peppy: room scene FAILED to make a text struct");
 }
