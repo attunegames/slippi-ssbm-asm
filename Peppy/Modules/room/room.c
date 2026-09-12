@@ -52,6 +52,8 @@ static void peppy_log(const char *msg)
 #define Y_FIRST_NAME   132.0f
 #define Y_ACTIONS      340.0f
 
+#define X_COUNT         74.0f    /* the number, just right of its heading */
+
 #define X_P1           110.0f
 #define X_VS           300.0f
 #define X_P2           430.0f
@@ -375,21 +377,16 @@ static void peppy_room_report_roster(void *msrb)
  * until you leave - and a Text_UpdateSubtextContents every frame for a string
  * that never moves is sixty pointless rebuilds a second.
  */
-/* A heading with its count. The number is spelled out here and handed over as
- * a string: Melee's text formatter is not printf, and the one %d I tried came
- * out as the heading with everything from the "(" onwards missing. */
-static void peppy_room_count(int line, const char *label, int n)
+/* The number beside a heading. Spelled out here and handed over as a string:
+ * Melee's text formatter is not printf and the one %d I tried drew nothing. */
+static void peppy_room_count(int line, int n)
 {
-    char buf[24];
+    char buf[8];
     char *p = buf;
 
     if (line < 0)
         return;
-    p = put(p, label);
-    *p++ = ' ';
-    *p++ = '(';
     p = put_u8(p, (u8)n);
-    *p++ = ')';
     *p = 0;
     Text_UpdateSubtextContents(s_text, line, "%s", buf);
 }
@@ -488,8 +485,8 @@ static void peppy_room_refresh(void)
     /* An empty column and a column that is not working look identical, so say
      * which one it is. The count in the heading does the same job for a full
      * one, and it is how you tell at a glance that the room is live. */
-    peppy_room_count(s_queue_head, "QUEUE", queue);
-    peppy_room_count(s_lobby_head, "LOBBY", lobby);
+    peppy_room_count(s_queue_head, queue);
+    peppy_room_count(s_lobby_head, lobby);
     if (!queue && s_queue_rows[0] >= 0)
         Text_UpdateSubtextContents(s_text, s_queue_rows[0], "nobody waiting");
     if (!lobby && s_lobby_rows[0] >= 0)
@@ -529,15 +526,21 @@ static void peppy_room_build(void)
     s_room_line = FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
                                    "", SIZE_NAME, COL_LEFT, Y_ROOM);
 
-    /* Created empty, filled in by the refresh. A subtext created with a string
-     * keeps that string's room and no more - update it to anything longer and
-     * the extra is dropped without a word, which is why the first two attempts
-     * at a count in the heading both drew a bare "QUEUE". Created empty it
-     * takes whatever it is given. */
-    s_queue_head = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                                    "", SIZE_HEADING, COL_LEFT, Y_HEADING);
-    s_lobby_head = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                                    "", SIZE_HEADING, COL_RIGHT, Y_HEADING);
+    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                     "QUEUE", SIZE_HEADING, COL_LEFT, Y_HEADING);
+    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                     "LOBBY", SIZE_HEADING, COL_RIGHT, Y_HEADING);
+
+    /* The count sits beside the heading as its own line rather than inside it.
+     * Two goes at "QUEUE (0)" both drew a bare QUEUE and stopped at the
+     * bracket: this text is drawn by Melee's own formatter, not printf, and it
+     * does not take everything ASCII has. Digits on their own it does. */
+    s_queue_head = FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
+                                    "", SIZE_HEADING, COL_LEFT + X_COUNT,
+                                    Y_HEADING);
+    s_lobby_head = FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
+                                    "", SIZE_HEADING, COL_RIGHT + X_COUNT,
+                                    Y_HEADING);
 
     for (i = 0; i < QUEUE_ROWS; i++)
         s_queue_rows[i] = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN,
