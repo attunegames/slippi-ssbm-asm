@@ -245,6 +245,55 @@ blrl
 .set PRD_S_SEP, PRD_S_PASS+5
 .short 0x8162 # ｜
 .byte 0x00
+.set PRD_S_ACTIVE, PRD_S_SEP+3
+.string "Active"
+.set PRD_S_QUEUE, PRD_S_ACTIVE+7
+.string "Queue"
+# The header is "%s Mode" for Slippi's own modes. A room knows which list it is
+# for, so it gets to say just the name.
+.set PRD_S_BARE, PRD_S_QUEUE+6
+.string "%s"
+# Fixed stride so the mode byte can index straight into it.
+.set PRD_MODE_STRIDE, 16
+.set PRD_S_MODES, PRD_S_BARE+3
+.asciz "Singles"
+.space 8
+.asciz "Doubles"
+.space 8
+.asciz "IronMan"
+.space 8
+.asciz "Crew Battles"
+.space 3
+.asciz "Tournaments"
+.space 4
+# The strings above end on an odd byte, and what follows is floats - which have
+# to be on a four-byte boundary. The align pads one byte, and the offset below
+# has to account for it, because these are spelled out rather than taken from
+# the location counter.
+.align 2
+# The roster column, under the User display - which sits at canvas -112, 20.
+.set PRD_X_ROSTER, PRD_S_MODES+81
+.float -112
+.set PRD_Y_ACTIVE_LBL, PRD_X_ROSTER+4
+.float 52
+.set PRD_Y_QUEUE_LBL, PRD_Y_ACTIVE_LBL+4
+.float 100
+.set PRD_Y_N0, PRD_Y_QUEUE_LBL+4
+.float 66
+.set PRD_Y_N1, PRD_Y_N0+4
+.float 80
+.set PRD_Y_N2, PRD_Y_N1+4
+.float 114
+.set PRD_Y_N3, PRD_Y_N2+4
+.float 128
+.set PRD_Y_N4, PRD_Y_N3+4
+.float 142
+.set PRD_Y_N5, PRD_Y_N4+4
+.float 156
+.set PRD_LBL_SIZE, PRD_Y_N5+4
+.float 0.40
+.set PRD_NAME_SIZE, PRD_LBL_SIZE+4
+.float 0.35
 .align 2
 
 ################################################################################
@@ -501,6 +550,97 @@ lfs f3, PRD_ROW2_Y(r6)
 addi r7, r6, PRD_S_EMPTY
 branchl r12, FG_CreateSubtext
 
+################################################################################
+# Peppy: the roster column, under the User display
+################################################################################
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
+lfs f1, PRD_LBL_SIZE(r6)
+lfs f2, PRD_X_ROSTER(r6)
+lfs f3, PRD_Y_ACTIVE_LBL(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
+lfs f1, PRD_LBL_SIZE(r6)
+lfs f2, PRD_X_ROSTER(r6)
+lfs f3, PRD_Y_QUEUE_LBL(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
+lfs f1, PRD_NAME_SIZE(r6)
+lfs f2, PRD_X_ROSTER(r6)
+lfs f3, PRD_Y_N0(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
+lfs f1, PRD_NAME_SIZE(r6)
+lfs f2, PRD_X_ROSTER(r6)
+lfs f3, PRD_Y_N1(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
+lfs f1, PRD_NAME_SIZE(r6)
+lfs f2, PRD_X_ROSTER(r6)
+lfs f3, PRD_Y_N2(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
+lfs f1, PRD_NAME_SIZE(r6)
+lfs f2, PRD_X_ROSTER(r6)
+lfs f3, PRD_Y_N3(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
+lfs f1, PRD_NAME_SIZE(r6)
+lfs f2, PRD_X_ROSTER(r6)
+lfs f3, PRD_Y_N4(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
+lfs f1, PRD_NAME_SIZE(r6)
+lfs f2, PRD_X_ROSTER(r6)
+lfs f3, PRD_Y_N5(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
 restore
 b EXIT
 
@@ -586,6 +726,12 @@ blrl
 .set STIDX_ROOM_PASS, 19
 .set STIDX_ROOM_HINT, 20
 .set STIDX_ROOM_HINT_B, 21 # the same words a hair to the right, which is the bold
+# The roster column. The six name slots are contiguous on purpose, so drawing
+# them is a loop over the block Dolphin fills rather than six copies of the same
+# six instructions.
+.set STIDX_ROSTER_ACTIVE_LBL, 22
+.set STIDX_ROSTER_QUEUE_LBL, 23
+.set STIDX_ROSTER_N0, 24
 .set LINE_IDX_GAP, 2
 .set LINE_COUNT, 3
 
@@ -704,6 +850,22 @@ beq UPDATE_HEADER_PARTY
 b UPDATE_HEADER_ERROR
 
 UPDATE_HEADER_ROOMS:
+# A room made from the menus knows which list it is for, so the header names it -
+# "Singles" rather than "Rooms Mode". One that came from peppy.json has no mode
+# of its own and keeps the old wording.
+lbz r3, MSRB_ROOM_MODE(REG_MSRB_ADDR)
+cmpwi r3, 5
+bge UPDATE_HEADER_ROOMS_PLAIN
+
+bl PEPPY_ROOM_DATA
+mflr r7
+mulli r0, r3, PRD_MODE_STRIDE
+addi r6, r7, PRD_S_MODES
+add r6, r6, r0
+addi r5, r7, PRD_S_BARE
+b UPDATE_HEADER
+
+UPDATE_HEADER_ROOMS_PLAIN:
 addi r6, REG_TEXT_PROPERTIES, TPO_STRING_ROOMS
 b UPDATE_HEADER
 
@@ -1312,6 +1474,63 @@ cmpwi REG_SUBTEXT_IDX, STIDX_ROOM_HINT_B
 ble PEPPY_ROOM_BLANK_LOOP
 
 PEPPY_ROOM_DONE:
+
+################################################################################
+# Peppy: who is playing and who is waiting, under the User display
+################################################################################
+#   Active
+#   Player 1
+#   Player 2
+#
+#   Queue
+#   Player 3 ...
+#
+# The block Dolphin fills holds the pair first and then the queue in order, at a
+# fixed stride, so this is a loop over it rather than six copies of the same six
+# instructions. A slot nobody is in arrives empty and draws nothing.
+lbz r3, MSRB_ROOM_CODE(REG_MSRB_ADDR)
+cmpwi r3, 0
+beq PEPPY_ROSTER_BLANK
+
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_ACTIVE
+li r4, STIDX_ROSTER_ACTIVE_LBL
+bl FN_UPDATE_TEXT
+
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_QUEUE
+li r4, STIDX_ROSTER_QUEUE_LBL
+bl FN_UPDATE_TEXT
+
+li REG_SUBTEXT_IDX, 0
+
+PEPPY_ROSTER_LOOP:
+mulli r0, REG_SUBTEXT_IDX, MSRB_ROSTER_STRIDE
+addi r5, REG_MSRB_ADDR, MSRB_ROSTER
+add r5, r5, r0
+addi r4, REG_SUBTEXT_IDX, STIDX_ROSTER_N0
+bl FN_UPDATE_TEXT
+addi REG_SUBTEXT_IDX, REG_SUBTEXT_IDX, 1
+cmpwi REG_SUBTEXT_IDX, 6
+blt PEPPY_ROSTER_LOOP
+b PEPPY_ROSTER_DONE
+
+PEPPY_ROSTER_BLANK:
+li REG_SUBTEXT_IDX, STIDX_ROSTER_ACTIVE_LBL
+
+PEPPY_ROSTER_BLANK_LOOP:
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_EMPTY
+mr r4, REG_SUBTEXT_IDX
+bl FN_UPDATE_TEXT
+addi REG_SUBTEXT_IDX, REG_SUBTEXT_IDX, 1
+cmpwi REG_SUBTEXT_IDX, STIDX_ROSTER_N0+5
+ble PEPPY_ROSTER_BLANK_LOOP
+
+PEPPY_ROSTER_DONE:
 
 restore
 blr

@@ -362,7 +362,15 @@
 # passcode is empty unless the room is private.
 .set MSRB_ROOM_CODE, MSRB_ALT_STAGE_MODE + 1 # char[5]
 .set MSRB_ROOM_PASS, MSRB_ROOM_CODE + 5 # char[5]
-.set MSRB_SIZE, MSRB_ROOM_PASS + 5
+# Which list the room is for - 0 Singles, 1 Doubles, 2 IronMan, 3 Crew Battles,
+# 4 Tournaments - or 0xFF for a room that did not come from the menus.
+.set MSRB_ROOM_MODE, MSRB_ROOM_PASS + 5 # u8
+# Who is in the room. Slots 0 and 1 are the pair playing or up next, 2 up are
+# the queue in order. Fixed stride so the draw can index it.
+.set MSRB_ROSTER, MSRB_ROOM_MODE + 1 # char[8][16]
+.set MSRB_ROSTER_SLOTS, 8
+.set MSRB_ROSTER_STRIDE, 16
+.set MSRB_SIZE, MSRB_ROSTER + 128
 
 ################################################################################
 # Rank Info Response Buffer
