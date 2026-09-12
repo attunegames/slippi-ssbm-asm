@@ -865,7 +865,22 @@ static void peppy_room_back(void)
      * does not come back from. Zero means "no minor in particular", which is
      * what a major change wants. */
     SCENE_CTRL.pending_minor = 0;
-    Event_StoreSceneNumber(SCENE_MAJOR_MAIN_MENU);
+    Scene_SetNextMajor(SCENE_MAJOR_MAIN_MENU);
+    {
+        char line[80];
+        char *p = line;
+        const u8 *c = (const u8 *)&SCENE_CTRL;
+        int i;
+
+        p = put(p, "Peppy: ctrl");
+        for (i = 0; i < 12; i++)
+        {
+            *p++ = ' ';
+            p = put_u8(p, c[i]);
+        }
+        *p = 0;
+        peppy_log(line);
+    }
     Scene_ExitMajor();
 }
 
