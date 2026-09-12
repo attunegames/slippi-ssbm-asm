@@ -201,6 +201,16 @@ void *FN_LoadMatchState(int unused);
  * same as being in the queue, so nothing pairs until this says so. */
 #define PEPPY_CMD_SET_QUEUED 0xC6
 
+/* Slippi's "start looking for an opponent". It is what starts the matchmaking
+ * thread, and therefore what starts the room ticking - without it Dolphin
+ * never asks the room anything and every column stays empty. The character
+ * select has always sent this; a room has to send it for itself.
+ *
+ * Payload is the online mode and eighteen shift-JIS bytes of opponent code,
+ * which only Direct mode reads. */
+#define PEPPY_CMD_FIND_OPPONENT 0xB4
+#define PEPPY_FIND_OPPONENT_SIZE 20
+
 extern u8 peppy_exi_buf[PEPPY_EXI_BUF_SIZE];
 
 #define PEPPY_DEFINE_EXI_BUF     u8 peppy_exi_buf[PEPPY_EXI_BUF_SIZE] __attribute__((aligned(32)))
