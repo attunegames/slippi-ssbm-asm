@@ -1,5 +1,12 @@
 /* Smoke test for the m-ex module pipeline, stage 1: pass-through only.
  *
+ * Hooks the CSS (minor scene 0x08), not the main menu.  A module attached to
+ * the main menu takes the game down before it draws a frame -- the same
+ * MxScn.dat edit pointed at a scene that is never entered boots fine at 60fps,
+ * so it is the timing of that scene and not the table or the module.  The main
+ * menu is the first scene the game enters, and nothing in Slippi hangs a module
+ * off it: theirs go on the CSS and on a scene they invented.
+ *
  * Three exports that do nothing but jump to the scene functions they replace.
  * At -O2 each compiles to a single tail-call branch, so no register is
  * touched and the scene behaves exactly as it does with no module attached.
@@ -18,16 +25,15 @@
 
 void peppy_boot_think(void)
 {
-    SceneThink_MainMenu();
+    SceneThink_CSS();
 }
 
 void peppy_boot_load(void)
 {
-    SceneLoad_MainMenu();
+    SceneLoad_CSS();
 }
 
 void peppy_boot_leave(void)
 {
-    /* The main menu's Leave slot is null in the scene table: nothing to
-     * chain to, and nothing to do. */
+    SceneLeave_CSS();
 }
