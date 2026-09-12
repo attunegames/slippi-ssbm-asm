@@ -701,6 +701,10 @@ void peppy_room_load(void)
             s_lobby_rows[i] = -1;
     }
     peppy_room_build();
+    /* Say it rather than assume it. s_queued starts at zero here, but Dolphin
+     * remembers across scenes - walk out of a room and back into one and it
+     * would still think you wanted a game. */
+    peppy_room_set_queued(0);
     peppy_room_start_searching();
     /* Not split - see peppy_room_split. The room has the screen to itself
      * until there is something to put in the other half. */
