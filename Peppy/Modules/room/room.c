@@ -206,6 +206,26 @@ static void peppy_room_clear_borrowed_scene(void)
     void **heads = peppy_gobj_heads();
     int c;
 
+    /* EXPERIMENT: the major scene table's ids. Asking to leave for a major that
+     * does not exist would leave Melee's lookup walking off the end of the
+     * table forever, which is what a frozen picture and a live window look
+     * like from outside. */
+    {
+        const char *tbl = (const char *)0x803daca4;
+        char line[100];
+        char *p = line;
+        int i;
+
+        p = put(p, "Peppy: majors");
+        for (i = 0; i < 24 && p < line + 80; i++)
+        {
+            *p++ = ' ';
+            p = put_u8(p, (u8)tbl[i * 0x14 + 1]);
+        }
+        *p = 0;
+        peppy_log(line);
+    }
+
     /* EXPERIMENT: what classes the borrowed scene actually creates, and what
      * happens to a scene change if none of them are destroyed. Leaving a room
      * flagged the exit - the Think stopped being called - and then nothing
