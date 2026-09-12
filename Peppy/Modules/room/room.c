@@ -169,65 +169,34 @@ static void peppy_room_clear_borrowed_scene(void)
  *
  * Players are not split at all - they get Melee's screens full size, untouched.
  */
-static void peppy_room_viewport(void *gobj, int top_half)
+/* Which camera actually draws the text?
+ *
+ * Its link is 0 and only one camera's mask has bit 0, yet giving that camera
+ * the bottom half left the text at the top - while squeezing every camera did
+ * move it.  So the mask is not telling the whole story.  Give each camera a
+ * different third of the screen: wherever the text lands names its camera,
+ * with no inference involved.
+ */
+static void peppy_room_thirds(void)
 {
-    void *cobj = *(void **)((char *)gobj + PEPPY_GOBJ_OBJECT);
-    float half = (float)PEPPY_SCREEN_H / 2.0f;
-
-    if (!cobj)
-        return;
-
-    if (top_half)
-    {
-        CObj_SetViewport(cobj, 0.0f, (float)PEPPY_SCREEN_W, 0.0f, half);
-        CObj_SetScissor(cobj, 0, PEPPY_SCREEN_W, 0, PEPPY_SCREEN_H / 2);
-    }
-    else
-    {
-        CObj_SetViewport(cobj, 0.0f, (float)PEPPY_SCREEN_W, half,
-                         (float)PEPPY_SCREEN_H);
-        CObj_SetScissor(cobj, 0, PEPPY_SCREEN_W, PEPPY_SCREEN_H / 2,
-                        PEPPY_SCREEN_H);
-    }
-}
-
-static void peppy_room_split(void)
-{
-    char line[120];
-    char *p = line;
     void **heads = peppy_gobj_heads();
     void *g = heads[PEPPY_CLASS_CAMERA];
-    u8 link;
-    u32 text_bit;
     int i = 0;
-
-    if (!s_text)
-        return;
-
-    /* Read the link rather than assume it: it was 0 on the Coming Soon scene,
-     * and that was a different scene with a different text group. */
-    link = *(u8 *)((char *)s_text + 3);
-    text_bit = 1u << (link & 31);
-
-    p = put(p, "Peppy: textlink=");
-    p = put_u8(p, link);
 
     while (g)
     {
-        u32 links = *(u32 *)((char *)g + PEPPY_GOBJ_LINKS0);
-        int bottom = (links & text_bit) != 0;
+        void *cobj = *(void **)((char *)g + PEPPY_GOBJ_OBJECT);
+        float top = (float)(PEPPY_SCREEN_H / 3 * i);
+        float bot = (float)(PEPPY_SCREEN_H / 3 * (i + 1));
 
-        peppy_room_viewport(g, bottom ? 0 : 1);
-
-        *p++ = ' ';
-        p = put_u8(p, (u8)i);
-        *p++ = '=';
-        p = put(p, bottom ? "bottom" : "top");
+        if (cobj && i < 3)
+        {
+            CObj_SetViewport(cobj, 0.0f, (float)PEPPY_SCREEN_W, top, bot);
+            CObj_SetScissor(cobj, 0, PEPPY_SCREEN_W, (int)top, (int)bot);
+        }
         i++;
         g = *(void **)((char *)g + PEPPY_GOBJ_NEXT);
     }
-    *p = 0;
-    peppy_log(line);
 }
 
 static void peppy_room_build(void)
@@ -308,7 +277,7 @@ void peppy_room_load(void)
     s_queue_line = -1;
     s_queued = 0;
     peppy_room_build();
-    peppy_room_split();
+    peppy_room_thirds();
     peppy_log(s_text ? "Peppy: room scene built"
                      : "Peppy: room scene FAILED to make a text struct");
 }
