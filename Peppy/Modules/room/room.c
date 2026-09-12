@@ -206,57 +206,6 @@ static void peppy_room_clear_borrowed_scene(void)
     void **heads = peppy_gobj_heads();
     int c;
 
-    /* EXPERIMENT: the major scene table's ids. Asking to leave for a major that
-     * does not exist would leave Melee's lookup walking off the end of the
-     * table forever, which is what a frozen picture and a live window look
-     * like from outside. */
-    {
-        const char *tbl = (const char *)0x803daca4;
-        char line[100];
-        char *p = line;
-        int i;
-
-        p = put(p, "Peppy: majors");
-        for (i = 0; i < 24 && p < line + 80; i++)
-        {
-            *p++ = ' ';
-            p = put_u8(p, (u8)tbl[i * 0x14 + 1]);
-        }
-        *p = 0;
-        peppy_log(line);
-    }
-
-    /* EXPERIMENT: what classes the borrowed scene actually creates, and what
-     * happens to a scene change if none of them are destroyed. Leaving a room
-     * flagged the exit - the Think stopped being called - and then nothing
-     * else happened, which is what waiting on something destroyed looks like. */
-    {
-        char line[100];
-        char *p = line;
-
-        p = put(p, "Peppy: classes");
-        for (c = 0; c < 64 && p < line + 80; c++)
-        {
-            void *g = heads[c];
-            int n = 0;
-
-            while (g)
-            {
-                n++;
-                g = *(void **)((char *)g + PEPPY_GOBJ_NEXT);
-            }
-            if (!n)
-                continue;
-            *p++ = ' ';
-            p = put_u8(p, (u8)c);
-            *p++ = ':';
-            p = put_u8(p, (u8)n);
-        }
-        *p = 0;
-        peppy_log(line);
-    }
-    return;
-
     for (c = 0; c < 64; c++)
     {
         void *g;
@@ -908,11 +857,15 @@ static void peppy_room_back(void)
 {
     if (s_queued)
         peppy_room_set_queued(0);
-    /* EXPERIMENT: a minor-only change now that the right byte is being written.
-     * The major version flagged the exit and then hung with the picture still
-     * up, so find out whether that is true of every scene change from here or
-     * only of leaving the major. */
-    peppy_room_go_to_css("Peppy: leaving the room - to the character select");
+    peppy_log("Peppy: leaving the room");
+
+    /* Clear the next-minor first. The major's Load wrote our own minor there on
+     * the way in and nothing has consumed it since, so leaving with it still
+     * set sends the engine to a minor of a major that is going away - which it
+     * does not come back from. Zero means "no minor in particular", which is
+     * what a major change wants. */
+    SCENE_CTRL.pending_minor = 0;
+    Event_StoreSceneNumber(SCENE_MAJOR_MAIN_MENU);
 }
 
 /* The room's buttons.
