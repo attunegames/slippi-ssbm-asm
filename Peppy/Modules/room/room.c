@@ -146,6 +146,7 @@ static int s_browse_rows[BROWSE_ROWS];
 static int s_browse_cursor;
 static int s_browse_hint;
 static int s_room_line;
+static int s_room_wait;
 static int s_queue_head;
 static int s_lobby_head;
 static int s_queue_line = -1;
@@ -415,8 +416,22 @@ static void peppy_room_show_code(void *msrb)
     const char *pass = (const char *)msrb + MSRB_ROOM_PASS;
     u8 mode = *(u8 *)((char *)msrb + MSRB_ROOM_MODE);
 
-    if (s_room_line < 0 || !code[0])
+    if (s_room_line < 0)
         return;
+
+    /* A room that could not be made leaves this empty, and the screen would
+     * otherwise sit there looking like a room with nobody in it. Say which it
+     * is; B is the way out either way. */
+    if (!code[0])
+    {
+        if (++s_room_wait > 180)
+        {
+            Text_UpdateSubtextContents(s_text, s_room_line, "%s",
+                                       "NO ROOM - press B to go back");
+            s_room_line = -1;
+        }
+        return;
+    }
 
     if (mode < MODE_COUNT)
     {
@@ -885,6 +900,7 @@ void peppy_room_load(void)
     s_text = 0;
     s_queue_line = -1;
     s_room_line = -1;
+    s_room_wait = 0;
     s_queue_head = -1;
     s_lobby_head = -1;
     s_p1_line = -1;
