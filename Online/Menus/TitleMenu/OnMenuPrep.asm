@@ -1072,6 +1072,11 @@ branchl r12, Event_StoreSceneNumber
 b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 
 FN_OnlineSubmenuThink_GO_TO_ROOM:
+# WIP: which major the menu is in, so the room knows what to ask for on the way
+# back out. The load goes inside the macro's argument slot - logf backs up every
+# register first, so anything set up before it is gone by the time it is used.
+logf LOG_LEVEL_NOTICE, "Peppy: menu major is %d", "loadbz r5, 0x80479d30"
+
 # A room opens on Peppy's own screen - the queue and what you can do from it -
 # not on the character select. The character select comes later, once two
 # people are matched, which is what the room's SceneDecide will hand off to.
