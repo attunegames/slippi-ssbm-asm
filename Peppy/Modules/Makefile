@@ -8,8 +8,10 @@
 # compiler put in .sdata would be addressed off the game's own SDA base at
 # runtime.  module.ld refuses to link if that happens.
 
-CC      := powerpc-eabi-gcc
-LD      := powerpc-eabi-ld
+# The devkitPro image sets DEVKITPPC but leaves its bin off PATH.
+DEVKITPPC ?= /opt/devkitpro/devkitPPC
+CC      := $(DEVKITPPC)/bin/powerpc-eabi-gcc
+LD      := $(DEVKITPPC)/bin/powerpc-eabi-ld
 PYTHON  := python3
 
 CFLAGS  := -O2 -mcpu=750 -meabi -mhard-float \
