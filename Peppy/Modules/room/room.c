@@ -42,7 +42,7 @@ static void peppy_log(const char *msg)
  * x 40..640, y 40..520.  Glyph height is roughly 80 * size. */
 #define COL_LEFT        40.0f    /* queue column */
 #define COL_RIGHT      330.0f    /* lobby column */
-#define ROW_STEP        22.0f
+#define ROW_STEP        28.0f
 
 /* The furniture lives in the bottom half now, so everything moves up and the
  * divider sits along its top edge with the two players' names on it. */
@@ -50,7 +50,7 @@ static void peppy_log(const char *msg)
 #define Y_ROOM          66.0f    /* which room this is */
 #define Y_HEADING      100.0f
 #define Y_FIRST_NAME   132.0f
-#define Y_ACTIONS      290.0f
+#define Y_ACTIONS      340.0f
 
 #define X_P1           110.0f
 #define X_VS           300.0f
@@ -529,10 +529,15 @@ static void peppy_room_build(void)
     s_room_line = FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
                                    "", SIZE_NAME, COL_LEFT, Y_ROOM);
 
+    /* Created empty, filled in by the refresh. A subtext created with a string
+     * keeps that string's room and no more - update it to anything longer and
+     * the extra is dropped without a word, which is why the first two attempts
+     * at a count in the heading both drew a bare "QUEUE". Created empty it
+     * takes whatever it is given. */
     s_queue_head = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                                    "QUEUE", SIZE_HEADING, COL_LEFT, Y_HEADING);
+                                    "", SIZE_HEADING, COL_LEFT, Y_HEADING);
     s_lobby_head = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                                    "LOBBY", SIZE_HEADING, COL_RIGHT, Y_HEADING);
+                                    "", SIZE_HEADING, COL_RIGHT, Y_HEADING);
 
     for (i = 0; i < QUEUE_ROWS; i++)
         s_queue_rows[i] = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN,
@@ -550,7 +555,7 @@ static void peppy_room_build(void)
                                     STR_JOIN, SIZE_ACTION, COL_LEFT, Y_ACTIONS);
     FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
                      "Press Z to Spectate", SIZE_ACTION, COL_LEFT,
-                     Y_ACTIONS + ROW_STEP);
+                     Y_ACTIONS + 30.0f);
 
     /* The character select's own BACK is part of that scene's artwork and does
      * not exist here, so this is the label in the same corner. B leaves the
