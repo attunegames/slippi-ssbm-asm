@@ -37,12 +37,17 @@ static inline void *peppy_sda(void)
  * (minor << 8) | major everywhere in the codeset, which is this struct's
  * byte 3 and byte 0 -- see the getMinorMajor macro in Common/Common.s. */
 typedef struct SceneController {
-    u8 major;
-    u8 pending_major;
-    u8 previous_major;
-    u8 minor;
-    u8 pending_minor;
-    u8 previous_minor;
+    u8 major;           /* +0x0 */
+    u8 pending_major;   /* +0x1 */
+    u8 unknown2;        /* +0x2 */
+    u8 minor;           /* +0x3 */
+    u8 unknown4;        /* +0x4 */
+    /* +0x5. Every scene change in the codeset writes HERE - the stage select
+     * setting 5 for the splash, the character select setting 6 for game prep.
+     * A first guess put this at +0x4 and the writes went nowhere: the screen
+     * stayed put and the log showed +0x5 still holding what the major's Load
+     * had written on the way in. */
+    u8 pending_minor;   /* +0x5 */
 } SceneController;
 
 #define SCENE_CTRL (*(volatile SceneController *)0x80479D30)

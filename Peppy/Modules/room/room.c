@@ -858,10 +858,7 @@ static void peppy_room_back(void)
     if (s_queued)
         peppy_room_set_queued(0);
     peppy_log("Peppy: leaving the room");
-    /* EXPERIMENT: the online major, which is the one value known to work from
-     * the menu. If the room reloads, a major change from this Think is fine and
-     * only the number was wrong. */
-    Event_StoreSceneNumber(MAJOR_ONLINE);
+    Event_StoreSceneNumber(SCENE_MAJOR_MAIN_MENU);
 }
 
 /* The room's buttons.
@@ -902,10 +899,10 @@ static void peppy_room_probe_scene(void)
     p = put_u8(p, SCENE_CTRL.pending_major);
     p = put(p, " min=");
     p = put_u8(p, SCENE_CTRL.minor);
+    p = put(p, " b4=");
+    p = put_u8(p, SCENE_CTRL.unknown4);
     p = put(p, " pmin=");
     p = put_u8(p, SCENE_CTRL.pending_minor);
-    p = put(p, " prev=");
-    p = put_u8(p, SCENE_CTRL.previous_minor);
     *p = 0;
     peppy_log(line);
 }
