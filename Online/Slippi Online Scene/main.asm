@@ -320,7 +320,7 @@ bl PeppyRoomSceneDecide     #SceneDecide
 .align 2
 bl PeppyTrainScenePrep      #ScenePrep
 bl PeppyTrainSceneDecide    #SceneDecide
-.byte 0x52                  #Common Minor ID (Peppy training)
+.byte 0x04                  #EXPERIMENT: Melee's own training scene, no module
 .align 2
 .long 0x80480530            #Minor Data 1, as VS mode uses
 .long 0x80479d98            #Minor Data 2
