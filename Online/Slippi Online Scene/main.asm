@@ -346,13 +346,21 @@ blr
 .set PEPPY_MAJOR_MAIN_MENU, 1
 
 PeppyTrainScenePrep:
+backup
+logf LOG_LEVEL_NOTICE, "Peppy: training prep, minor %d", "loadbz r5, 0x80479d33"
+restore
 blr
 
 PeppyTrainSceneDecide:
+backup
+logf LOG_LEVEL_NOTICE, "Peppy: training decide"
+restore
 blr
 
 PeppyRoomSceneDecide:
 backup
+
+logf LOG_LEVEL_NOTICE, "Peppy: room decide, next minor %d", "loadbz r5, 0x80479d35"
 
 load r31, 0x80479d30
 lbz r3, 0x5(r31)
