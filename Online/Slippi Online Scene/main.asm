@@ -306,6 +306,24 @@ bl PeppyRoomSceneDecide     #SceneDecide
 # minor data Slippi's own splash minor passes.
 .long 0x80490880            #Minor Data 1
 .long 0x804d68d0            #Minor Data 2
+#Peppy training
+# Waiting in a queue is exactly when somebody wants to be in training, so
+# training is a minor of THIS major rather than a major of its own. Melee's
+# training-in-game scene is common minor 0x04; MxScn.dat carries a copy of it
+# as 0x52 with our module attached, so real training mode keeps its own
+# functions untouched and only this one runs through us.
+#
+# Its Decide is ours and does nothing: the module's Think is what leaves, the
+# moment the room says it is this player's turn.
+.byte 7                     #Minor Scene ID
+.byte 3                     #Amount of persistent heaps
+.align 2
+bl PeppyTrainScenePrep      #ScenePrep
+bl PeppyTrainSceneDecide    #SceneDecide
+.byte 0x52                  #Common Minor ID (Peppy training)
+.align 2
+.long 0x80480530            #Minor Data 1, as VS mode uses
+.long 0x80479d98            #Minor Data 2
 #End
 .byte -1
 .align 2
@@ -326,6 +344,12 @@ blr
 # is no new state anywhere and nothing to keep in step.
 .set PEPPY_MINOR_LEAVE_MAJOR, 0xFE
 .set PEPPY_MAJOR_MAIN_MENU, 1
+
+PeppyTrainScenePrep:
+blr
+
+PeppyTrainSceneDecide:
+blr
 
 PeppyRoomSceneDecide:
 backup

@@ -62,6 +62,7 @@ typedef struct SceneController {
  * Online/Slippi Online Scene/main.asm - not the global MxScn ids above. */
 #define ONLINE_MINOR_CSS        0
 #define ONLINE_MINOR_ROOM       6
+#define ONLINE_MINOR_TRAIN      7
 #define SCENE_NEXT_MINOR(id)    ((u8)((id) + 1))
 
 /* Not a minor at all: the room writes this and ends its own scene, and the

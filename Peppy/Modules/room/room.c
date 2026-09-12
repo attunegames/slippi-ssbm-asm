@@ -129,19 +129,13 @@ static const char *const MODE_NAMES[] = {
 #define MODE_COUNT ((int)(sizeof(MODE_NAMES) / sizeof(MODE_NAMES[0])))
 
 #define STR_JOIN      "Press START to Join the Queue"
-/* This should say "Press START to Practice" - that is the design, and waiting
- * in a queue is exactly when somebody wants to be in training. It cannot yet:
- * training is a different major scene and leaving the online major is the same
- * unsolved problem that stops B reaching the menu, so Start would have had
- * nowhere to go. Until then the line says what the button does, because a
- * button that promises practice and quietly drops you out of the queue is
- * worse than one that admits it. */
-#define STR_PRACTICE  "In the Queue - START to Leave"
+#define STR_PRACTICE  "Press START to Practice"
 
 /* The refresh runs every frame and is written top-down; these two are the
  * ways out of the scene and read better next to each other, further down. */
 static void peppy_room_go_to_css(const char *why);
 static void peppy_room_check_paired(void *msrb);
+static void peppy_room_train(void);
 /* Joining from the list turns the browser back into a room without leaving the
  * scene, so it needs both builders before either is defined. */
 static void *peppy_room_new_text(void);
@@ -183,6 +177,12 @@ void peppy_room_set_players(const char *p1, const char *p2)
 
 /* Called when the queue state changes; the roster will drive this once it is
  * wired up. */
+/* Joining the queue, which only ever happens in one direction.
+ *
+ * There is deliberately no way to leave it from here. You leave by leaving the
+ * room, or by not being there when your turn comes - which is the same thing
+ * from everyone else's side, and means a queue position cannot be lost to a
+ * misread button. */
 static void peppy_room_set_queued(int queued)
 {
     if (!s_text || s_queue_line < 0 || queued == s_queued)
@@ -848,6 +848,21 @@ static void peppy_room_check_paired(void *msrb)
         peppy_room_go_to_css("Peppy: matched - handing over to the character select");
 }
 
+/* Off to practise.
+ *
+ * Training is minor 7 of this same major - Melee's own training scene, copied
+ * in MxScn.dat so the real one is left alone - and going there is the ordinary
+ * minor change that already carries a matched player to the character select.
+ * Your place in the queue is not touched: the room goes on ticking from
+ * Dolphin's side, and the training scene watches for its turn.
+ */
+static void peppy_room_train(void)
+{
+    peppy_log("Peppy: off to practise");
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN);
+    Scene_ExitMinor();
+}
+
 /* Leaving the room.
  *
  * The request is raised here and spent in the scene's Decide, over in the
@@ -899,8 +914,15 @@ static void peppy_room_buttons(void)
 {
     u32 pressed = peppy_pad_pressed();
 
+    /* Start joins the queue, and once you are in it Start is how you go and
+     * practise while you wait. It is never how you leave. */
     if (pressed & PAD_START)
-        peppy_room_set_queued(!s_queued);
+    {
+        if (!s_queued)
+            peppy_room_set_queued(1);
+        else
+            peppy_room_train();
+    }
     if (pressed & PAD_Z)
         peppy_room_spectate();
     if (pressed & PAD_B)

@@ -34,7 +34,10 @@ boot_EXPORTS := 0=peppy_boot_think 1=peppy_boot_load 2=peppy_boot_leave
 room_DAT     := PeppyRoom.dat
 room_EXPORTS := 0=peppy_room_think 1=peppy_room_load 2=peppy_room_leave
 
-MODULES := boot room
+train_DAT     := PeppyTrain.dat
+train_EXPORTS := 0=peppy_train_think 1=peppy_train_load 2=peppy_train_leave
+
+MODULES := boot room train
 
 all: include/slippi_consts.h $(foreach m,$(MODULES),$(OUT)/$($(m)_DAT))
 
