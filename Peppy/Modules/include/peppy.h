@@ -78,6 +78,20 @@ void MainMenu_HideAllElements(void);
  * first place.  Poking the link byte afterwards does nothing, because the
  * object is already threaded onto link 0's list; it has to be taken off and
  * put back on. */
+/* Melee threads every GObj onto a per-class list: the heads live in an array
+ * hung off r13, indexed by the object's class byte at +0x02, chained through
+ * +0x0C.  GObj_Create writes the class from its third argument, so the splash's
+ * GObj_Create(11, 3, 0) artwork is class 3. */
+#define PEPPY_GOBJ_HEADS   (-15992)
+#define PEPPY_GOBJ_CLASS   0x02
+#define PEPPY_GOBJ_NEXT    0x0C
+
+static inline void **peppy_gobj_heads(void)
+{
+    return *(void ***)((char *)peppy_sda() + PEPPY_GOBJ_HEADS);
+}
+
+void GObj_Destroy(void *gobj);
 void GObj_DestroyGXLink(void *gobj);
 void GObj_AddGXLink(void *gobj, void *callback, int link, int priority);
 
