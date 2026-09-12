@@ -70,44 +70,36 @@ static void *s_text;
 static void peppy_room_build(void)
 {
     void *text = Text_CreateStruct(0, 0);
-    int i;
 
     if (!text)
         return;
     s_text = text;
 
-    *(u8 *)((char *)text + TEXT_OFS_KERN)  = 1;   /* close kerning */
-    *(u8 *)((char *)text + TEXT_OFS_ALIGN) = 0;   /* align left   */
+    *(u8 *)((char *)text + TEXT_OFS_KERN)  = 1;
+    *(u8 *)((char *)text + TEXT_OFS_ALIGN) = 0;
     *(float *)((char *)text + TEXT_OFS_Z)      = TEXT_Z;
     *(float *)((char *)text + TEXT_OFS_SCALEX) = TEXT_CANVAS;
     *(float *)((char *)text + TEXT_OFS_SCALEY) = TEXT_CANVAS;
 
+    /* Probe, not layout. The room laid out at canvas (-430, -250) drew
+     * nothing, but those numbers were measured off the CHARACTER SELECT's
+     * camera, and canvas coordinates are camera-relative -- on this scene's
+     * camera the same numbers could put every line off screen. Markers at
+     * known positions and sizes say which it is: if any of them appear, the
+     * text renders fine and only the mapping is wrong. */
+    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                     "CENTRE", 1.0f, 0.0f, 0.0f);
     FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
-                     "PEPPY ROOM", SIZE_TITLE, COL_LEFT, Y_TITLE);
-
-    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                     "QUEUE", SIZE_HEADING, COL_LEFT, Y_HEADING);
-    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                     "LOBBY", SIZE_HEADING, COL_RIGHT, Y_HEADING);
-
-    /* Empty rows now, filled from the roster once the slots are wired up.
-     * Creating them here means the per-frame update only ever rewrites
-     * contents and never allocates. */
-    for (i = 0; i < QUEUE_ROWS; i++)
-        FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0, "",
-                         SIZE_NAME, COL_LEFT, Y_FIRST_NAME + ROW_STEP * i);
-    for (i = 0; i < LOBBY_ROWS; i++)
-        FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0, "",
-                         SIZE_NAME, COL_RIGHT, Y_FIRST_NAME + ROW_STEP * i);
-
-    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                     "START    Join Queue", SIZE_ACTION, COL_LEFT, Y_ACTIONS);
+                     "LEFT", 1.0f, -200.0f, 0.0f);
+    FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
+                     "RIGHT", 1.0f, 200.0f, 0.0f);
     FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "X        Spectate", SIZE_ACTION, COL_LEFT,
-                     Y_ACTIONS + ROW_STEP);
+                     "UP", 1.0f, 0.0f, -200.0f);
     FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "Z        Training", SIZE_ACTION, COL_LEFT,
-                     Y_ACTIONS + ROW_STEP * 2);
+                     "DOWN", 1.0f, 0.0f, 200.0f);
+    /* And one at the scale the CSS text uses, in case 1.0 is enormous here. */
+    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                     "small centre", 0.05f, 0.0f, 30.0f);
 }
 
 /* ----------------------------------------------------------------- exports */
@@ -127,7 +119,7 @@ void peppy_room_load(void)
      * not, so the text sits on a GXLink that camera does not cover.  The debug
      * menu is the one scene that is nothing but menu text, so its camera
      * covers the link menu text uses. */
-    SceneLoad_DebugMenu();
+    SceneLoad_ComingSoon();
 
     s_text = 0;
     peppy_room_build();
@@ -137,4 +129,5 @@ void peppy_room_load(void)
 
 void peppy_room_leave(void)
 {
+    SceneLeave_ComingSoon();
 }
