@@ -173,6 +173,46 @@ blrl
 .float 0.1 # Scaling, 0xC
 
 ################################################################################
+# Peppy: the room row
+################################################################################
+# Its own block rather than more entries on the table above, because every
+# offset there is spelled out by hand and inserting into the middle moves them
+# all.
+#
+# Canvas positions. Measured off Slippi's own text on this screen: its header
+# sits at canvas (70, 23) and its lines at (90, 52), landing at screen x 1091 and
+# 1129 with baselines at 638 and 693 on a 1920x1080 render. That gives
+#   screen_x = 958 + 1.9 * canvas_x      screen_y = 594 + 1.9 * canvas_y
+# and the band above the character grid works out around canvas y -250.
+PEPPY_ROOM_DATA:
+blrl
+.set PRD_SIZE, 0
+.float 0.55
+.set PRD_HINT_SIZE, PRD_SIZE+4
+.float 0.35
+.set PRD_CODE_X, PRD_HINT_SIZE+4
+.float -60
+.set PRD_PASS_X, PRD_CODE_X+4
+.float 10
+.set PRD_HINT_X, PRD_PASS_X+4
+.float -52
+.set PRD_ROW1_Y, PRD_HINT_X+4
+.float -251
+.set PRD_ROW2_Y, PRD_ROW1_Y+4
+.float -234
+.set PRD_COL_WHITE, PRD_ROW2_Y+4
+.long 0xFFFFFFFF
+.set PRD_COL_GRAY, PRD_COL_WHITE+4
+.long 0x8E9196FF
+.set PRD_S_EMPTY, PRD_COL_GRAY+4
+.string ""
+.set PRD_S_MASK, PRD_S_EMPTY+1
+.string "****"
+.set PRD_S_HINT, PRD_S_MASK+5
+.string "Hold L or R"
+.align 2
+
+################################################################################
 # Start Init Function
 ################################################################################
 LOAD_START:
@@ -344,6 +384,44 @@ bl INIT_ERROR_LINE_SUBTEXT
 lfs f3, TPO_ERR_LINE4_Y(REG_TEXT_PROPERTIES)
 bl INIT_ERROR_LINE_SUBTEXT
 
+################################################################################
+# Peppy: the room row, above the character grid
+################################################################################
+# The data block is reloaded before each one - FG_CreateSubtext is free to
+# trample any volatile register, including whichever one held it.
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
+lfs f1, PRD_SIZE(r6)
+lfs f2, PRD_CODE_X(r6)
+lfs f3, PRD_ROW1_Y(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_WHITE
+li r5, 0
+lfs f1, PRD_SIZE(r6)
+lfs f2, PRD_PASS_X(r6)
+lfs f3, PRD_ROW1_Y(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
+bl PEPPY_ROOM_DATA
+mflr r6
+mr r3, REG_TEXT_STRUCT
+addi r4, r6, PRD_COL_GRAY
+li r5, 0
+lfs f1, PRD_HINT_SIZE(r6)
+lfs f2, PRD_HINT_X(r6)
+lfs f3, PRD_ROW2_Y(r6)
+addi r7, r6, PRD_S_EMPTY
+branchl r12, FG_CreateSubtext
+
 restore
 b EXIT
 
@@ -420,6 +498,11 @@ blrl
 .set STIDX_ERR_LINE2, 12
 .set STIDX_ERR_LINE3, 13
 .set STIDX_ERR_LINE4, 14
+# Peppy: the room, above the character grid. Added last so the indices above
+# keep their meaning.
+.set STIDX_ROOM_CODE, 15
+.set STIDX_ROOM_PASS, 16
+.set STIDX_ROOM_HINT, 17
 .set LINE_IDX_GAP, 2
 .set LINE_COUNT, 3
 
@@ -1000,6 +1083,105 @@ blt SKIP_FRAME_ADJUSTMENT
 li r3, 0
 SKIP_FRAME_ADJUSTMENT:
 sth r3, CSSDT_FRAME_COUNTER(REG_CSSDT_ADDR)
+
+################################################################################
+# Peppy: the room, above the character grid
+################################################################################
+# Masked unless a trigger is held, so a private room's passcode does not go out
+# on somebody's stream just because they sat at the character select.
+#
+# No room code means this is not a Peppy room - a Slippi match, or one that came
+# from peppy.json - so the whole row stays blank rather than showing stars for
+# something that does not exist.
+lbz r3, MSRB_ROOM_CODE(REG_MSRB_ADDR)
+cmpwi r3, 0
+beq PEPPY_ROOM_BLANK
+
+# Any port holding L or R will do. Held buttons are at +0x00 of the pad, which
+# is what the LRAS check reads; +0x08 is the newly-pressed word instead.
+li r6, 0
+
+PEPPY_ROOM_TRIGGER:
+load r3, 0x804c1fac
+mulli r0, r6, 0x44
+add r3, r3, r0
+lwz r4, 0x0(r3)
+andi. r0, r4, 0x60 # L is 0x40, R is 0x20
+bne PEPPY_ROOM_SHOW
+addi r6, r6, 1
+cmpwi r6, 4
+blt PEPPY_ROOM_TRIGGER
+
+################################################################################
+# Nothing held: stars, and a line saying how to read it
+################################################################################
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_MASK
+li r4, STIDX_ROOM_CODE
+bl FN_UPDATE_TEXT
+
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_HINT
+li r4, STIDX_ROOM_HINT
+bl FN_UPDATE_TEXT
+
+# A public room has no passcode, so there is nothing to hide there either.
+lbz r3, MSRB_ROOM_PASS(REG_MSRB_ADDR)
+cmpwi r3, 0
+beq PEPPY_ROOM_PASS_BLANK
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_MASK
+li r4, STIDX_ROOM_PASS
+bl FN_UPDATE_TEXT
+b PEPPY_ROOM_DONE
+
+################################################################################
+# Held: the real thing
+################################################################################
+PEPPY_ROOM_SHOW:
+addi r5, REG_MSRB_ADDR, MSRB_ROOM_CODE
+li r4, STIDX_ROOM_CODE
+bl FN_UPDATE_TEXT
+
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_EMPTY
+li r4, STIDX_ROOM_HINT
+bl FN_UPDATE_TEXT
+
+lbz r3, MSRB_ROOM_PASS(REG_MSRB_ADDR)
+cmpwi r3, 0
+beq PEPPY_ROOM_PASS_BLANK
+addi r5, REG_MSRB_ADDR, MSRB_ROOM_PASS
+li r4, STIDX_ROOM_PASS
+bl FN_UPDATE_TEXT
+b PEPPY_ROOM_DONE
+
+PEPPY_ROOM_PASS_BLANK:
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_EMPTY
+li r4, STIDX_ROOM_PASS
+bl FN_UPDATE_TEXT
+b PEPPY_ROOM_DONE
+
+PEPPY_ROOM_BLANK:
+li REG_SUBTEXT_IDX, STIDX_ROOM_CODE
+
+PEPPY_ROOM_BLANK_LOOP:
+bl PEPPY_ROOM_DATA
+mflr r3
+addi r5, r3, PRD_S_EMPTY
+mr r4, REG_SUBTEXT_IDX
+bl FN_UPDATE_TEXT
+addi REG_SUBTEXT_IDX, REG_SUBTEXT_IDX, 1
+cmpwi REG_SUBTEXT_IDX, STIDX_ROOM_HINT
+ble PEPPY_ROOM_BLANK_LOOP
+
+PEPPY_ROOM_DONE:
 
 restore
 blr
