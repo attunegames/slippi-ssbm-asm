@@ -206,6 +206,37 @@ static void peppy_room_clear_borrowed_scene(void)
     void **heads = peppy_gobj_heads();
     int c;
 
+    /* EXPERIMENT: what classes the borrowed scene actually creates, and what
+     * happens to a scene change if none of them are destroyed. Leaving a room
+     * flagged the exit - the Think stopped being called - and then nothing
+     * else happened, which is what waiting on something destroyed looks like. */
+    {
+        char line[100];
+        char *p = line;
+
+        p = put(p, "Peppy: classes");
+        for (c = 0; c < 64 && p < line + 80; c++)
+        {
+            void *g = heads[c];
+            int n = 0;
+
+            while (g)
+            {
+                n++;
+                g = *(void **)((char *)g + PEPPY_GOBJ_NEXT);
+            }
+            if (!n)
+                continue;
+            *p++ = ' ';
+            p = put_u8(p, (u8)c);
+            *p++ = ':';
+            p = put_u8(p, (u8)n);
+        }
+        *p = 0;
+        peppy_log(line);
+    }
+    return;
+
     for (c = 0; c < 64; c++)
     {
         void *g;
