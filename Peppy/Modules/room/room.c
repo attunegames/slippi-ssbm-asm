@@ -303,6 +303,37 @@ static void peppy_room_name(char *out, const char *slot)
     out[i] = 0;
 }
 
+/* Empty columns could mean the read is wrong or the room genuinely has nobody
+ * queued.  Report the first slots once so the two are not confused. */
+static int s_roster_reported;
+
+static void peppy_room_report_roster(void *msrb)
+{
+    char line[110];
+    char *p = line;
+    const char *roster = (const char *)msrb + MSRB_ROSTER;
+    int slot;
+
+    p = put(p, "Peppy: msrb=");
+    p = put_hex(p, (u32)msrb);
+    p = put(p, " mode=");
+    p = put_u8(p, *(u8 *)((char *)msrb + MSRB_ROOM_MODE));
+    for (slot = 0; slot < 4 && p < line + 80; slot++)
+    {
+        char name[MSRB_ROSTER_STRIDE + 1];
+
+        peppy_room_name(name, roster + slot * MSRB_ROSTER_STRIDE);
+        *p++ = ' ';
+        p = put_u8(p, (u8)slot);
+        *p++ = '=';
+        *p++ = '"';
+        p = put(p, name);
+        *p++ = '"';
+    }
+    *p = 0;
+    peppy_log(line);
+}
+
 static void peppy_room_refresh(void)
 {
     char name[MSRB_ROSTER_STRIDE + 1];
@@ -317,6 +348,12 @@ static void peppy_room_refresh(void)
     if (!msrb)
         return;
     roster = (const char *)msrb + MSRB_ROSTER;
+
+    if (!s_roster_reported)
+    {
+        s_roster_reported = 1;
+        peppy_room_report_roster(msrb);
+    }
 
     if (s_p1_line >= 0)
     {
@@ -438,6 +475,7 @@ void peppy_room_load(void)
     s_p1_line = -1;
     s_p2_line = -1;
     s_queued = 0;
+    s_roster_reported = 0;
     {
         int i;
 
