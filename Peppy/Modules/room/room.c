@@ -48,6 +48,7 @@ static void peppy_log(const char *msg)
 #define Y_HEADING      105.0f
 #define Y_FIRST_NAME   145.0f
 #define Y_ACTIONS      310.0f
+#define X_BACK         520.0f    /* top right, where the CSS keeps its BACK */
 
 #define SIZE_TITLE      0.55f
 #define SIZE_HEADING    0.40f
@@ -103,7 +104,23 @@ static char *put_hex(char *p, u32 v)
     return p;
 }
 
+#define STR_JOIN      "Press START to Join the Queue"
+#define STR_PRACTICE  "Press START to Practice"
+
 static void *s_text;
+static int s_queue_line = -1;
+static int s_queued;
+
+/* Called when the queue state changes; the roster will drive this once it is
+ * wired up. */
+void peppy_room_set_queued(int queued)
+{
+    if (!s_text || s_queue_line < 0 || queued == s_queued)
+        return;
+    s_queued = queued;
+    Text_UpdateSubtextContents(s_text, s_queue_line,
+                               queued ? STR_PRACTICE : STR_JOIN);
+}
 
 /* The room borrows the splash's camera, and the splash's artwork comes with it.
  * The census says our text is alone in class 0 and the cameras are class 20, so
@@ -168,14 +185,20 @@ static void peppy_room_build(void)
         FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0, "",
                          SIZE_NAME, COL_RIGHT, Y_FIRST_NAME + ROW_STEP * i);
 
-    FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                     "START    Join Queue", SIZE_ACTION, COL_LEFT, Y_ACTIONS);
+    /* Start is the only thing that changes: once you are in the queue it stops
+     * offering to put you there and offers practice instead, which is where
+     * waiting happens. Training is not a button of its own. */
+    s_queue_line = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
+                                    STR_JOIN, SIZE_ACTION, COL_LEFT, Y_ACTIONS);
     FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "X        Spectate", SIZE_ACTION, COL_LEFT,
+                     "Press Z to Spectate", SIZE_ACTION, COL_LEFT,
                      Y_ACTIONS + ROW_STEP);
+
+    /* The character select's own BACK is part of that scene's artwork and does
+     * not exist here, so this is the label in the same corner. B leaves the
+     * room, and leaves the queue with it. */
     FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "Z        Training", SIZE_ACTION, COL_LEFT,
-                     Y_ACTIONS + ROW_STEP * 2);
+                     "BACK", SIZE_HEADING, X_BACK, Y_TITLE);
 }
 
 /* ----------------------------------------------------------------- exports */
@@ -206,78 +229,11 @@ void peppy_room_load(void)
     peppy_room_clear_borrowed_scene();
 
     s_text = 0;
+    s_queue_line = -1;
+    s_queued = 0;
     peppy_room_build();
-    /* Coming Soon renders Melee's own artwork but never our text, so either
-     * the text object is on a render link that camera does not cover, or the
-     * struct never got any glyph data.  Text_CreateStruct ends by reading the
-     * struct's id at +0x4F, looking it up in the table at 0x804D1124 and
-     * storing the result at +0x5C - a null there says the text has nothing to
-     * draw with and the camera was never the problem. */
-    {
-        char line[96];
-        char *p = line;
-        u8 id = s_text ? *(u8 *)((char *)s_text + 0x4F) : 0;
-        u32 slot = *(u32 *)(0x804D1124 + 4 * (u32)id);
-        u32 data = s_text ? *(u32 *)((char *)s_text + 0x5C) : 0;
-
-        p = put(p, "Peppy: text=");
-        p = put_hex(p, (u32)s_text);
-        p = put(p, " id=");
-        p = put_u8(p, id);
-        p = put(p, " table=");
-        p = put_hex(p, slot);
-        p = put(p, " data=");
-        p = put_hex(p, data);
-
-        /* table[0] is null yet +0x5C is set - Text_CreateStruct fills it from
-         * its own buffer at the end regardless - so the struct is not short of
-         * glyph data and this is about render links.  A GObj keeps its link in
-         * byte 3 (GObj_DestroyGXLink reads exactly that), and Coming Soon
-         * built its camera off the byte at r13-15957. */
-        p = put(p, " textlink=");
-        p = put_u8(p, *(u8 *)((char *)s_text + 3));
-        p = put(p, " camlink=");
-        p = put_u8(p, *(u8 *)((char *)peppy_sda() - 15957));
-        p = put(p, " artlink=");
-        p = put_u8(p, *(u8 *)((char *)peppy_sda() - 15958));
-        *p = 0;
-        peppy_log(line);
-    }
-
-    /* Census before demolition: which GObj classes this scene has and which
-     * one our text is.  The splash's artwork comes from GObj_Create(11, 3, 0),
-     * so class 3 - but the camera and the text are objects too, and destroying
-     * the wrong list takes the screen with them. */
-    {
-        char line[120];
-        char *p = line;
-        void **heads = peppy_gobj_heads();
-        int c;
-
-        p = put(p, "Peppy: textclass=");
-        p = put_u8(p, s_text ? *(u8 *)((char *)s_text + PEPPY_GOBJ_CLASS) : 255);
-        p = put(p, " classes:");
-        for (c = 0; c < 64 && p < line + 100; c++)
-        {
-            void *g = heads[c];
-            int n = 0;
-
-            while (g && n < 99)
-            {
-                n++;
-                g = *(void **)((char *)g + PEPPY_GOBJ_NEXT);
-            }
-            if (n)
-            {
-                *p++ = ' ';
-                p = put_u8(p, (u8)c);
-                *p++ = '=';
-                p = put_u8(p, (u8)n);
-            }
-        }
-        *p = 0;
-        peppy_log(line);
-    }
+    peppy_log(s_text ? "Peppy: room scene built"
+                     : "Peppy: room scene FAILED to make a text struct");
 }
 
 void peppy_room_leave(void)
