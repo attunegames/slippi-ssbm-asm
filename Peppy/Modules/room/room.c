@@ -761,11 +761,11 @@ static void peppy_room_build(void)
                      "Press Z to Spectate", SIZE_ACTION, COL_LEFT,
                      Y_ACTIONS + 30.0f);
 
-    /* The character select's own BACK is part of that scene's artwork and does
-     * not exist here, so this is the label in the same corner. B leaves the
-     * room, and leaves the queue with it. */
+    /* The character select's own BACK sits in this corner, and this is the
+     * same corner - but it cannot say BACK until B actually goes back. See
+     * peppy_room_back. */
     FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "BACK", SIZE_HEADING, X_BACK, Y_DIVIDER);
+                     "B LEAVE QUEUE", SIZE_NAME, X_BACK, Y_DIVIDER);
 }
 
 /* ----------------------------------------------------------------- exports */
@@ -845,50 +845,54 @@ static void peppy_room_check_paired(void *msrb)
         peppy_room_go_to_css("Peppy: matched - handing over to the character select");
 }
 
-/* Leaving the room.
+/* Leaving the queue.
  *
- * The queue is dropped first and on its own tick, because the scene is about
- * to go away and a client that vanishes while still marked as searching is one
- * that other people can be matched against for as long as the backend's window
- * lasts.  Then the major scene ends; Slippi's FN_OnReturnFromOnline is what
- * puts the menu cursor back on Rooms, so nothing here has to.
+ * Not the room: getting out of the online major from here is unsolved. The
+ * minor transitions work - that is how a matched player reaches the character
+ * select and how Z hands the screen to a match - but every way of ending the
+ * MAJOR from this scene's Think freezes the picture with the scene already
+ * left. Tried and recorded so none of it gets tried again:
+ *
+ *   Event_StoreSceneNumber(1)                  the minor exits, byte 5 still
+ *                                              held our own minor, hang
+ *   ... with pending_minor 0                   goes to minor 0, the character
+ *                                              select, major unchanged
+ *   ... with pending_minor 40 (ExitSceneID)    hangs before Leave even runs
+ *   ... with pending_minor 0xFF                hang
+ *   Scene_SetNextMajor(1) + Scene_ExitMajor    byte 1 does change to 1, and it
+ *                                              still hangs
+ *   Event_StoreSceneNumber((40 << 8) | 1)      character select again
+ *
+ * The menu's own Event_StoreSceneNumber(8) works, so the call is fine and the
+ * difference is where it is made from - most likely this has to happen in the
+ * scene's Decide, where every other transition in the codeset happens, rather
+ * than in its Think. Until then B does the part of leaving that works.
  */
+static void peppy_room_leave_proc(void *gobj)
+{
+    (void)gobj;
+    peppy_log("Peppy: asking for the menu from a process");
+    SCENE_CTRL.pending_minor = 0;
+    Event_StoreSceneNumber(SCENE_MAJOR_MAIN_MENU);
+}
+
 static void peppy_room_back(void)
 {
+    void *gobj;
+
     if (s_queued)
         peppy_room_set_queued(0);
     peppy_log("Peppy: leaving the room");
 
-    /* Clear the next-minor first. The major's Load wrote our own minor there on
-     * the way in and nothing has consumed it since, so leaving with it still
-     * set sends the engine to a minor of a major that is going away - which it
-     * does not come back from. Zero means "no minor in particular", which is
-     * what a major change wants. */
-    /* A scene number is (minor << 8) | major - the same shape getMinorMajor
-     * builds. The menu passes 8, which is major 8 minor 0, and lands on the
-     * character select. 40 is what the codeset calls this major's ExitSceneID,
-     * and read as a minor of the menu's major it is the only number anywhere
-     * that names where the online major goes when it ends. */
-    /* 0xFF, the same value that terminates a minor scene table. Zero is not
-     * "no minor": it sent the engine to minor 0, which from here is the
-     * character select. The major can only end once the minors run out. */
-    SCENE_CTRL.pending_minor = 0xFF;
-    Event_StoreSceneNumber(SCENE_MAJOR_MAIN_MENU);
-    {
-        char line[80];
-        char *p = line;
-        const u8 *c = (const u8 *)&SCENE_CTRL;
-        int i;
-
-        p = put(p, "Peppy: ctrl");
-        for (i = 0; i < 12; i++)
-        {
-            *p++ = ' ';
-            p = put_u8(p, c[i]);
-        }
-        *p = 0;
-        peppy_log(line);
-    }
+    /* From a process of its own, not from here. The menu's own way out of a
+     * major is a GObj proc - GObj_Create(0, 1, 128) then GObj_AddProc - and
+     * that is the one difference left between the call that works and every
+     * version of it above that did not. */
+    gobj = GObj_Create(0, 1, 128);
+    if (gobj)
+        GObj_AddProc(gobj, peppy_room_leave_proc, 0);
+    else
+        peppy_log("Peppy: no process to leave from");
 }
 
 /* The room's buttons.
@@ -912,31 +916,6 @@ static void peppy_room_buttons(void)
         peppy_room_back();
 }
 
-/* EXPERIMENT: what the scene controller actually says, once a second. */
-static void peppy_room_probe_scene(void)
-{
-    static int frame;
-    char line[80];
-    char *p = line;
-
-    if (++frame < 60)
-        return;
-    frame = 0;
-
-    p = put(p, "Peppy: scene maj=");
-    p = put_u8(p, SCENE_CTRL.major);
-    p = put(p, " pmaj=");
-    p = put_u8(p, SCENE_CTRL.pending_major);
-    p = put(p, " min=");
-    p = put_u8(p, SCENE_CTRL.minor);
-    p = put(p, " b4=");
-    p = put_u8(p, SCENE_CTRL.unknown4);
-    p = put(p, " pmin=");
-    p = put_u8(p, SCENE_CTRL.pending_minor);
-    *p = 0;
-    peppy_log(line);
-}
-
 void peppy_room_think(void)
 {
     /* The roster changes while people come and go, so it is read every frame
@@ -953,7 +932,6 @@ void peppy_room_think(void)
         return;
     }
 
-    peppy_room_probe_scene();
     peppy_room_refresh();
     peppy_room_buttons();
     /* Deliberately not SceneThink_ClassicModeSplash: its Load is what sets the

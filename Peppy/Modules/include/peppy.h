@@ -157,6 +157,10 @@ void CObj_SetScissor(void *cobj, int left, int right, int top, int bottom);
 #define PEPPY_SCREEN_H     480
 
 void GObj_Destroy(void *gobj);
+/* The pair the menu uses to give itself a per-frame callback: GObj_Create(0, 1,
+ * 128) then GObj_AddProc(gobj, fn, 0). */
+void *GObj_Create(int kind, int subkind, int priority);
+void GObj_AddProc(void *gobj, void (*proc)(void *gobj), int priority);
 void GObj_DestroyGXLink(void *gobj);
 void GObj_AddGXLink(void *gobj, void *callback, int link, int priority);
 
