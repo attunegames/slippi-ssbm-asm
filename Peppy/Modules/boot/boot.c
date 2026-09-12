@@ -13,25 +13,25 @@
 
 #define LOG_NOTICE 1
 
-/* Matches the logf macro in Common/Common.s: the device reads a fixed 128
- * bytes and treats everything from byte 3 on as the message. */
+PEPPY_DEFINE_EXI_BUF;
+
+/* Matches the logf macro in Common/Common.s: the device reads a fixed buffer
+ * and treats everything from byte 3 on as the message. */
 static void peppy_log(const char *msg)
 {
-    u8 *buf = (u8 *)peppy_exi_buffer();
+    u8 *buf = peppy_exi_buf;
     int i;
 
     buf[0] = 0xD0;        /* CMD_LOG_MESSAGE */
     buf[1] = 0;           /* do not append a timestamp */
     buf[2] = LOG_NOTICE;
 
-    for (i = 0; i < 124 && msg[i]; i++)
+    for (i = 0; i < PEPPY_EXI_BUF_SIZE - 4 && msg[i]; i++)
         buf[3 + i] = (u8)msg[i];
     buf[3 + i] = 0;
 
-    FN_EXITransferBuffer(buf, 128, CONST_ExiWrite);
+    FN_EXITransferBuffer(buf, PEPPY_EXI_BUF_SIZE, CONST_ExiWrite);
 }
-
-static int announced;
 
 static char *put(char *p, const char *s)
 {
@@ -50,17 +50,15 @@ static char *put_u8(char *p, u8 v)
     return p;
 }
 
+static int announced;
+
 void peppy_boot_think(void)
 {
     SceneThink_MainMenu();
-}
 
-void peppy_boot_load(void)
-{
-    SceneLoad_MainMenu();
-
-    /* Once per launch: the main menu is re-entered constantly and a line per
-     * visit would bury everything else in the log. */
+    /* Announce from Think rather than Load: by the first frame the scene is
+     * fully built, and once per launch keeps the main menu -- which is
+     * re-entered constantly -- from burying the log. */
     if (!announced)
     {
         char line[80];
@@ -79,6 +77,11 @@ void peppy_boot_load(void)
 
         peppy_log(line);
     }
+}
+
+void peppy_boot_load(void)
+{
+    SceneLoad_MainMenu();
 }
 
 void peppy_boot_leave(void)
