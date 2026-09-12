@@ -54,24 +54,19 @@ void Scene_ExitMinor(void);
 void FN_EXITransferBuffer(void *buf, int len, int mode);
 void FN_LoadMatchState(void);
 
-/* Slippi keeps a scratch buffer for EXI transfers alive across scenes, hung
- * off r13 at OFST_R13_SB_ADDR.  Melee owns r13, so we read it directly rather
- * than assuming where the SDA base landed. */
-#define OFST_R13_SB_ADDR (-0x503C)
+/* Slippi's logf macro transfers out of a scratch buffer hung off r13 at
+ * OFST_R13_SB_ADDR, but every caller of that macro is online code -- there is
+ * no promise the pointer is live in a menu scene, and writing 128 bytes
+ * through a null one takes the game down before it draws a frame.  A module
+ * owns its own memory, so use that instead.
+ *
+ * 32-byte aligned because the transfer is a DMA and a cache line is 32 bytes;
+ * a buffer sharing a line with something else can have that neighbour written
+ * back over it. */
+#define PEPPY_EXI_BUF_SIZE 128
 
-static inline void *peppy_exi_buffer(void)
-{
-    void *r13;
-    __asm__ volatile("mr %0, 13" : "=r"(r13));
-    return *(void **)((char *)r13 + OFST_R13_SB_ADDR);
-}
+extern u8 peppy_exi_buf[PEPPY_EXI_BUF_SIZE];
 
-static inline void peppy_exi_send(const u8 *bytes, int len)
-{
-    u8 *buf = (u8 *)peppy_exi_buffer();
-    for (int i = 0; i < len; i++)
-        buf[i] = bytes[i];
-    FN_EXITransferBuffer(buf, len, CONST_ExiWrite);
-}
+#define PEPPY_DEFINE_EXI_BUF     u8 peppy_exi_buf[PEPPY_EXI_BUF_SIZE] __attribute__((aligned(32)))
 
 #endif /* PEPPY_H */
