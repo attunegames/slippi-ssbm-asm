@@ -81,6 +81,16 @@
 #define MSRB_ROOM_FLAGS 1197
 #define MSRB_ROOMLIST_COUNT 1198
 #define MSRB_ROOMLIST 1199
-#define MSRB_SIZE 1375
+/* What the pair in the match have settled on, for everyone else in the room.
+ * 0xFF means nothing picked yet. Appended, so nothing above moves. */
+#define MSRB_DRAFT 1375
+#define MSRB_DRAFT_STAGE 1375
+#define MSRB_DRAFT_P1_CHAR 1376
+#define MSRB_DRAFT_P1_COLOR 1377
+#define MSRB_DRAFT_P2_CHAR 1378
+#define MSRB_DRAFT_P2_COLOR 1379
+#define MSRB_DRAFT_PLAYING 1380
+#define MSRB_DRAFT_NONE 0xFF
+#define MSRB_SIZE 1381
 
 #endif
