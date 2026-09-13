@@ -1083,74 +1083,34 @@ static void peppy_room_train(void)
 
 /* Leaving the room for real.
  *
- * Not a new screen: the same one, rebuilt as the room list. Joining from that
- * list already turns the browser into a room without leaving the scene - this
- * is that, backwards - and it sidesteps the thing that has never worked, which
- * is ending the online major from a scene of ours. You came in through the
- * list, so the list is where out goes.
+ * Out of the online MAJOR altogether, back to the menu the room was entered
+ * from - which is what "back" means to anyone who has just walked in through
+ * three menus.
  *
- * Two messages, because they are two different things. Dolphin is told to let
- * go of the room, which takes the queue with it and tells the room so the other
- * screens stop drawing your name; and then to start fetching the public list
- * again, because that thread stops the moment a room is joined.
+ * This is the pair Melee's own character select uses, and reading the scene
+ * machinery is what finally explained why eight earlier attempts at it froze.
+ * Scene_ProcessMajor is a loop: run the current minor, then look at byte 0xC of
+ * the scene controller, and only then leave. Scene_ProcessMinor always returns
+ * after one minor - it does not load the next one itself. So the flag alone
+ * does nothing while the minor's Think is still running, and the picture sits
+ * there in a scene that has already been told to go. The minor has to end too.
+ *
+ * The heap being exhausted did not help those attempts either. See
+ * peppy_room_msrb.
  */
 static void peppy_room_exit_room(void)
 {
-    void *msrb = peppy_room_msrb();
-    u8 mode = msrb ? *(u8 *)((char *)msrb + MSRB_ROOM_MODE) : 0;
-    void *gobj;
-    int i;
-
     peppy_log("Peppy: leaving the room");
 
     peppy_exi_buf[0] = PEPPY_CMD_LEAVE_ROOM;
     FN_EXITransferBuffer(peppy_exi_buf, 1, CONST_ExiWrite);
 
-    peppy_exi_buf[0] = PEPPY_CMD_LIST_ROOMS;
-    peppy_exi_buf[1] = mode;
-    FN_EXITransferBuffer(peppy_exi_buf, 2, CONST_ExiWrite);
-
-    /* Same swap the join does: throw the text object away and make another.
-     * Asking for the scene again lands on a black screen - whatever the engine
-     * does with a minor that re-enters itself, it is not "run Load again". */
-    gobj = peppy_find_text_gobj();
-    if (gobj)
-        GObj_Destroy(gobj);
-    s_text = peppy_room_new_text();
-    if (!s_text)
-    {
-        peppy_log("Peppy: left, but could not build the room list");
-        return;
-    }
-
-    s_browsing = 1;
-    s_queued = 0;
-    s_browse_cursor = 0;
-    s_browse_hint = -1;
-    for (i = 0; i < BROWSE_ROWS; i++)
-        s_browse_rows[i] = s_browse_hi[i] = -1;
-    /* The room's own line numbers belonged to the object that was just
-     * destroyed. Nothing in browse mode reads them, but a stale index is the
-     * kind of thing that outlives the reason it was safe. */
-    s_queue_line = -1;
-    s_line2 = -1;
-    s_spin_wait = -1;
-    s_spin_done = -1;
-    s_next_sym = -1;
-    s_room_line = -1;
-    s_queue_head = -1;
-    s_lobby_head = -1;
-    s_p1_line = -1;
-    s_p2_line = -1;
-    s_back_line = -1;
-    s_back_hi = -1;
-    for (i = 0; i < QUEUE_ROWS; i++)
-        s_queue_rows[i] = s_queue_hi[i] = -1;
-    for (i = 0; i < LOBBY_ROWS; i++)
-        s_lobby_rows[i] = s_lobby_hi[i] = -1;
-
-    peppy_room_build_browser(s_text);
-    peppy_log("Peppy: room list built");
+    /* Nothing of ours is next - the menu's own major load decides where it
+     * lands, and Slippi's return-from-online handler already puts the cursor
+     * back on Rooms. */
+    SCENE_CTRL.pending_minor = 0;
+    MenuController_WriteToPendingMajor_1to_0xC(SCENE_MAJOR_MAIN_MENU);
+    Scene_ExitMinor();
 }
 
 /* Leaving the room.
