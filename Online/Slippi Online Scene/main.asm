@@ -552,13 +552,28 @@ blr
 # This used to live in the character select's decide, which is where ranked does
 # it. Matched players do not go through the character select any more: they went
 # there, picked, and then reached the draft and picked again.
-.set PEPPY_MINOR_PENDING_DRAFT, 6       # minor 5, game prep
+.set PEPPY_MINOR_PENDING_DRAFT, 6
+.set PEPPY_MINOR_PENDING_SPLASH, 5      # minor 4, the versus splash
 
 PeppyRoomSceneDecide:
 backup
 
 load r4, 0x80479d30
 lbz r3, 0x5(r4)
+
+# Peppy: a watcher asked to go straight into the game.
+#
+# It has nothing to pick and no way to advance a screen that wants a pick, so
+# the room skips it past both of them. What that screen would have done is copy
+# Dolphin's match block into the scene - and for a watcher Dolphin has already
+# filled that block in from the stream - so the splash's own init is the whole
+# of what is owed, and it has to run before the scene loads.
+cmpwi r3, PEPPY_MINOR_PENDING_SPLASH
+bne PeppyRoomSceneDecide_NOT_SPLASH
+bl SplashSceneInit
+b PeppyRoomSceneDecide_EXIT
+
+PeppyRoomSceneDecide_NOT_SPLASH:
 cmpwi r3, PEPPY_MINOR_PENDING_DRAFT
 bne PeppyRoomSceneDecide_EXIT
 

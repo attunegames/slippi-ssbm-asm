@@ -63,6 +63,10 @@ typedef struct SceneController {
 #define ONLINE_MINOR_CSS        0
 #define ONLINE_MINOR_ROOM       6
 #define ONLINE_MINOR_GAMESETUP 5
+/* The versus splash, and the way into a game without picking anything. A
+ * watcher goes here: Dolphin has already filled the match block from the
+ * stream, and the splash's init is what copies that into the scene. */
+#define ONLINE_MINOR_SPLASH     4
 #define ONLINE_MINOR_TRAIN      7
 #define ONLINE_MINOR_TRAIN_CSS  8
 #define ONLINE_MINOR_TRAIN_SSS  9
