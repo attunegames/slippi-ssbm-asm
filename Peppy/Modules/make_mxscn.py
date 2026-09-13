@@ -18,10 +18,20 @@ TRAIN_THINK = 0x8016D32C   # SceneThink_TrainingModeInGame
 TRAIN_LOAD  = 0x8016EC28   # SceneLoad_TrainingModeInGame
 TRAIN_LEAVE = 0x8016E9C8   # SceneLeave_InGame, shared with VS
 
+# Melee's character select, read out of the stock table as scene 0x08. Slippi
+# attaches SlippiCSS.dat to that scene, so entering it anywhere loads Slippi's
+# online character select - rank, chat, match state and all - which has no
+# business running over a training session and crashes when it tries. A copy
+# with no code file is the same screen without the module.
+CSS_THINK = 0x802669F4
+CSS_LOAD  = 0x8026688C
+CSS_LEAVE = 0x80266D70
+
 SCENES = [
     # id,   file,               think,       load,       leave
     (0x51, "PeppyRoom.dat",     0,           0,          0),
     (0x52, "PeppyTrain.dat",    TRAIN_THINK, TRAIN_LOAD, TRAIN_LEAVE),
+    (0x53, None,                CSS_THINK,   CSS_LOAD,   CSS_LEAVE),
 ]
 
 
@@ -38,7 +48,7 @@ def main():
             print(f"{ident:#04x} already there, leaving it alone")
             continue
         scn.add(ident, name, think, load, leave)
-        print(f"{ident:#04x} -> {name}")
+        print(f"{ident:#04x} -> {name or 'no module'}")
     scn.write(args.out)
 
 

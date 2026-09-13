@@ -61,7 +61,7 @@ class Scn:
     def cstr(self, off):
         return self.data[off:self.data.index(b"\0", off)].decode()
 
-    def add(self, minor_id, filename, think=0, load=0, leave=0):
+    def add(self, minor_id, filename=None, think=0, load=0, leave=0):
         """Append a brand-new scene to the table.
 
         Melee never enters an id it does not know, so a scene invented here is
@@ -90,6 +90,11 @@ class Scn:
         self.data[end] = minor_id
         for k, fn in ((0x04, think), (0x08, load), (0x0C, leave)):
             struct.pack_into(">I", self.data, end + k, fn)
+
+        # A scene with no code file of its own.  Copying one of Melee's this way
+        # is how you get that scene WITHOUT whatever module is attached to it.
+        if filename is None:
+            return end, None
 
         while len(self.data) % 4:
             self.data.append(0)

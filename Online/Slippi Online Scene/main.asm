@@ -341,7 +341,11 @@ bl PeppyTrainSceneDecide    #SceneDecide
 .align 2
 bl PeppyTrainCSSPrep        #ScenePrep
 bl PeppyTrainCSSDecide      #SceneDecide
-.byte 0x08                  #Common Minor ID (character select)
+# 0x53, not 0x08: same screen, but 0x08 is where Slippi attaches SlippiCSS.dat
+# and that module has no business running over a training session - it expects
+# an online match and goes through a float as if it were a pointer when there
+# is none. MxScn.dat carries 0x53 as a copy of 0x08 with no module on it.
+.byte 0x53                  #Common Minor ID (character select, no module)
 .align 2
 .long 0x8048e230            #Minor Data 1
 .long 0x8048e230            #Minor Data 2
