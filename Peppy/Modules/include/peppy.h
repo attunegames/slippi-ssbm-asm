@@ -326,6 +326,7 @@ int FG_CreateSubtext(void *text, const void *color, int mode,
  * in the CSS data table, so a module that runs after SceneLoad_CSS can just
  * borrow it rather than making a second one. */
 #define CSSDT_BUF_ADDR        0x80005614
+#define CSSDT_SLPCSS_OFS      0x04   /* the draft's archive; filled in GamePrepScenePrep */
 #define CSSDT_TEXT_STRUCT_OFS 0x08
 
 static inline void *peppy_css_text(void)
