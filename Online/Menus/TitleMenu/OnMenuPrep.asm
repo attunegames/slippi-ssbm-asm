@@ -199,6 +199,7 @@ lbz r3, OFST_R13_ONLINE_MODE(r13)
 cmpwi r3, ONLINE_MODE_ROOMS
 bne FN_OnReturnFromOnline_SET_SELECTED_INDEX
 li r3, OPTION_ROOMS_IDX
+bl FN_PeppyAskForRoomsList
 b FN_OnReturnFromOnline_SET_SELECTED_INDEX
 
 FN_OnReturnFromOnline_GET_FIRST_UNLOCKED:
@@ -211,6 +212,29 @@ stb r3, 0x1(r31)
 
 # Go to end of function
 branch r12, 0x801b136c
+
+################################################################################
+# Routine: PeppyAskForRoomsList
+# ------------------------------------------------------------------------------
+# Leaves a note that the online submenu should open on the Rooms list rather
+# than the mode list. Backing out of a room lands here, and the screen a room
+# was entered from is the one "back" should return to.
+#
+# Only a note: the submenu is rebuilt by its own think, and doing it from the
+# scene prep is too early - there is no submenu GObj to rebuild yet. r3 is
+# carried through untouched, because the caller is in the middle of working out
+# which option to select.
+################################################################################
+FN_PeppyAskForRoomsList:
+mflr r11
+mr r10, r3
+bl PEPPY_LABEL_DATA
+mflr r9
+li r8, 2                    # level 1, one-based
+stw r8, PLD_ENTER(r9)
+mr r3, r10
+mtlr r11
+blr
 
 ################################################################################
 # Routine: SwitchToOnlineMenu
@@ -787,6 +811,27 @@ backup BKP_DEFAULT_FREE_SPACE_SIZE, NUM_FREG, NUM_GPREG
 # Check if confirm dialog is open or not, and prevent input if it is
 ################################################################################
 mr REG_SM_GOBJ, r3
+
+################################################################################
+# Peppy: open on the Rooms list, if something asked for that
+################################################################################
+# Backing out of a room leaves a note rather than rebuilding the menu itself -
+# the note is read here because this is the first place with a submenu GObj to
+# rebuild. Pressing A on the Rooms row goes through this same rebuild, so this
+# is the path that is known to work.
+bl PEPPY_LABEL_DATA
+mflr r3
+lwz r0, PLD_ENTER(r3)
+cmpwi r0, 0
+beq FN_OnlineSubmenuThink_NO_PENDING_LEVEL
+li r4, 0
+stw r4, PLD_ENTER(r3)
+subi r3, r0, 1
+li r4, 0                    # cursor on the first mode
+li r5, 3                    # coming back, not going deeper
+bl FN_PeppyGoToLevel
+b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
+FN_OnlineSubmenuThink_NO_PENDING_LEVEL:
 
 lwz r3, MENU_DLG_USER_DATA_OFFSET(REG_SM_GOBJ)
 cmpwi r3, 0
@@ -1553,6 +1598,14 @@ blrl
 # cover comes up short. Same fix the Rooms list's rows already use.
 .set PLD_MASK_W, PLD_WORD_Y+4
 .float 0.72
+# A level the menu should open at, one-based, or zero for "wherever it would
+# have opened anyway". Backing out of a room sets it to the Rooms list, because
+# that is the screen the room was entered from and the one "back" means. It is
+# spent by the submenu think rather than by the scene prep: rebuilding the
+# submenu is something the think does, and doing it from the prep is too early -
+# there is no submenu GObj to rebuild yet.
+.set PLD_ENTER, PLD_MASK_W+4
+.long 0
 .align 2
 
 ################################################################################
