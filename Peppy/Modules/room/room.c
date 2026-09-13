@@ -1457,12 +1457,16 @@ static void peppy_room_redress(void *msrb)
         s_dressed_from[i] = d[i];
 
     {
-        char line[64];
+        static const char hex[] = "0123456789abcdef";
+        char line[48];
         char *o = put(line, "Peppy: draft ");
 
+        /* Two digits a byte, not put_hex's eight - six of those overflow the
+         * line, which the compiler was good enough to say so. */
         for (i = 0; i < 6; i++)
         {
-            o = put_hex(o, d[i]);
+            *o++ = hex[(d[i] >> 4) & 0xF];
+            *o++ = hex[d[i] & 0xF];
             *o++ = ' ';
         }
         *o = 0;
