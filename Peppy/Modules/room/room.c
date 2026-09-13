@@ -1106,8 +1106,9 @@ static void peppy_room_exit_room(void)
     FN_EXITransferBuffer(peppy_exi_buf, 1, CONST_ExiWrite);
 
     /* Nothing of ours is next - the menu's own major load decides where it
-     * lands, and Slippi's return-from-online handler already puts the cursor
-     * back on Rooms. */
+     * lands. Slippi's return-from-online handler puts the cursor back on Rooms,
+     * and Peppy's addition to it opens the Rooms list rather than the mode list,
+     * so you come out on the screen you went in through. */
     SCENE_CTRL.pending_minor = 0;
     MenuController_WriteToPendingMajor_1to_0xC(SCENE_MAJOR_MAIN_MENU);
     Scene_ExitMinor();
