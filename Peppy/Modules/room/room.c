@@ -15,6 +15,12 @@
 
 PEPPY_DEFINE_EXI_BUF;
 
+/* Melee's training mode, which the room runs underneath itself. */
+void MajorSetup_TrainingMode(void);
+void MajorLoad_TrainingMode(void);
+void SceneLoad_TrainingModeInGame(void);
+void SceneThink_TrainingModeInGame(void);
+
 static void peppy_log(const char *msg)
 {
     u8 *buf = peppy_exi_buf;
@@ -952,11 +958,13 @@ void peppy_room_think(void)
         return;
     }
 
+    /* Training runs underneath, so it gets its think. The splash's was never
+     * called - it animates toward a match and reads data a room does not have -
+     * but training's is the whole point of being here. */
+    SceneThink_TrainingModeInGame();
+
     peppy_room_refresh();
     peppy_room_buttons();
-    /* Deliberately not SceneThink_ClassicModeSplash: its Load is what sets the
-     * scene up, its Think animates the splash toward a match and reads data a
-     * room does not have, which is the invalid read a few seconds in. */
 }
 
 void peppy_room_load(void)
@@ -973,9 +981,33 @@ void peppy_room_load(void)
      * The splash is the one where our text renders, so it stays until the room
      * builds a camera of its own.  Its artwork showing through is cosmetic and
      * the next thing to go. */
-    SceneLoad_ClassicModeSplash();
+    {
+        void *msrb0 = FN_LoadMatchState(0);
 
-    peppy_room_clear_borrowed_scene();
+        s_browsing = msrb0 && (*(u8 *)((char *)msrb0 + MSRB_ROOM_FLAGS)
+                               & MSRB_ROOM_FLAG_BROWSING);
+    }
+
+    if (s_browsing)
+    {
+        /* The room list is a menu and wants a menu's backdrop. */
+        SceneLoad_ClassicModeSplash();
+        peppy_room_clear_borrowed_scene();
+    }
+    else
+    {
+        /* The room IS training. Rather than leaving for training and coming
+         * back - a scene change into an in-game scene, which is the one
+         * transition that has never worked here - the room borrows training's
+         * own load the way it used to borrow the splash's. Nothing to leave,
+         * nothing to come back from, and the queue sits over the top of it.
+         *
+         * The artwork is not cleared this time: the stage and the character
+         * are the point. */
+        MajorSetup_TrainingMode();
+        MajorLoad_TrainingMode();
+        SceneLoad_TrainingModeInGame();
+    }
 
     s_text = 0;
     s_queue_line = -1;
@@ -1005,13 +1037,6 @@ void peppy_room_load(void)
     {
         peppy_log("Peppy: room scene FAILED to make a text struct");
         return;
-    }
-
-    {
-        void *msrb = FN_LoadMatchState(0);
-
-        s_browsing = msrb && (*(u8 *)((char *)msrb + MSRB_ROOM_FLAGS)
-                              & MSRB_ROOM_FLAG_BROWSING);
     }
 
     if (s_browsing)
