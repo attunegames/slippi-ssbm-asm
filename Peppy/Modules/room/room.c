@@ -671,30 +671,6 @@ static void peppy_room_browse_join(void *msrb)
         return;
     }
     s_browsing = 0;
-    {
-        /* A text object draws itself, but only into a camera's render pass. The
-         * room has never owned one - it borrows whatever the splash scene's load
-         * leaves behind - so if that borrow ever fails the screen is simply
-         * black at 60fps. Count what is actually there. */
-        void **heads = peppy_gobj_heads();
-        char line[64];
-        char *o = line;
-        int k, cams = 0, texts = 0;
-        void *g;
-
-        for (g = heads[PEPPY_CLASS_CAMERA]; g; g = *(void **)((char *)g + PEPPY_GOBJ_NEXT))
-            cams++;
-        for (g = heads[PEPPY_CLASS_TEXT]; g; g = *(void **)((char *)g + PEPPY_GOBJ_NEXT))
-            texts++;
-        for (k = 0; "Peppy: cams "[k]; k++)
-            *o++ = "Peppy: cams "[k];
-        o = put_hex(o, (u32)cams);
-        *o++ = ' ';
-        o = put_hex(o, (u32)texts);
-        *o = 0;
-        peppy_log(line);
-    }
-
     peppy_room_build();
     peppy_room_set_queued(0);
     peppy_room_start_searching();
@@ -1127,6 +1103,30 @@ void peppy_room_load(void *scene)
         peppy_room_build_browser(s_text);
         peppy_log("Peppy: room list built");
         return;
+    }
+
+    {
+        /* A text object draws itself, but only into a camera's render pass. The
+         * room has never owned one - it borrows whatever the splash scene's load
+         * leaves behind - so if that borrow ever fails the screen is simply
+         * black at 60fps. Count what is actually there. */
+        void **heads = peppy_gobj_heads();
+        char line[64];
+        char *o = line;
+        int k, cams = 0, texts = 0;
+        void *g;
+
+        for (g = heads[PEPPY_CLASS_CAMERA]; g; g = *(void **)((char *)g + PEPPY_GOBJ_NEXT))
+            cams++;
+        for (g = heads[PEPPY_CLASS_TEXT]; g; g = *(void **)((char *)g + PEPPY_GOBJ_NEXT))
+            texts++;
+        for (k = 0; "Peppy: cams "[k]; k++)
+            *o++ = "Peppy: cams "[k];
+        o = put_hex(o, (u32)cams);
+        *o++ = ' ';
+        o = put_hex(o, (u32)texts);
+        *o = 0;
+        peppy_log(line);
     }
 
     peppy_room_build();
