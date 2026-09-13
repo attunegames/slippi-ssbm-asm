@@ -1038,9 +1038,44 @@ __attribute__((unused)) static void peppy_dump_match_struct(void)
  * hangs off it: GetMinorSceneData1 is nothing but *(scene + 0x10), and
  * StartMelee reads the stage out of it. Throwing that argument away is what
  * made every attempt at training walk off into a stage that does not exist. */
+/* Every minor of the major we are in, as the game sees it.
+ *
+ * The scene machinery calls a minor's decide through *(descriptor + 8), and a
+ * crash there means that word is not a function. The codeset writes those
+ * fields as `bl` and a startup pass rewrites them into pointers - so anything
+ * here that still looks like an instruction, or like nothing at all, never got
+ * rewritten. */
+static void peppy_probe_our_minors(void)
+{
+    char line[128];
+    u8 *minor = *(u8 **)(MAJOR_SCENE_TABLE + 8 * MAJOR_SCENE_STRIDE + 0x10);
+    int guard;
+
+    if ((u32)minor < 0x80000000 || (u32)minor >= 0x80500000)
+        return;
+
+    for (guard = 0; guard < 16 && minor[0] != 0xFF; guard++, minor += 0x18)
+    {
+        char *o = line;
+        int k;
+
+        for (k = 0; "Peppy: mn "[k]; k++)
+            *o++ = "Peppy: mn "[k];
+        o = put_hex(o, minor[0]);
+        for (k = 0; k < 0x18; k += 4)
+        {
+            *o++ = ' ';
+            o = put_hex(o, *(u32 *)(minor + k));
+        }
+        *o = 0;
+        peppy_log(line);
+    }
+}
+
 void peppy_room_load(void *scene)
 {
     (void)scene;
+    peppy_probe_our_minors();
     /* A text object registers its own draw callback but still needs a camera
      * and a render pass to be drawn into, and nothing sets those up for a
      * scene invented from nothing -- which is why the first build of this ran
