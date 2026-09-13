@@ -260,6 +260,8 @@ void *FN_LoadMatchState(int unused);
 /* Tells Dolphin whether this client wants a game. Being in a room is not the
  * same as being in the queue, so nothing pairs until this says so. */
 #define PEPPY_CMD_SET_QUEUED 0xC6
+/* Let go of the room itself, as opposed to just the queue. */
+#define PEPPY_CMD_LEAVE_ROOM 0xC7
 
 /* Slippi's "start looking for an opponent". It is what starts the matchmaking
  * thread, and therefore what starts the room ticking - without it Dolphin

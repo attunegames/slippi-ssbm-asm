@@ -164,6 +164,7 @@ static void peppy_room_go_to_draft(const char *why);
 static void peppy_room_check_paired(void *msrb);
 static void peppy_room_train(void);
 static void peppy_room_move_pick(void);
+static void peppy_room_leave(void);
 /* Joining from the list turns the browser back into a room without leaving the
  * scene, so it needs both builders before either is defined. */
 static void *peppy_room_new_text(void);
@@ -202,8 +203,10 @@ static int s_queued;
  * list would start, so the cursor has to be able to reach both. */
 #define PICK_QUEUE 0
 #define PICK_LOBBY 1
+#define PICK_BACK  2        /* the corner, reachable by going up off the top */
 static int s_pick_col;
 static int s_pick_row;
+static int s_back_line = -1;
 
 /* The two names on the line.  Empty when nobody is matched, which is the state
  * the room sits in most of the time. */
@@ -604,6 +607,10 @@ static void peppy_room_refresh(void)
         peppy_room_report_roster(msrb);
     }
 
+    if (s_back_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_back_line, "%s",
+                                   s_pick_col == PICK_BACK ? "[BACK]" : " BACK ");
+
     if (s_p1_line >= 0)
     {
         peppy_room_name(name, roster + 0 * MSRB_ROSTER_STRIDE);
@@ -909,9 +916,10 @@ static void peppy_room_build(void)
                      STR_SPECTATE, SIZE_ACTION, COL_LEFT + X_SYMBOL,
                      Y_ACTIONS + 2.0f * ROW_ACTION);
 
-    /* The same corner the character select keeps its own BACK in. */
-    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "BACK", SIZE_HEADING, X_BACK, Y_DIVIDER);
+    /* The same corner the character select keeps its own BACK in. Kept by index
+     * so the brackets can go around it when it is the thing highlighted. */
+    s_back_line = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                                   " BACK ", SIZE_HEADING, X_BACK, Y_DIVIDER);
 }
 
 /* ----------------------------------------------------------------- exports */
@@ -1022,6 +1030,25 @@ static void peppy_room_train(void)
     Scene_ExitMinor();
 }
 
+/* Leaving the room for real.
+ *
+ * Two steps, because they are two different things. Dolphin is told to let go
+ * of the room, which stops the heartbeat and the pairing - and only then is the
+ * character select worth going to, because it opens idle rather than rushing on
+ * to a versus splash the way it does while a match still looks live. Melee's
+ * own BACK is waiting there, and it has always known how to leave online.
+ */
+static void peppy_room_leave(void)
+{
+    peppy_log("Peppy: leaving the room");
+
+    peppy_exi_buf[0] = PEPPY_CMD_LEAVE_ROOM;
+    FN_EXITransferBuffer(peppy_exi_buf, 1, CONST_ExiWrite);
+
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_CSS);
+    Scene_ExitMinor();
+}
+
 /* Leaving the room.
  *
  * The request is raised here and spent in the scene's Decide, over in the
@@ -1113,9 +1140,26 @@ static void peppy_room_move_pick(void)
     if (pressed & (PAD_STICK_RIGHT | PAD_DPAD_RIGHT))
         s_pick_col = PICK_LOBBY;
 
+    if (s_pick_col == PICK_BACK)
+    {
+        /* Down comes back to the names; sideways stays put, since BACK is the
+         * only thing up there. */
+        if (pressed & PAD_STICK_DOWN)
+        {
+            s_pick_col = PICK_QUEUE;
+            s_pick_row = 0;
+        }
+        return;
+    }
+
     limit = (s_pick_col == PICK_QUEUE) ? queue : lobby;
-    if ((pressed & PAD_STICK_UP) && s_pick_row > 0)
-        s_pick_row--;
+    if (pressed & PAD_STICK_UP)
+    {
+        if (s_pick_row > 0)
+            s_pick_row--;
+        else
+            s_pick_col = PICK_BACK;     /* up off the top of the list */
+    }
     if ((pressed & PAD_STICK_DOWN) && s_pick_row + 1 < limit)
         s_pick_row++;
     if (s_pick_row >= limit)
@@ -1137,6 +1181,8 @@ static void peppy_room_buttons(void)
         else
             peppy_room_train();
     }
+    if ((pressed & PAD_A) && s_pick_col == PICK_BACK)
+        peppy_room_leave();
     if (pressed & PAD_Z)
         peppy_room_spectate();
     if (pressed & PAD_B)
@@ -1315,6 +1361,7 @@ void peppy_room_load(void *scene)
     s_queued = 0;
     s_pick_col = PICK_QUEUE;
     s_pick_row = 0;
+    s_back_line = -1;
     s_roster_reported = 0;
     s_browse_cursor = 0;
     s_browse_hint = -1;
