@@ -675,7 +675,7 @@ beq CSSSceneDecide_Adv_IsRanked
 cmpwi r3, ONLINE_MODE_UNRANKED
 beq CSSSceneDecide_Adv_IsUnranked
 cmpwi r3, ONLINE_MODE_ROOMS
-beq CSSSceneDecide_Adv_IsUnranked
+beq CSSSceneDecide_Adv_IsRooms
 cmpwi r3, ONLINE_MODE_PARTY
 beq CSSSceneDecide_Adv_IsUnranked
 cmpwi r3, ONLINE_MODE_DIRECT
@@ -716,6 +716,44 @@ stb r3, GPDO_TIEBREAK_GAME_NUM(REG_GAME_PREP_DATA)
 stb r3, GPDO_COLOR_BAN_ACTIVE(REG_GAME_PREP_DATA)
 
 # Set next scene as game prep
+load r4, 0x80479d30
+li r3, 0x06
+stb r3, 0x5(r4)
+b CSSSceneDecide_Exit
+
+################################################################################
+# Rooms Mode Logic
+################################################################################
+# Rooms borrows ranked's draft screen - the one with the stage thumbnails, the
+# turn timer and the BAN / STAGE / OPP CHAR / YOUR CHAR tracker. It is Slippi's
+# BETWEEN-GAMES screen, where the loser counterpicks, and that is exactly what a
+# room is: the winner stays and whoever is next picks against them.
+#
+# So the set is presented as already underway. Game one of a set has nothing to
+# counterpick from and goes straight to the splash, which is what Rooms used to
+# do and why the screen was never seen.
+CSSSceneDecide_Adv_IsRooms:
+bl GamePrepData_BLRL
+mflr REG_GAME_PREP_DATA
+
+mr r3, REG_GAME_PREP_DATA
+li r4, GPDO_SIZE
+branchl r12, Zero_AreaLength
+
+# Zeroed above, so the winner callback has to go back in.
+bl SinglesDetermineWinner_BLRL
+mflr r3
+stw r3, GPDO_FN_COMPUTE_RANKED_WINNER(REG_GAME_PREP_DATA)
+
+li r3, 3
+stb r3, GPDO_MAX_GAMES(REG_GAME_PREP_DATA)
+li r3, 2                    # not game one - there is something to counterpick
+sth r3, GPDO_CUR_GAME(REG_GAME_PREP_DATA)
+li r3, 0
+stb r3, GPDO_TIEBREAK_GAME_NUM(REG_GAME_PREP_DATA)
+stb r3, GPDO_COLOR_BAN_ACTIVE(REG_GAME_PREP_DATA)
+
+# Next scene is game prep, which is where that screen lives.
 load r4, 0x80479d30
 li r3, 0x06
 stb r3, 0x5(r4)
