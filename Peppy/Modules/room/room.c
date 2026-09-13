@@ -497,6 +497,19 @@ __attribute__((unused)) static void peppy_room_split(void)
  * Roster slots are MSRB_ROSTER_STRIDE wide and the name is truncated to fit, so
  * the comparison runs to the shorter of the two.
  */
+static int peppy_room_is_me(const char *entry, const char *me)
+{
+    int i;
+
+    if (!*entry)
+        return 0;
+    for (i = 0; i < MSRB_ROSTER_STRIDE && entry[i] && me[i]; i++)
+        if (entry[i] != me[i])
+            break;
+    /* Matched to the end of the stored name. */
+    return i && (i == MSRB_ROSTER_STRIDE || !entry[i]);
+}
+
 static int peppy_room_self_queued(void *msrb)
 {
     const char *me = (const char *)msrb + MSRB_LOCAL_NAME;
@@ -507,19 +520,29 @@ static int peppy_room_self_queued(void *msrb)
         return 0;
 
     for (slot = 0; slot < MSRB_ROSTER_QUEUE; slot++)
-    {
-        const char *entry = roster + (MSRB_ROSTER_ACTIVE + slot) * MSRB_ROSTER_STRIDE;
-        int i;
-
-        if (!*entry)
-            continue;
-        for (i = 0; i < MSRB_ROSTER_STRIDE && entry[i] && me[i]; i++)
-            if (entry[i] != me[i])
-                break;
-        /* Matched to the end of the stored name. */
-        if (i && (i == MSRB_ROSTER_STRIDE || !entry[i]))
+        if (peppy_room_is_me(roster + (MSRB_ROSTER_ACTIVE + slot) * MSRB_ROSTER_STRIDE, me))
             return 1;
-    }
+    return 0;
+}
+
+/* Are WE one of the two the room has just introduced?
+ *
+ * The first MSRB_ROSTER_ACTIVE slots are the pair; everything after is the
+ * queue. A spectator is in neither, and a third person joining the queue while
+ * two others are being matched is in the queue - so neither of them has any
+ * business on the draft screen. */
+static int peppy_room_self_playing(void *msrb)
+{
+    const char *me = (const char *)msrb + MSRB_LOCAL_NAME;
+    const char *roster = (const char *)msrb + MSRB_ROSTER;
+    int slot;
+
+    if (!*me)
+        return 0;
+
+    for (slot = 0; slot < MSRB_ROSTER_ACTIVE; slot++)
+        if (peppy_room_is_me(roster + slot * MSRB_ROSTER_STRIDE, me))
+            return 1;
     return 0;
 }
 
@@ -1063,8 +1086,18 @@ static void peppy_room_check_paired(void *msrb)
 {
     u8 state = *(u8 *)((char *)msrb + MSRB_CONNECTION_STATE);
 
-    if (state == MM_STATE_CONNECTION_SUCCESS)
-        peppy_room_go_to_draft("Peppy: matched - handing over to the draft");
+    if (state != MM_STATE_CONNECTION_SUCCESS)
+        return;
+
+    /* And it has to be OUR match. The connection state says a connection is up,
+     * not whose - a spectator watching somebody else's game has one too, and so
+     * does a third person who walks into the queue while two others are being
+     * introduced. Both of them were being sent to the draft to pick a stage for
+     * a game they are not in. */
+    if (!peppy_room_self_playing(msrb))
+        return;
+
+    peppy_room_go_to_draft("Peppy: matched - handing over to the draft");
 }
 
 /* ⚠️ What the draft needs, and does not bring with it.
