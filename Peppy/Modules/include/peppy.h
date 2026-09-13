@@ -132,7 +132,10 @@ void SceneLoad_DebugMenu(void);
  * render.  Coming Soon has no text of its own and never brings up whatever
  * menu text needs, which is why ours drew nothing on it at any position or
  * scale. */
-void SceneLoad_ClassicModeSplash(void);
+/* A scene load takes the scene's minor data - the same pointer Melee hands our
+ * own load. Calling it with no argument leaves whatever was last in r3, which
+ * works by luck on a fresh entry and not at all after something else has run. */
+void SceneLoad_ClassicModeSplash(void *scene);
 
 /* Better base than the splash: the main menu is the blue grid Peppy's own
  * menus already sit on, it is a real scene so text renders, it carries none of
