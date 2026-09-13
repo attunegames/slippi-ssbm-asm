@@ -57,6 +57,8 @@ static void peppy_log(const char *msg)
 #define Y_HEADING      100.0f
 #define Y_FIRST_NAME   132.0f
 #define Y_ACTIONS      340.0f
+#define ROW_ACTION      30.0f    /* gap between status lines */
+#define X_SYMBOL        22.0f    /* line sits this far right of its symbol */
 
 #define X_COUNT         74.0f    /* the number, just right of its heading */
 
@@ -134,11 +136,20 @@ static const char *const MODE_NAMES[] = {
 };
 #define MODE_COUNT ((int)(sizeof(MODE_NAMES) / sizeof(MODE_NAMES[0])))
 
+/* The status block, built the way Slippi's character select builds its own:
+ * a symbol in its own subtext, the line beside it, a colour per state.
+ *
+ * The symbols are Shift-JIS full-width punctuation, because this font has no
+ * ASCII plus or asterisk - both draw nothing. The same three Slippi uses.
+ */
+#define SYM_TODO      "\x81\x7E"   /* multiplication sign - not done yet */
+#define SYM_DONE      "\x81\x7C"   /* minus sign - done */
+#define SYM_NEXT      "\x81\x7B"   /* plus sign - what you can do next */
+
 #define STR_JOIN      "Press START to Join the Queue"
-/* Not "Press START to Practice" yet - practice is built but does not load, and
- * a line that offers it would be the second time this screen promised training
- * and did something else. See peppy_room_train. */
-#define STR_PRACTICE  "In the Queue"
+#define STR_IN_QUEUE  "In the Queue"
+#define STR_PRACTICE  "Press START to Practice"
+#define STR_SPECTATE  "Press Z to Spectate"
 
 /* The refresh runs every frame and is written top-down; these two are the
  * ways out of the scene and read better next to each other, further down. */
@@ -166,6 +177,9 @@ static int s_room_wait;
 static int s_queue_head;
 static int s_lobby_head;
 static int s_queue_line = -1;
+static int s_queue_sym = -1;
+static int s_line2 = -1;
+static int s_line2_sym = -1;
 static int s_p1_line = -1;
 static int s_p2_line = -1;
 static int s_queue_rows[QUEUE_ROWS];
@@ -197,8 +211,18 @@ static void peppy_room_set_queued(int queued)
     if (!s_text || s_queue_line < 0 || queued == s_queued)
         return;
     s_queued = queued;
+
+    /* Not queued: one thing to do, and it is not done yet. Queued: that one is
+     * done, and practising becomes the next thing available. */
+    Text_UpdateSubtextContents(s_text, s_queue_sym,
+                               queued ? SYM_DONE : SYM_TODO);
     Text_UpdateSubtextContents(s_text, s_queue_line,
-                               queued ? STR_PRACTICE : STR_JOIN);
+                               queued ? STR_IN_QUEUE : STR_JOIN);
+    if (s_line2 >= 0)
+    {
+        Text_UpdateSubtextContents(s_text, s_line2_sym, queued ? SYM_NEXT : "");
+        Text_UpdateSubtextContents(s_text, s_line2, queued ? STR_PRACTICE : "");
+    }
 
     /* Dolphin is what talks to the room, so tell it: until this says otherwise
      * the client is present and watching, and pd_tick leaves it out of the
@@ -808,10 +832,19 @@ static void peppy_room_build(void)
      * offering to put you there and offers practice instead, which is where
      * waiting happens. Training is not a button of its own. */
     s_queue_line = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
-                                    STR_JOIN, SIZE_ACTION, COL_LEFT, Y_ACTIONS);
+                                    "", SIZE_ACTION,
+                                    COL_LEFT + X_SYMBOL, Y_ACTIONS);
+    s_queue_sym = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                                   "", SIZE_ACTION, COL_LEFT, Y_ACTIONS);
+    s_line2_sym = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                                   "", SIZE_ACTION, COL_LEFT,
+                                   Y_ACTIONS + ROW_ACTION);
+    s_line2 = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                               "", SIZE_ACTION, COL_LEFT + X_SYMBOL,
+                               Y_ACTIONS + ROW_ACTION);
     FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     "Press Z to Spectate", SIZE_ACTION, COL_LEFT,
-                     Y_ACTIONS + 30.0f);
+                     STR_SPECTATE, SIZE_ACTION, COL_LEFT + X_SYMBOL,
+                     Y_ACTIONS + 2.0f * ROW_ACTION);
 
     /* The same corner the character select keeps its own BACK in. */
     FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
@@ -1109,6 +1142,9 @@ void peppy_room_load(void *scene)
 
     s_text = 0;
     s_queue_line = -1;
+    s_queue_sym = -1;
+    s_line2 = -1;
+    s_line2_sym = -1;
     s_room_line = -1;
     s_room_wait = 0;
     s_queue_head = -1;
