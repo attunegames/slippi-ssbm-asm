@@ -977,7 +977,38 @@ void peppy_room_think(void)
 
 void ScenePrep_TrainingMode_InGame(void *minor_data);
 
-static void peppy_dump_match_struct(void)
+/* Where the character select keeps its picks: a pointer in the short data
+ * area, plus 0xd10. Training's own in-game prep reads exactly this. */
+static u32 peppy_css_data(void)
+{
+    return *(u32 *)((char *)peppy_sda() - 0x77c0) + 0xd10;
+}
+
+static void peppy_dump_at(u32 base, int rows)
+{
+    char line[128];
+    int row;
+
+    for (row = 0; row < rows; row++)
+    {
+        char *o = line;
+        int k;
+
+        for (k = 0; "Peppy: d "[k]; k++)
+            *o++ = "Peppy: d "[k];
+        o = put_hex(o, base + row * 0x20);
+        *o++ = ':';
+        for (k = 0; k < 0x20; k += 4)
+        {
+            *o++ = ' ';
+            o = put_hex(o, *(u32 *)(base + row * 0x20 + k));
+        }
+        *o = 0;
+        peppy_log(line);
+    }
+}
+
+__attribute__((unused)) static void peppy_dump_match_struct(void)
 {
     char line[128];
     int row;
@@ -1065,7 +1096,11 @@ void peppy_room_load(void)
         peppy_log("Peppy: training set up");
         ScenePrep_TrainingMode_InGame((void *)TRAIN_MINOR_DATA);
         peppy_log("Peppy: training match prepared");
-        peppy_dump_match_struct();
+        /* What the prep actually produced. StartMelee reads the stage from
+         * +0x0E of this, so if that is zero it is looking for a stage that
+         * does not exist. */
+        peppy_dump_at(TRAIN_MINOR_DATA, 4);
+        peppy_dump_at(peppy_css_data(), 4);
         SceneLoad_TrainingModeInGame((void *)TRAIN_MINOR_DATA);
         peppy_log("Peppy: TRAINING IS RUNNING");
     }
