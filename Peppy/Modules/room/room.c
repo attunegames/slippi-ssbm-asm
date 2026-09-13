@@ -231,9 +231,11 @@ static int peppy_room_dress_splash(void *msrb)
 
     if (!vs)
         return 0;
-    /* Nobody has picked anything yet, so there is nobody to draw. Left alone
-     * rather than filled with a guess - the backdrop on its own is honest. */
-    if (d[1] == MSRB_DRAFT_NONE && d[3] == MSRB_DRAFT_NONE)
+    /* The stage is settled before either character is, and it is most of the
+     * picture - so it is worth drawing on its own rather than leaving the band
+     * black through the whole character phase. Nothing at all is still nothing
+     * to draw. */
+    if (d[0] == MSRB_DRAFT_NONE && d[1] == MSRB_DRAFT_NONE && d[3] == MSRB_DRAFT_NONE)
         return 0;
 
     if (d[0] != MSRB_DRAFT_NONE)
@@ -1453,6 +1455,19 @@ static void peppy_room_redress(void *msrb)
         return;
     for (i = 0; i < 6; i++)
         s_dressed_from[i] = d[i];
+
+    {
+        char line[64];
+        char *o = put(line, "Peppy: draft ");
+
+        for (i = 0; i < 6; i++)
+        {
+            o = put_hex(o, d[i]);
+            *o++ = ' ';
+        }
+        *o = 0;
+        peppy_log(line);
+    }
 
     if (!peppy_room_dress_splash(msrb))
         return;
