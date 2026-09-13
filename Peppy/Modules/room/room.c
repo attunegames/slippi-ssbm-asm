@@ -1100,10 +1100,15 @@ static void peppy_room_train(void)
  */
 static void peppy_room_exit_room(void)
 {
-    peppy_log("Peppy: leaving the room");
+    peppy_log(s_browsing ? "Peppy: leaving the room list"
+                         : "Peppy: leaving the room");
 
+    /* Whether there was a room to leave. Walking off the list of public rooms
+     * is not leaving one - you were never in it - and saying otherwise drops
+     * the launcher out of the room peppy.json started it in. */
     peppy_exi_buf[0] = PEPPY_CMD_LEAVE_ROOM;
-    FN_EXITransferBuffer(peppy_exi_buf, 1, CONST_ExiWrite);
+    peppy_exi_buf[1] = (u8)!s_browsing;
+    FN_EXITransferBuffer(peppy_exi_buf, 2, CONST_ExiWrite);
 
     /* Nothing of ours is next - the menu's own major load decides where it
      * lands. Slippi's return-from-online handler puts the cursor back on Rooms,
