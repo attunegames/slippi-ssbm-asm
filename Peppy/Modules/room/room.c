@@ -165,6 +165,7 @@ static void peppy_room_check_paired(void *msrb);
 static void peppy_room_train(void);
 static void peppy_room_move_pick(void);
 static void peppy_room_exit_room(void);
+static int s_tick;   /* TEMPORARY - see peppy_room_think */
 /* Joining from the list turns the browser back into a room without leaving the
  * scene, so it needs both builders before either is defined. */
 static void *peppy_room_new_text(void);
@@ -1302,8 +1303,30 @@ static void peppy_room_spin(void)
     s_spin_frame = (s_spin_frame + 1) % (2 * SPINNER_FRAMES);
 }
 
+/* TEMPORARY. The room stops thinking about thirty-seven seconds after it is
+ * built, every time, with or without a button pressed - the picture stops and
+ * the emulated CPU carries on. Count frames and say where in the frame the last
+ * one got to, so the next build knows which half to look in. */
+static void peppy_room_mark(const char *what, int n)
+{
+    char line[48];
+    char *o = put(line, "Peppy: ");
+
+    o = put(o, what);
+    *o++ = ' ';
+    o = put_hex(o, (u32)n);
+    *o = 0;
+    peppy_log(line);
+}
+
 void peppy_room_think(void)
 {
+    s_tick++;
+    if ((s_tick % 60) == 0)
+        peppy_room_mark("tick", s_tick);
+    if (s_tick > 2050 && s_tick < 2400)
+        peppy_room_mark("frame-in", s_tick);
+
     /* The roster changes while people come and go, so it is read every frame
      * rather than once at load. */
     if (s_browsing)
@@ -1319,8 +1342,14 @@ void peppy_room_think(void)
     }
 
     peppy_room_spin();
+    if (s_tick > 2050 && s_tick < 2400)
+        peppy_room_mark("spun", s_tick);
     peppy_room_refresh();
+    if (s_tick > 2050 && s_tick < 2400)
+        peppy_room_mark("drawn", s_tick);
     peppy_room_buttons();
+    if (s_tick > 2050 && s_tick < 2400)
+        peppy_room_mark("frame-out", s_tick);
 }
 
 /* Melee's match: what stage, which characters, how many stocks. 0x8046b6a0 is
@@ -1462,6 +1491,7 @@ void peppy_room_load(void *scene)
     s_pick_row = 0;
     s_back_line = -1;
     s_back_hi = -1;
+    s_tick = 0;
     s_roster_reported = 0;
     s_browse_cursor = 0;
     s_browse_hint = -1;
