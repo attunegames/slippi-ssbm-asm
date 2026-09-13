@@ -159,7 +159,6 @@ static const char *const MODE_NAMES[] = {
 
 /* The refresh runs every frame and is written top-down; these two are the
  * ways out of the scene and read better next to each other, further down. */
-static void peppy_room_go_to_css(const char *why);
 static void peppy_room_go_to_draft(const char *why);
 static void peppy_room_check_paired(void *msrb);
 static void peppy_room_train(void);
@@ -1010,25 +1009,6 @@ static void peppy_room_build(void)
  * The flag rather than the roster decides it: two names in the active slots
  * mean a pair has been introduced, not that there is anything on screen yet.
  */
-/* Hand the screen to Melee's own character select.
- *
- * Both ways out of the room end here: getting matched, and pressing Z to watch
- * somebody else's match. The scene is the same either way - what differs is
- * whose inputs drive it, and that is Dolphin's business, not this module's. */
-static void peppy_room_go_to_css(const char *why)
-{
-    peppy_log(why);
-    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_CSS);
-    Scene_ExitMinor();
-}
-
-/* ⚠️ The draft builds its screen out of the character select's archive, and a
- * room hands over without ever visiting that screen. Loading it is done in
- * GamePrepScenePrep over in the codeset, NOT here: a file loaded from this
- * scene lives on this scene's heap, and this scene is about to end. See the
- * note there.
- */
-
 /* Matched players go to the draft - stage, then characters - and never see the
  * character select. */
 static void peppy_room_go_to_draft(const char *why)
@@ -1070,7 +1050,13 @@ static void peppy_room_spectate(void)
         return;
     }
 
-    peppy_room_go_to_css("Peppy: watching the match");
+    /* The same screen the players are on, because that is the whole mechanism:
+     * a watcher's pads are driven by the players' replayed inputs, so the two
+     * only stay in step while both are in the same scene. Sending watchers to
+     * the character select worked right up until players stopped going there -
+     * now they draft first, and a watcher sat on a character select being fed
+     * inputs meant for a stage grid, waiting for a Start that never came. */
+    peppy_room_go_to_draft("Peppy: watching the match");
 }
 
 /* Paired up: the room's job is done and the character select takes over.
