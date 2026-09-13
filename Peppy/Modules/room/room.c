@@ -868,11 +868,7 @@ static void peppy_room_check_paired(void *msrb)
 static void peppy_room_train(void)
 {
     peppy_log("Peppy: off to practise");
-
-    /* Training's own character select, the way training always starts. Straight
-     * to the training scene does not work: an in-game scene loads the match it
-     * is given, and a room does not give it one. */
-    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN_CSS);
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN);
     Scene_ExitMinor();
 }
 
@@ -957,11 +953,6 @@ void peppy_room_think(void)
         }
         return;
     }
-
-    /* Training runs underneath, so it gets its think. The splash's was never
-     * called - it animates toward a match and reads data a room does not have -
-     * but training's is the whole point of being here. */
-    SceneThink_TrainingModeInGame();
 
     peppy_room_refresh();
     peppy_room_buttons();
@@ -1066,78 +1057,12 @@ void peppy_room_load(void *scene)
                                & MSRB_ROOM_FLAG_BROWSING);
     }
 
-    if (s_browsing)
-    {
-        /* The room list is a menu and wants a menu's backdrop. */
-        SceneLoad_ClassicModeSplash();
-        peppy_room_clear_borrowed_scene();
-    }
-    else
-    {
-        /* The room IS training. Rather than leaving for training and coming
-         * back - a scene change into an in-game scene, which is the one
-         * transition that has never worked here - the room borrows training's
-         * own load the way it used to borrow the splash's. Nothing to leave,
-         * nothing to come back from, and the queue sits over the top of it.
-         *
-         * The artwork is not cleared this time: the stage and the character
-         * are the point. */
-        /* The scene's load only. The training major's setup and load are not
-         * called: they set that major up, and calling them from inside this one
-         * put the game back in the menu. */
-        /* Diagnosis, not the feature: does training's setup actually fill in a
-         * match? An in-game scene loads the stage and characters its match
-         * names, and if this comes back empty then that is what its load has
-         * been waiting on all along. The load itself is not called here - the
-         * room still has to work. */
-        SceneLoad_ClassicModeSplash();
-        peppy_room_clear_borrowed_scene();
-
-        /* Training, with the argument it has been missing all along.
-         *
-         * StartMelee reads the stage out of +0x0E of whatever it is handed, and
-         * what it is handed is the scene's minor data - which is why every
-         * call so far went in and never came back: it was reading a stage id
-         * out of whatever happened to be in r3. Training's own block is
-         * 0x8048e4c0, and the room minor is handed the same one.
-         *
-         *   MajorSetup fills the character-select data with training's defaults
-         *   ScenePrep copies that into the minor data
-         *   SceneLoad hands the minor data to StartMelee
-         */
-        /* Build the match by hand, where the scene can see it.
-         *
-         * Training's own prep writes through *(scene + 0x10), and outside the
-         * training major that pointer is null - so it has been writing the
-         * match to address zero. The 96 bytes it copies come from the
-         * character select's data block, and the two things it fills in
-         * afterwards are a think function and a speed. All of that is done
-         * here instead, straight into the scene.
-         *
-         * The stage is the one piece nothing supplies: it comes from training's
-         * stage select, which has not run. Battlefield until it does. */
-        {
-            char *m = (char *)scene;
-
-            /* Training's prep writes the match through *(scene + 0x10), and
-             * outside the training major that is null - which is why it has
-             * been writing to address zero. Point it at the scene itself and
-             * Melee does the whole job: the character select's picks, the
-             * flags, the think, all of it.
-             *
-             * The stage is the one thing left over, because it comes from
-             * training's stage select and that has not run. Battlefield until
-             * it does. */
-            *(u32 *)(m + 0x10) = (u32)scene;
-            MajorSetup_TrainingMode();
-            ScenePrep_TrainingMode_InGame(scene);
-            *(u16 *)(m + 0x0E) = TRAIN_STAGE;
-        }
-        peppy_log("Peppy: training match built");
-        peppy_dump_at((u32)scene, 3);
-        SceneLoad_TrainingModeInGame(scene);
-        peppy_log("Peppy: TRAINING IS RUNNING");
-    }
+    /* The room is a menu and wants a menu's backdrop. Training is its own scene
+     * again - an in-game load cannot be called from inside another scene's
+     * load, because what it starts is spread across frames that only the scene
+     * machinery runs. */
+    SceneLoad_ClassicModeSplash();
+    peppy_room_clear_borrowed_scene();
 
     s_text = 0;
     s_queue_line = -1;
