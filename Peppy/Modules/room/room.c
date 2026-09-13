@@ -861,11 +861,9 @@ static void peppy_room_check_paired(void *msrb)
  */
 static void peppy_room_train(void)
 {
-    /* The scene exists, the transition works and its prep runs - what does not
-     * happen is the load, because an in-game scene waits on a match and nothing
-     * sets one up. Going there strands you on this screen with the game still
-     * running, so until that is solved this says so and stays put. */
-    peppy_log("Peppy: practice is not ready yet");
+    peppy_log("Peppy: off to practise");
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN);
+    Scene_ExitMinor();
 }
 
 /* Leaving the room.
@@ -957,56 +955,8 @@ void peppy_room_think(void)
      * room does not have, which is the invalid read a few seconds in. */
 }
 
-/* One-shot: read out how Melee's own majors reach the training scene.
- *
- * Training in-game is common minor 0x04, and the minor descriptor that reaches
- * it carries two data pointers that the scene's load reads. Ours are borrowed
- * from VS mode, which is a guess; these are the real ones, wherever they live.
- * Walk every major's minor list and report every descriptor that names 0x04.
- */
-static void peppy_probe_training_minor(void)
-{
-    char line[96];
-    char *o;
-    u32 major;
-
-    for (major = 0; major < 0x30; major++)
-    {
-        u8 *m = (u8 *)(MAJOR_SCENE_TABLE + major * MAJOR_SCENE_STRIDE);
-        u8 *minor = *(u8 **)(m + 0x10);
-        int guard;
-
-        if ((u32)minor < 0x80000000 || (u32)minor >= 0x80500000)
-            continue;
-
-        for (guard = 0; guard < 32 && minor[0] != 0xFF; guard++, minor += 0x18)
-        {
-            if (minor[0x0C] != 0x04)
-                continue;
-            o = line;
-            *o++ = 'P'; *o++ = 'e'; *o++ = 'p'; *o++ = 'p'; *o++ = 'y';
-            *o++ = ':'; *o++ = ' '; *o++ = 't'; *o++ = 'r'; *o++ = 'a';
-            *o++ = 'i'; *o++ = 'n'; *o++ = ' ';
-            o = put_hex(o, major);
-            *o++ = ' ';
-            o = put_hex(o, minor[0]);
-            *o++ = ' ';
-            o = put_hex(o, *(u32 *)(minor + 0x04));
-            *o++ = ' ';
-            o = put_hex(o, *(u32 *)(minor + 0x08));
-            *o++ = ' ';
-            o = put_hex(o, *(u32 *)(minor + 0x10));
-            *o++ = ' ';
-            o = put_hex(o, *(u32 *)(minor + 0x14));
-            *o = 0;
-            peppy_log(line);
-        }
-    }
-}
-
 void peppy_room_load(void)
 {
-    peppy_probe_training_minor();
     /* A text object registers its own draw callback but still needs a camera
      * and a render pass to be drawn into, and nothing sets those up for a
      * scene invented from nothing -- which is why the first build of this ran
