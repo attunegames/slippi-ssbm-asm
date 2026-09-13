@@ -369,6 +369,44 @@ __attribute__((unused)) static void peppy_room_split(void)
  *
  * LOBBY stays empty for now: the backend sends "active" and "queue" and has no
  * notion yet of somebody who is in the room but not queued. */
+/* Are we in the queue already?
+ *
+ * A scene module is loaded fresh every time its scene is entered, so it cannot
+ * remember - and assuming "no" is wrong the moment you come back from training
+ * or from watching a match, both of which you reached without ever leaving the
+ * queue. Slippi already puts the local player's name in the match state buffer,
+ * so the honest answer is to look for ourselves in the queue the room is about
+ * to draw.
+ *
+ * Roster slots are MSRB_ROSTER_STRIDE wide and the name is truncated to fit, so
+ * the comparison runs to the shorter of the two.
+ */
+static int peppy_room_self_queued(void *msrb)
+{
+    const char *me = (const char *)msrb + MSRB_LOCAL_NAME;
+    const char *roster = (const char *)msrb + MSRB_ROSTER;
+    int slot;
+
+    if (!*me)
+        return 0;
+
+    for (slot = 0; slot < MSRB_ROSTER_QUEUE; slot++)
+    {
+        const char *entry = roster + (MSRB_ROSTER_ACTIVE + slot) * MSRB_ROSTER_STRIDE;
+        int i;
+
+        if (!*entry)
+            continue;
+        for (i = 0; i < MSRB_ROSTER_STRIDE && entry[i] && me[i]; i++)
+            if (entry[i] != me[i])
+                break;
+        /* Matched to the end of the stored name. */
+        if (i && (i == MSRB_ROSTER_STRIDE || !entry[i]))
+            return 1;
+    }
+    return 0;
+}
+
 static void peppy_room_name(char *out, const char *slot)
 {
     int i;
@@ -1132,10 +1170,14 @@ void peppy_room_load(void *scene)
     }
 
     peppy_room_build();
-    /* Say it rather than assume it. s_queued starts at zero here, but Dolphin
-     * remembers across scenes - walk out of a room and back into one and it
-     * would still think you wanted a game. */
-    peppy_room_set_queued(0);
+    /* Say it rather than assume it - and ask the roster rather than assuming
+     * "not queued", because coming back from training or from spectating you
+     * never left. */
+    {
+        void *msrb = FN_LoadMatchState(0);
+
+        peppy_room_set_queued(msrb ? peppy_room_self_queued(msrb) : 0);
+    }
     peppy_room_start_searching();
     /* Not split - see peppy_room_split. The room has the screen to itself
      * until there is something to put in the other half. */
