@@ -52,6 +52,14 @@ bne PEPPY_CSS_STAY
 # game on purpose, so CONNECTION_SUCCESS is still true while sitting here with
 # nothing to play. The room reports the pair while they are picking and stops
 # reporting it once their match is done, which is exactly the question.
+# Somebody who is not in the match has no business on a character select, and
+# that is a different question from whether a match exists. Asking the roster
+# whether the active pair is empty answers it for the two playing and for
+# nobody else - so a watcher whose stream ended sat here while they played on.
+lbz r3, MSRB_ROOM_FLAGS(REG_MSRB_ADDR)
+andi. r3, r3, MSRB_ROOM_FLAG_ONLOOKER
+bne PEPPY_CSS_TO_ROOM
+
 lbz r3, MSRB_ROSTER(REG_MSRB_ADDR)
 cmpwi r3, 0
 bne PEPPY_CSS_STAY
@@ -59,6 +67,8 @@ bne PEPPY_CSS_STAY
 lbz r3, MSRB_ROOM_FLAGS(REG_MSRB_ADDR)
 andi. r3, r3, MSRB_ROOM_FLAG_WATCHABLE
 bne PEPPY_CSS_STAY
+
+PEPPY_CSS_TO_ROOM:
 
 # Minor 6 of this major is the room, and this byte is one-based.
 load r4, 0x80479d30
