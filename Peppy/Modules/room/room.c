@@ -1048,7 +1048,10 @@ __attribute__((unused)) static void peppy_dump_match_struct(void)
 static void peppy_probe_our_minors(void)
 {
     char line[128];
-    u8 *minor = *(u8 **)(MAJOR_SCENE_TABLE + 8 * MAJOR_SCENE_STRIDE + 0x10);
+    /* Slippi's own entry for the online major, the one its scene is registered
+     * in - not an index into the major table, because majors are not stored in
+     * id order. */
+    u8 *minor = *(u8 **)(0x803dad30 + 0x10);
     int guard;
 
     if ((u32)minor < 0x80000000 || (u32)minor >= 0x80500000)
