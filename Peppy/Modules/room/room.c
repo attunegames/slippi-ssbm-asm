@@ -972,6 +972,11 @@ void peppy_room_think(void)
  * static match state struct" in half a dozen places. */
 #define MATCH_STRUCT 0x8046b6a0
 
+/* Training's in-game minor data, read out of major 0x1c minor 2. */
+#define TRAIN_MINOR_DATA 0x8048e4c0
+
+void Match_InitMinorData(void *minor_data);
+
 static void peppy_dump_match_struct(void)
 {
     char line[128];
@@ -1043,7 +1048,16 @@ void peppy_room_load(void)
          * room still has to work. */
         SceneLoad_ClassicModeSplash();
         peppy_room_clear_borrowed_scene();
-        MajorSetup_TrainingMode();
+
+        /* An in-game minor carries a match template as its data - which is why
+         * training's differs from VS mode's - and this is what copies it into
+         * the match the game actually reads. Training's block, since training
+         * is what we want to start. Still diagnosis: the load is not called
+         * until the struct comes back with something in it. */
+        peppy_log("Peppy: before");
+        peppy_dump_match_struct();
+        Match_InitMinorData((void *)TRAIN_MINOR_DATA);
+        peppy_log("Peppy: after");
         peppy_dump_match_struct();
     }
 
