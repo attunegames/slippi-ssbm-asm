@@ -18,7 +18,7 @@ PEPPY_DEFINE_EXI_BUF;
 /* Melee's training mode, which the room runs underneath itself. */
 void MajorSetup_TrainingMode(void);
 void MajorLoad_TrainingMode(void);
-void SceneLoad_TrainingModeInGame(void);
+void SceneLoad_TrainingModeInGame(void *minor_data);
 void SceneThink_TrainingModeInGame(void);
 
 static void peppy_log(const char *msg)
@@ -975,7 +975,7 @@ void peppy_room_think(void)
 /* Training's in-game minor data, read out of major 0x1c minor 2. */
 #define TRAIN_MINOR_DATA 0x8048e4c0
 
-void Match_InitMinorData(void *minor_data);
+void ScenePrep_TrainingMode_InGame(void *minor_data);
 
 static void peppy_dump_match_struct(void)
 {
@@ -1049,10 +1049,25 @@ void peppy_room_load(void)
         SceneLoad_ClassicModeSplash();
         peppy_room_clear_borrowed_scene();
 
-        /* Read the match the game actually plays, rather than guessing at which
-         * function builds one. This runs every time the room loads, so landing
-         * back here after a real game says what a real match looks like. */
+        /* Training, with the argument it has been missing all along.
+         *
+         * StartMelee reads the stage out of +0x0E of whatever it is handed, and
+         * what it is handed is the scene's minor data - which is why every
+         * call so far went in and never came back: it was reading a stage id
+         * out of whatever happened to be in r3. Training's own block is
+         * 0x8048e4c0, and the room minor is handed the same one.
+         *
+         *   MajorSetup fills the character-select data with training's defaults
+         *   ScenePrep copies that into the minor data
+         *   SceneLoad hands the minor data to StartMelee
+         */
+        MajorSetup_TrainingMode();
+        peppy_log("Peppy: training set up");
+        ScenePrep_TrainingMode_InGame((void *)TRAIN_MINOR_DATA);
+        peppy_log("Peppy: training match prepared");
         peppy_dump_match_struct();
+        SceneLoad_TrainingModeInGame((void *)TRAIN_MINOR_DATA);
+        peppy_log("Peppy: TRAINING IS RUNNING");
     }
 
     s_text = 0;
