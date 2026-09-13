@@ -861,11 +861,13 @@ static void peppy_room_check_paired(void *msrb)
  */
 static void peppy_room_train(void)
 {
-    /* Nothing routes to the training scene yet. Going there either sits on this
-     * screen forever or, if the scene is asked for the way Melee's own menus
-     * ask for a match - the raw minor id at SDA_NEXT_MINOR - takes the game
-     * somewhere that is not code at all. Both are written up in main.asm. */
-    peppy_log("Peppy: practice is not ready yet");
+    peppy_log("Peppy: off to practise");
+
+    /* Training's own character select, the way training always starts. Straight
+     * to the training scene does not work: an in-game scene loads the match it
+     * is given, and a room does not give it one. */
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN_CSS);
+    Scene_ExitMinor();
 }
 
 /* Leaving the room.
@@ -957,36 +959,8 @@ void peppy_room_think(void)
      * room does not have, which is the invalid read a few seconds in. */
 }
 
-/* One-shot: dump every minor of the training major, so its character select and
- * stage select can be reached the same way its in-game scene is. */
-static void peppy_probe_training_minor(void)
-{
-    char line[128];
-    u8 *minor = *(u8 **)(MAJOR_SCENE_TABLE + 0x1C * MAJOR_SCENE_STRIDE + 0x10);
-    int guard;
-
-    if ((u32)minor < 0x80000000 || (u32)minor >= 0x80500000)
-        return;
-
-    for (guard = 0; guard < 16 && minor[0] != 0xFF; guard++, minor += 0x18)
-    {
-        char *o = line;
-        int k;
-        for (k = 0; "Peppy: t1c "[k]; k++)
-            *o++ = "Peppy: t1c "[k];
-        for (k = 0; k < 0x18; k += 4)
-        {
-            o = put_hex(o, *(u32 *)(minor + k));
-            *o++ = ' ';
-        }
-        *o = 0;
-        peppy_log(line);
-    }
-}
-
 void peppy_room_load(void)
 {
-    peppy_probe_training_minor();
     /* A text object registers its own draw callback but still needs a camera
      * and a render pass to be drawn into, and nothing sets those up for a
      * scene invented from nothing -- which is why the first build of this ran

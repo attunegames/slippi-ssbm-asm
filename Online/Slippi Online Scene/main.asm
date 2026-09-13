@@ -328,6 +328,33 @@ bl PeppyTrainSceneDecide    #SceneDecide
 # never going to arrive.
 .long 0x8048e4c0            #Minor Data 1
 .long 0x8048e5f8            #Minor Data 2
+#Peppy training character select
+# An in-game scene loads the stage and characters its match names, and nothing
+# in a room names them - which is why going straight to training sat on the
+# room's last frame forever. Melee fills that match in from these two menus, so
+# practice goes the way training always has: pick a character, pick a stage,
+# play. They are Melee's own scenes; only the decides are ours, because Melee's
+# send you to the next minor of the TRAINING major and over here those numbers
+# mean Slippi's character select and stage select instead.
+.byte 8                     #Minor Scene ID
+.byte 3                     #Amount of persistent heaps
+.align 2
+bl PeppyTrainCSSPrep        #ScenePrep
+bl PeppyTrainCSSDecide      #SceneDecide
+.byte 0x08                  #Common Minor ID (character select)
+.align 2
+.long 0x8048e230            #Minor Data 1
+.long 0x8048e230            #Minor Data 2
+#Peppy training stage select
+.byte 9                     #Minor Scene ID
+.byte 3                     #Amount of persistent heaps
+.align 2
+.long 0x801b1eb8            #ScenePrep_TrainingMode_SSS
+bl PeppyTrainSSSDecide      #SceneDecide
+.byte 0x09                  #Common Minor ID (stage select)
+.align 2
+.long 0x8048e378            #Minor Data 1
+.long 0x8048e378            #Minor Data 2
 #End
 .byte -1
 .align 2
@@ -349,20 +376,49 @@ blr
 .set PEPPY_MINOR_LEAVE_MAJOR, 0xFE
 .set PEPPY_MAJOR_MAIN_MENU, 1
 
-# The major's own load, then the scene's own prep. An in-game scene loads the
-# stage and characters its match describes, and in the training major that
-# match is filled in by the training menus before ever reaching here - so on
-# this path something has to stand in for them.
 .set MajorLoad_TrainingMode, 0x801b23c4
+.set ScenePrep_TrainingMode_CSS, 0x801b1b74
 .set ScenePrep_TrainingMode_InGame, 0x801b1f70
+.set SceneDecide_TrainingMode_CSS, 0x801b1c24
+.set SceneDecide_TrainingMode_SSS, 0x801b1eec
+
+# The training major's own load never ran - we are in Slippi's major, not that
+# one - so it runs here, once, on the way into the first of its scenes.
+PeppyTrainCSSPrep:
+backup
+logf LOG_LEVEL_NOTICE, "Peppy: training character select"
+branchl r12, MajorLoad_TrainingMode
+branchl r12, ScenePrep_TrainingMode_CSS
+restore
+blr
+
+# Melee's decides, then our own answer to "which minor next". Theirs name the
+# next minor of the training major; ours name the same scenes where they
+# actually live over here.
+PeppyTrainCSSDecide:
+backup
+branchl r12, SceneDecide_TrainingMode_CSS
+load r4, 0x80479d30
+li r3, 10                   # minor 9, the stage select
+stb r3, 0x5(r4)
+logf LOG_LEVEL_NOTICE, "Peppy: training stage select next"
+restore
+blr
+
+PeppyTrainSSSDecide:
+backup
+branchl r12, SceneDecide_TrainingMode_SSS
+load r4, 0x80479d30
+li r3, 8                    # minor 7, training itself
+stb r3, 0x5(r4)
+logf LOG_LEVEL_NOTICE, "Peppy: training next"
+restore
+blr
 
 PeppyTrainScenePrep:
 backup
 logf LOG_LEVEL_NOTICE, "Peppy: training prep"
-branchl r12, MajorLoad_TrainingMode
-logf LOG_LEVEL_NOTICE, "Peppy: training major loaded"
 branchl r12, ScenePrep_TrainingMode_InGame
-logf LOG_LEVEL_NOTICE, "Peppy: training scene prepped"
 restore
 blr
 
