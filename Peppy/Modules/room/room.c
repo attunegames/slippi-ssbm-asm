@@ -862,6 +862,13 @@ static void peppy_room_check_paired(void *msrb)
 static void peppy_room_train(void)
 {
     peppy_log("Peppy: off to practise");
+
+    /* Asked for the way Melee's own menus ask for a match: the raw minor id in
+     * the short data area. The scene controller's pending byte carries menu
+     * scenes around perfectly well - it is what takes a matched player to the
+     * character select - but an in-game scene wants this one, which is what
+     * Slippi's stage select writes when it starts a game. */
+    *(u8 *)(peppy_sda() + SDA_NEXT_MINOR) = ONLINE_MINOR_TRAIN;
     SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN);
     Scene_ExitMinor();
 }
@@ -955,46 +962,8 @@ void peppy_room_think(void)
      * room does not have, which is the invalid read a few seconds in. */
 }
 
-/* One-shot: dump the whole descriptor Melee uses to reach the training scene,
- * every field, so nothing is left to guess at. */
-static void peppy_probe_training_minor(void)
-{
-    char line[128];
-    char *o;
-    u32 major;
-
-    for (major = 0; major < 0x30; major++)
-    {
-        u8 *m = (u8 *)(MAJOR_SCENE_TABLE + major * MAJOR_SCENE_STRIDE);
-        u8 *minor = *(u8 **)(m + 0x10);
-        int guard;
-
-        if ((u32)minor < 0x80000000 || (u32)minor >= 0x80500000)
-            continue;
-
-        for (guard = 0; guard < 32 && minor[0] != 0xFF; guard++, minor += 0x18)
-        {
-            int k;
-            if (minor[0x0C] != 0x04)
-                continue;
-            o = line;
-            for (k = 0; "Peppy: trn "[k]; k++)
-                *o++ = "Peppy: trn "[k];
-            o = put_hex(o, major);
-            for (k = 0; k < 0x18; k += 4)
-            {
-                *o++ = ' ';
-                o = put_hex(o, *(u32 *)(minor + k));
-            }
-            *o = 0;
-            peppy_log(line);
-        }
-    }
-}
-
 void peppy_room_load(void)
 {
-    peppy_probe_training_minor();
     /* A text object registers its own draw callback but still needs a camera
      * and a render pass to be drawn into, and nothing sets those up for a
      * scene invented from nothing -- which is why the first build of this ran

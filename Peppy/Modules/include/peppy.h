@@ -66,6 +66,12 @@ typedef struct SceneController {
 
 /* Melee's major scene table: one 0x14-byte entry per major, with the pointer to
  * that major's minor list at +0x10. */
+/* The next minor scene, as Melee's menus ask for it: a raw minor id in the
+ * short data area, which is how Slippi's stage select asks for the match it is
+ * about to start. Not the same thing as the scene controller's own pending byte
+ * at 0x80479d35, which wants the id plus one. */
+#define SDA_NEXT_MINOR      (-0x49F1)
+
 #define MAJOR_SCENE_TABLE   0x803daca4
 #define MAJOR_SCENE_STRIDE  0x14
 #define SCENE_NEXT_MINOR(id)    ((u8)((id) + 1))
