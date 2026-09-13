@@ -14,15 +14,13 @@ from mxscn import Scn
 # Training in-game, read out of the stock table: Melee's own scene 0x04. Copied
 # rather than hooked, so real training mode keeps its own functions and only
 # the room's version goes through our module.
-# The in-game scene, VS mode's rather than training's. Training's own checks
-# Scene_GetCurrentMajor against 0x1c in its code, and over here the major is
-# Slippi's - while VS mode's in-game scene is the one Slippi already runs in
-# this major every time somebody plays online. The match still comes from
-# training's prep, which builds a real one; this is only the scene that plays
-# it.
-TRAIN_THINK = 0x8016D800   # SceneThink_InGame (VS)
-TRAIN_LOAD  = 0x8016E934   # SceneLoad_InGame (VS)
-TRAIN_LEAVE = 0x8016E9C8   # SceneLeave_InGame, shared with training
+# Training's own in-game scene. VS mode's was used while the scene refused to
+# load at all, but that was the scene pointer being thrown away rather than
+# anything about training - and VS's scene is a VS match with a CPU in it: no
+# training HUD, no training pause menu, no CPU behaviour settings.
+TRAIN_THINK = 0x8016D32C   # SceneThink_TrainingModeInGame
+TRAIN_LOAD  = 0x8016EC28   # SceneLoad_TrainingModeInGame
+TRAIN_LEAVE = 0x8016E9C8   # SceneLeave_InGame, shared with VS
 
 # Melee's character select, read out of the stock table as scene 0x08. Slippi
 # attaches SlippiCSS.dat to that scene, so entering it anywhere loads Slippi's
