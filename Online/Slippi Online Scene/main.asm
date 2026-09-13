@@ -408,9 +408,10 @@ PeppyTrainCSSDecide:
 backup
 branchl r12, SceneDecide_TrainingMode_CSS
 load r4, 0x80479d30
+logf LOG_LEVEL_NOTICE, "Peppy: css decide, melee wanted minor %d", "lbz r5, 0x5(r4)"
 li r3, 10                   # minor 9, the stage select
 stb r3, 0x5(r4)
-logf LOG_LEVEL_NOTICE, "Peppy: training stage select next"
+logf LOG_LEVEL_NOTICE, "Peppy: css decide -> stage select"
 restore
 blr
 
@@ -418,9 +419,10 @@ PeppyTrainSSSDecide:
 backup
 branchl r12, SceneDecide_TrainingMode_SSS
 load r4, 0x80479d30
+logf LOG_LEVEL_NOTICE, "Peppy: sss decide, melee wanted minor %d", "lbz r5, 0x5(r4)"
 li r3, 8                    # minor 7, training itself
 stb r3, 0x5(r4)
-logf LOG_LEVEL_NOTICE, "Peppy: training next"
+logf LOG_LEVEL_NOTICE, "Peppy: sss decide -> training"
 restore
 blr
 
@@ -438,6 +440,7 @@ blr
 
 PeppyTrainScenePrep:
 backup
+logf LOG_LEVEL_NOTICE, "Peppy: training prep reached"
 mr r31, r3
 stw r31, 0x10(r31)
 branchl r12, MajorSetup_TrainingMode
