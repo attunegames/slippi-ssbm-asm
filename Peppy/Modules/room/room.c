@@ -1227,7 +1227,10 @@ void peppy_room_load(void *scene)
      * machinery runs. The splash works inline precisely because it loads
      * nothing. Getting the hand means the room's scene being built on the
      * character select by the machinery, not calling its load ourselves. */
-    SceneLoad_ClassicModeSplash(scene);
+    if (s_browsing)
+        SceneLoad_ClassicModeSplash(scene);
+    else
+        CSS_LoadFunction(scene);
     peppy_room_clear_borrowed_scene();
 
     s_text = 0;
