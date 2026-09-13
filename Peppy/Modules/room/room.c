@@ -868,7 +868,9 @@ static void peppy_room_check_paired(void *msrb)
 static void peppy_room_train(void)
 {
     peppy_log("Peppy: off to practise");
-    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN);
+    /* Training's character select first. A match needs a character in it, and
+     * this is where one comes from - the screen does not exist to be pretty. */
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN_CSS);
     Scene_ExitMinor();
 }
 

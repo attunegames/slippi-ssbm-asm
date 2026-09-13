@@ -388,13 +388,16 @@ blr
 
 # The training major's own load never ran - we are in Slippi's major, not that
 # one - so it runs here, once, on the way into the first of its scenes.
+# Melee hands a scene its own descriptor in r3, and every branchl on the way
+# past clobbers it - which is how the character select ended up being prepared
+# with whatever happened to be left in that register. Keep it.
 PeppyTrainCSSPrep:
 backup
-logf LOG_LEVEL_NOTICE, "Peppy: css prep in"
-branchl r12, MajorLoad_TrainingMode
-logf LOG_LEVEL_NOTICE, "Peppy: css major loaded"
+mr r31, r3
+branchl r12, MajorSetup_TrainingMode
+mr r3, r31
 branchl r12, ScenePrep_TrainingMode_CSS
-logf LOG_LEVEL_NOTICE, "Peppy: css prep out"
+logf LOG_LEVEL_NOTICE, "Peppy: training character select prepared"
 restore
 blr
 
