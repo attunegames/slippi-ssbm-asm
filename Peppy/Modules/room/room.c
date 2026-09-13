@@ -434,25 +434,6 @@ static int peppy_room_self_queued(void *msrb)
     const char *roster = (const char *)msrb + MSRB_ROSTER;
     int slot;
 
-    {
-        char line[80];
-        char *o = line;
-        int n;
-
-        for (n = 0; "Peppy: me="[n]; n++)
-            *o++ = "Peppy: me="[n];
-        for (n = 0; n < 16 && me[n]; n++)
-            *o++ = me[n];
-        *o++ = ' ';
-        *o++ = 'q';
-        *o++ = '0';
-        *o++ = '=';
-        for (n = 0; n < 16 && roster[MSRB_ROSTER_ACTIVE * MSRB_ROSTER_STRIDE + n]; n++)
-            *o++ = roster[MSRB_ROSTER_ACTIVE * MSRB_ROSTER_STRIDE + n];
-        *o = 0;
-        peppy_log(line);
-    }
-
     if (!*me)
         return 0;
 
