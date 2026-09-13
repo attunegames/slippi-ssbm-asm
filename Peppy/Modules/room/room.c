@@ -1054,8 +1054,13 @@ static void peppy_probe_our_minors(void)
     u8 *minor = *(u8 **)(0x803dad30 + 0x10);
     int guard;
 
-    if ((u32)minor < 0x80000000 || (u32)minor >= 0x80500000)
+    /* All of MEM1: the codeset's own table is injected wherever there is room,
+     * which is not necessarily down with Melee's own data. */
+    if ((u32)minor < 0x80000000 || (u32)minor >= 0x81800000)
+    {
+        peppy_log("Peppy: no minor list");
         return;
+    }
 
     for (guard = 0; guard < 16 && minor[0] != 0xFF; guard++, minor += 0x18)
     {
