@@ -868,9 +868,9 @@ static void peppy_room_check_paired(void *msrb)
 static void peppy_room_train(void)
 {
     peppy_log("Peppy: off to practise");
-    /* TEST BUILD - straight to training, no character select. Put back to
-     * ONLINE_MINOR_TRAIN_CSS before this ships. */
-    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN);
+    /* Training's character select first - a match needs a character in it, and
+     * that is where one comes from. */
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN_CSS);
     Scene_ExitMinor();
 }
 
