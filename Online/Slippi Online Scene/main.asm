@@ -455,7 +455,10 @@ blr
 # Pointing it at the scene itself gives Melee somewhere real to put it. The
 # stage is the only piece left over, because that one comes from training's
 # stage select, which has not run.
-.set PEPPY_TRAIN_STAGE, 0x1F        # Battlefield
+# Battlefield, as Melee's INTERNAL stage id. The match carries internal ids,
+# not the ones the stage select shows - 0x1f is Battlefield's menu id and means
+# nothing here, which leaves the loader waiting for a stage that does not exist.
+.set PEPPY_TRAIN_STAGE, 0x18
 
 # A ScenePrep is handed the minor DESCRIPTOR, not the match - Melee does
 # `addi r3, r27, 0` on the way in. The descriptor already points at a match
