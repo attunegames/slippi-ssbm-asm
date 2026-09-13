@@ -1348,7 +1348,11 @@ void peppy_room_think(void)
     }
 
     peppy_room_spin();
-    peppy_room_refresh();
+    /* TEMPORARY - the drawing is off, to find out whether what stops the room
+     * half a minute in is the text being rewritten every frame. Everything else
+     * still runs, the match state included. */
+    if (0)
+        peppy_room_refresh();
     peppy_room_buttons();
 }
 
@@ -1554,11 +1558,7 @@ void peppy_room_load(void *scene)
 
         peppy_room_set_queued(msrb ? peppy_room_self_queued(msrb) : 0);
     }
-    /* TEMPORARY - matchmaking is not started, to find out whether the thing
-     * that stops the room half a minute in is Slippi's search. The room will
-     * have no roster in it; the tick log is the point. */
-    if (0)
-        peppy_room_start_searching();
+    peppy_room_start_searching();
     /* Not split - see peppy_room_split. The room has the screen to itself
      * until there is something to put in the other half. */
     peppy_log("Peppy: room scene built");
