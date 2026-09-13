@@ -402,6 +402,8 @@ blr
 .set MajorLoad_TrainingMode, 0x801b23c4
 .set ScenePrep_TrainingMode_CSS, 0x801b1b74
 .set ScenePrep_TrainingMode_InGame, 0x801b1f70
+.set GetMinorSceneData2, 0x801a4284
+.set ONLINE_MAJOR_ID, 8
 .set SceneDecide_TrainingMode_CSS, 0x801b1c24
 .set SceneDecide_TrainingMode_SSS, 0x801b1eec
 
@@ -423,23 +425,56 @@ blr
 # Melee's decides, then our own answer to "which minor next". Theirs name the
 # next minor of the training major; ours name the same scenes where they
 # actually live over here.
+# Back out of training's character select and you land in the room.
+#
+# Melee's own decide already knows you backed out - byte 3 of the scene's second
+# data block is 2 - and answers by asking to leave the MAJOR, which is the one
+# transition that has never worked here. So the flag is read back off it and the
+# room is named instead. The pending major it asked for is put back to this one,
+# rather than left hanging.
+.set TRAIN_CSS_BACKED_OUT, 2
+
 PeppyTrainCSSDecide:
 backup
+mr r31, r3
 branchl r12, SceneDecide_TrainingMode_CSS
+mr r3, r31
+branchl r12, GetMinorSceneData2
+lbz r0, 0x3(r3)
 load r4, 0x80479d30
+cmpwi r0, TRAIN_CSS_BACKED_OUT
+beq PeppyTrainCSSDecide_BACK
 li r3, 10                   # minor 9, the stage select
+b PeppyTrainCSSDecide_SET
+PeppyTrainCSSDecide_BACK:
+li r3, ONLINE_MAJOR_ID
+stb r3, 0x1(r4)             # nothing is leaving this major
+li r3, 7                    # minor 6, the room
+PeppyTrainCSSDecide_SET:
 stb r3, 0x5(r4)
-logf LOG_LEVEL_NOTICE, "Peppy: css decide -> stage select"
 restore
 blr
 
+# Back out of the stage select and you go back a screen, to the character
+# select. Melee's flag is byte 4 of the second data block, zero meaning backed
+# out, and its own answer is minor 0 - which in the training major is that
+# character select and over here is Slippi's.
 PeppyTrainSSSDecide:
 backup
+mr r31, r3
 branchl r12, SceneDecide_TrainingMode_SSS
+mr r3, r31
+branchl r12, GetMinorSceneData2
+lbz r0, 0x4(r3)
 load r4, 0x80479d30
+cmpwi r0, 0
+beq PeppyTrainSSSDecide_BACK
 li r3, 8                    # minor 7, training itself
+b PeppyTrainSSSDecide_SET
+PeppyTrainSSSDecide_BACK:
+li r3, 9                    # minor 8, the character select
+PeppyTrainSSSDecide_SET:
 stb r3, 0x5(r4)
-logf LOG_LEVEL_NOTICE, "Peppy: sss decide -> training"
 restore
 blr
 
