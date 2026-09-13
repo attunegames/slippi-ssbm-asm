@@ -1007,7 +1007,9 @@ void peppy_room_load(void)
         /* The scene's load only. The training major's setup and load are not
          * called: they set that major up, and calling them from inside this one
          * put the game back in the menu. */
+        peppy_log("Peppy: borrowing training's load");
         SceneLoad_TrainingModeInGame();
+        peppy_log("Peppy: training's load came back");
     }
 
     s_text = 0;
