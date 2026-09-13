@@ -358,6 +358,25 @@ bl PeppyTrainSSSDecide      #SceneDecide
 .align 2
 .long 0x8048e378            #Minor Data 1
 .long 0x8048e378            #Minor Data 2
+#Peppy catch-all
+# Melee looks a minor up by id, and when it runs off the end of the table it
+# does not stop - it carries on with a null descriptor and calls whatever
+# address 8 happens to contain. That is the "Unknown instruction at PC =
+# 010000fc" crash, and it is one bad scene request away at all times.
+#
+# The lookup walks upwards until something matches, so a high id catches
+# everything above us. It is the room: whatever asked to go somewhere that does
+# not exist here ends up back where it started, which is the worst that should
+# ever happen.
+.byte 0xFE                  #Minor Scene ID
+.byte 3                     #Amount of persistent heaps
+.align 2
+bl PeppyRoomScenePrep       #ScenePrep
+bl PeppyRoomSceneDecide     #SceneDecide
+.byte 0x51                  #Common Minor ID (Peppy room)
+.align 2
+.long 0x80490880            #Minor Data 1
+.long 0x804d68d0            #Minor Data 2
 #End
 .byte -1
 .align 2
