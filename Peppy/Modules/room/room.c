@@ -1218,19 +1218,16 @@ void peppy_room_load(void *scene)
      * to hold, which the match-state call just above had already overwritten.
      * Entering the room from the menu got away with it; coming back from
      * training did not, and the room drew nothing at all. */
-    /* The room list is a menu and borrows the splash for its camera. A room
-     * borrows the CHARACTER SELECT instead, because that is the scene that owns
-     * the hand - it is created by that load and moved every frame by Melee's
-     * own cursor think reading the stick. Everything else that load builds is
-     * thrown away immediately afterwards.
+    /* The room borrows the splash for its camera.
      *
-     * Each load is handed the data it expects: a scene load reads its minor
-     * data from the argument, so the room can pass the character select's while
-     * its own descriptor still names the splash's. */
-    if (s_browsing)
-        SceneLoad_ClassicModeSplash(scene);
-    else
-        CSS_LoadFunction((void *)CSS_MINOR_DATA);
+     * ⚠️ Borrowing the CHARACTER SELECT instead - to get its hand, which is a
+     * GObj that load creates and Melee's cursor think moves from the stick -
+     * does NOT work from here. That load never returns: it fetches character
+     * portraits, and those loads are spread across frames that only the scene
+     * machinery runs. The splash works inline precisely because it loads
+     * nothing. Getting the hand means the room's scene being built on the
+     * character select by the machinery, not calling its load ourselves. */
+    SceneLoad_ClassicModeSplash(scene);
     peppy_room_clear_borrowed_scene();
 
     s_text = 0;
