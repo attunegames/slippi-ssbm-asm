@@ -270,6 +270,10 @@ static void *peppy_room_msrb(void)
 static int s_browsing;
 /* Whether the borrowed splash was given a match to draw. */
 static int s_dressed;
+/* The six draft bytes the backdrop was last built from. */
+static u8 s_dressed_from[6];
+/* The scene this load was handed, kept so the backdrop can be built again. */
+static void *s_scene;
 static int s_browse_rows[BROWSE_ROWS];
 static int s_browse_hi[BROWSE_ROWS];
 static int s_browse_cursor;
@@ -1426,6 +1430,40 @@ static void peppy_room_spin(void)
     s_spin_frame = (s_spin_frame + 1) % (2 * SPINNER_FRAMES);
 }
 
+/* Build the backdrop again, because what goes in it has changed.
+ *
+ * Dressing happens at scene load, and somebody sitting in the room while two
+ * others get matched loads it long before there is anything to show - so left
+ * at that, the only people who ever saw the top half would be those who walked
+ * in after the picking was done. Which is nobody.
+ *
+ * The splash's load is safe to call twice: it is why the room borrows that one
+ * and not the character select, whose load fetches portraits across frames. */
+static void peppy_room_redress(void *msrb)
+{
+    const u8 *d = (const u8 *)msrb + MSRB_DRAFT;
+    int i, changed = 0;
+
+    if (s_browsing || !s_scene)
+        return;
+    for (i = 0; i < 6; i++)
+        if (s_dressed_from[i] != d[i])
+            changed = 1;
+    if (!changed)
+        return;
+    for (i = 0; i < 6; i++)
+        s_dressed_from[i] = d[i];
+
+    if (!peppy_room_dress_splash(msrb))
+        return;
+
+    /* The bare backdrop first, or the old one stays behind the new one. */
+    peppy_room_clear_borrowed_scene();
+    SceneLoad_ClassicModeSplash(s_scene);
+    peppy_room_split();
+    s_dressed = 1;
+}
+
 void peppy_room_think(void)
 {
     /* The roster changes while people come and go, so it is read every frame
@@ -1443,6 +1481,12 @@ void peppy_room_think(void)
     }
 
     peppy_room_spin();
+    {
+        void *msrb = peppy_room_msrb();
+
+        if (msrb)
+            peppy_room_redress(msrb);
+    }
     peppy_room_refresh();
     peppy_room_buttons();
 }
@@ -1527,6 +1571,7 @@ __attribute__((unused)) static void peppy_dump_match_struct(void)
  * made every attempt at training walk off into a stage that does not exist. */
 void peppy_room_load(void *scene)
 {
+    s_scene = scene;
     /* A fresh buffer for a fresh entry. One per visit to the room, which is
      * what Slippi's own scenes cost too - the ruinous version was one per
      * frame. See peppy_room_msrb. */
@@ -1549,8 +1594,17 @@ void peppy_room_load(void *scene)
 
         s_browsing = msrb0 && (*(u8 *)((char *)msrb0 + MSRB_ROOM_FLAGS)
                                & MSRB_ROOM_FLAG_BROWSING);
-        /* Before the load, because the load is what builds from it. */
+        /* Before the load, because the load is what builds from it. And the
+         * signature with it, so the first Think does not immediately decide
+         * everything has changed and build it all a second time. */
         s_dressed = !s_browsing && msrb0 && peppy_room_dress_splash(msrb0);
+        if (msrb0)
+        {
+            int i;
+
+            for (i = 0; i < 6; i++)
+                s_dressed_from[i] = *((const u8 *)msrb0 + MSRB_DRAFT + i);
+        }
     }
 
     /* The room is a menu and wants a menu's backdrop.
