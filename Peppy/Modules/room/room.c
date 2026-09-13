@@ -975,6 +975,11 @@ void peppy_room_think(void)
 /* Training's in-game minor data, read out of major 0x1c minor 2. */
 #define TRAIN_MINOR_DATA 0x8048e4c0
 
+/* Battlefield. Training's stage select is what should be choosing this. */
+#define TRAIN_STAGE     0x1F
+/* What training's own in-game prep stores as the match think. */
+#define TRAIN_THINK_FN  0x801B1F6C
+
 void ScenePrep_TrainingMode_InGame(void *minor_data);
 /* Where this scene's minor data actually lives. The prep writes through this
  * rather than through its own argument, so the load has to be handed the same
@@ -1100,12 +1105,31 @@ void peppy_room_load(void *scene)
          *   ScenePrep copies that into the minor data
          *   SceneLoad hands the minor data to StartMelee
          */
-        peppy_dump_at((u32)scene, 2);
-        MajorSetup_TrainingMode();
-        ScenePrep_TrainingMode_InGame(scene);
-        peppy_log("Peppy: training match prepared");
-        peppy_dump_at((u32)scene, 2);
-        peppy_dump_at((u32)GetMinorSceneData1(scene), 2);
+        /* Build the match by hand, where the scene can see it.
+         *
+         * Training's own prep writes through *(scene + 0x10), and outside the
+         * training major that pointer is null - so it has been writing the
+         * match to address zero. The 96 bytes it copies come from the
+         * character select's data block, and the two things it fills in
+         * afterwards are a think function and a speed. All of that is done
+         * here instead, straight into the scene.
+         *
+         * The stage is the one piece nothing supplies: it comes from training's
+         * stage select, which has not run. Battlefield until it does. */
+        {
+            char *m = (char *)scene;
+            const char *css = (const char *)peppy_css_data();
+            int i;
+
+            MajorSetup_TrainingMode();
+            for (i = 0; i < 0x60; i++)
+                m[i] = css[i];
+            *(u16 *)(m + 0x0E) = TRAIN_STAGE;
+            *(float *)(m + 0x34) = 1.0f;
+            *(u32 *)(m + 0x3C) = TRAIN_THINK_FN;
+        }
+        peppy_log("Peppy: training match built");
+        peppy_dump_at((u32)scene, 3);
         SceneLoad_TrainingModeInGame(scene);
         peppy_log("Peppy: TRAINING IS RUNNING");
     }
