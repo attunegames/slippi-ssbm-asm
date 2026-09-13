@@ -164,7 +164,7 @@ static void peppy_room_go_to_draft(const char *why);
 static void peppy_room_check_paired(void *msrb);
 static void peppy_room_train(void);
 static void peppy_room_move_pick(void);
-static void peppy_room_leave(void);
+static void peppy_room_exit_room(void);
 /* Joining from the list turns the browser back into a room without leaving the
  * scene, so it needs both builders before either is defined. */
 static void *peppy_room_new_text(void);
@@ -1038,7 +1038,7 @@ static void peppy_room_train(void)
  * to a versus splash the way it does while a match still looks live. Melee's
  * own BACK is waiting there, and it has always known how to leave online.
  */
-static void peppy_room_leave(void)
+static void peppy_room_exit_room(void)
 {
     peppy_log("Peppy: leaving the room");
 
@@ -1182,7 +1182,7 @@ static void peppy_room_buttons(void)
             peppy_room_train();
     }
     if ((pressed & PAD_A) && s_pick_col == PICK_BACK)
-        peppy_room_leave();
+        peppy_room_exit_room();
     if (pressed & PAD_Z)
         peppy_room_spectate();
     if (pressed & PAD_B)
