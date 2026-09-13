@@ -1118,15 +1118,20 @@ void peppy_room_load(void *scene)
          * stage select, which has not run. Battlefield until it does. */
         {
             char *m = (char *)scene;
-            const char *css = (const char *)peppy_css_data();
-            int i;
 
+            /* Training's prep writes the match through *(scene + 0x10), and
+             * outside the training major that is null - which is why it has
+             * been writing to address zero. Point it at the scene itself and
+             * Melee does the whole job: the character select's picks, the
+             * flags, the think, all of it.
+             *
+             * The stage is the one thing left over, because it comes from
+             * training's stage select and that has not run. Battlefield until
+             * it does. */
+            *(u32 *)(m + 0x10) = (u32)scene;
             MajorSetup_TrainingMode();
-            for (i = 0; i < 0x60; i++)
-                m[i] = css[i];
+            ScenePrep_TrainingMode_InGame(scene);
             *(u16 *)(m + 0x0E) = TRAIN_STAGE;
-            *(float *)(m + 0x34) = 1.0f;
-            *(u32 *)(m + 0x3C) = TRAIN_THINK_FN;
         }
         peppy_log("Peppy: training match built");
         peppy_dump_at((u32)scene, 3);
