@@ -957,8 +957,36 @@ void peppy_room_think(void)
      * room does not have, which is the invalid read a few seconds in. */
 }
 
+/* One-shot: dump every minor of the training major, so its character select and
+ * stage select can be reached the same way its in-game scene is. */
+static void peppy_probe_training_minor(void)
+{
+    char line[128];
+    u8 *minor = *(u8 **)(MAJOR_SCENE_TABLE + 0x1C * MAJOR_SCENE_STRIDE + 0x10);
+    int guard;
+
+    if ((u32)minor < 0x80000000 || (u32)minor >= 0x80500000)
+        return;
+
+    for (guard = 0; guard < 16 && minor[0] != 0xFF; guard++, minor += 0x18)
+    {
+        char *o = line;
+        int k;
+        for (k = 0; "Peppy: t1c "[k]; k++)
+            *o++ = "Peppy: t1c "[k];
+        for (k = 0; k < 0x18; k += 4)
+        {
+            o = put_hex(o, *(u32 *)(minor + k));
+            *o++ = ' ';
+        }
+        *o = 0;
+        peppy_log(line);
+    }
+}
+
 void peppy_room_load(void)
 {
+    peppy_probe_training_minor();
     /* A text object registers its own draw callback but still needs a camera
      * and a render pass to be drawn into, and nothing sets those up for a
      * scene invented from nothing -- which is why the first build of this ran
