@@ -1506,6 +1506,15 @@ void peppy_room_think(void)
         if (msrb)
             peppy_room_redress(msrb);
     }
+    /* The borrowed splash preloads its character models across frames, and its
+     * own think is what advances that - so borrowing the load alone leaves it
+     * saying NOW LOADING for ever, which is exactly what the top half showed.
+     *
+     * Only once there is a match in it. If this turns out to advance the scene
+     * on its own when the preload finishes, the room will exit itself and that
+     * will be obvious immediately. */
+    if (s_dressed)
+        SceneThink_ClassicModeSplash();
     peppy_room_refresh();
     peppy_room_buttons();
 }
