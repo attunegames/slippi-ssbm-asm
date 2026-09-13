@@ -318,12 +318,16 @@ bl PeppyRoomSceneDecide     #SceneDecide
 .byte 7                     #Minor Scene ID
 .byte 3                     #Amount of persistent heaps
 .align 2
-bl PeppyTrainScenePrep      #ScenePrep
+.long 0x801b1f70            #ScenePrep_TrainingMode_InGame
 bl PeppyTrainSceneDecide    #SceneDecide
 .byte 0x52                  #Common Minor ID (Peppy training)
 .align 2
-.long 0x80480530            #Minor Data 1, as VS mode uses
-.long 0x80479d98            #Minor Data 2
+# Training's own, read out of major 0x1c minor 2 - the descriptor Melee uses to
+# reach this same scene. An in-game scene loads the match its minor data
+# describes, so borrowing VS mode's here meant waiting on a match that was
+# never going to arrive.
+.long 0x8048e4c0            #Minor Data 1
+.long 0x8048e5f8            #Minor Data 2
 #End
 .byte -1
 .align 2
@@ -345,22 +349,10 @@ blr
 .set PEPPY_MINOR_LEAVE_MAJOR, 0xFE
 .set PEPPY_MAJOR_MAIN_MENU, 1
 
-# UNFINISHED - nothing routes here yet. See peppy_room_buttons in room.c.
-#
-# The scene resolves and this prep runs; what does not happen is the load. An
-# in-game scene waits for a match to load, and nothing here sets one up, so it
-# sits on the previous scene's last frame with the game still running and no
-# files ever requested. It is not this entry - Melee's own training scene
-# (common minor 0x04) does exactly the same thing in this slot - and it is not
-# major setup either; MajorSetup_TrainingMode runs to completion and changes
-# nothing.
-#
-# What is left to try is the match block itself. Slippi's GameSetup scene
-# (common minor 0x50) exists to prepare a match before the VS minor is entered,
-# which is the same problem one step over.
-PeppyTrainScenePrep:
-blr
-
+# The Decide is ours and does nothing. Melee's would send you on to training's
+# own character select, which is a minor of the training major and does not
+# exist over here - the module's Think is what leaves, the moment the room says
+# it is this player's turn.
 PeppyTrainSceneDecide:
 blr
 
