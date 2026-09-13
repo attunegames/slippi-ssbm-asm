@@ -859,12 +859,12 @@ static void peppy_room_browse_buttons(void *msrb)
         s_browse_cursor++;
     if (pressed & PAD_A)
         peppy_room_browse_join(msrb);
+    /* Out the same way BACK leaves a room. It used to hand the screen to the
+     * character select, which is not a place anybody asked to be: with no match
+     * to pick for, that screen advances itself and you land on a versus splash
+     * with two characters you did not choose. */
     if (pressed & PAD_B)
-    {
-        peppy_log("Peppy: leaving the room list");
-        SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_CSS);
-        Scene_ExitMinor();
-    }
+        peppy_room_exit_room();
 }
 
 /* The text object both shapes of this screen are drawn into. Made before either
