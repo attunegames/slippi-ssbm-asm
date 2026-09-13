@@ -821,12 +821,14 @@ mr REG_SM_GOBJ, r3
 # is the path that is known to work.
 bl PEPPY_LABEL_DATA
 mflr r3
-lwz r0, PLD_ENTER(r3)
-cmpwi r0, 0
+# Not r0 - it is a literal zero in the base position of subi, not a register,
+# and the assembler says so.
+lwz r6, PLD_ENTER(r3)
+cmpwi r6, 0
 beq FN_OnlineSubmenuThink_NO_PENDING_LEVEL
 li r4, 0
 stw r4, PLD_ENTER(r3)
-subi r3, r0, 1
+subi r3, r6, 1
 li r4, 0                    # cursor on the first mode
 li r5, 3                    # coming back, not going deeper
 bl FN_PeppyGoToLevel
