@@ -163,6 +163,7 @@ static void peppy_room_go_to_css(const char *why);
 static void peppy_room_go_to_draft(const char *why);
 static void peppy_room_check_paired(void *msrb);
 static void peppy_room_train(void);
+static void peppy_room_move_pick(void);
 /* Joining from the list turns the browser back into a room without leaving the
  * scene, so it needs both builders before either is defined. */
 static void *peppy_room_new_text(void);
@@ -197,6 +198,12 @@ static int s_p2_line = -1;
 static int s_queue_rows[QUEUE_ROWS];
 static int s_lobby_rows[LOBBY_ROWS];
 static int s_queued;
+/* Which name is highlighted, and in which column. The lobby is where a friends
+ * list would start, so the cursor has to be able to reach both. */
+#define PICK_QUEUE 0
+#define PICK_LOBBY 1
+static int s_pick_col;
+static int s_pick_row;
 
 /* The two names on the line.  Empty when nobody is matched, which is the state
  * the room sits in most of the time. */
@@ -616,7 +623,18 @@ static void peppy_room_refresh(void)
         if (name[0])
             lobby++;
         if (s_lobby_rows[i] >= 0)
-            Text_UpdateSubtextContents(s_text, s_lobby_rows[i], "%s", name);
+        {
+            char *p = row;
+
+            if (name[0])
+            {
+                *p++ = (s_pick_col == PICK_LOBBY && s_pick_row == i) ? '>' : ' ';
+                *p++ = ' ';
+                p = put(p, name);
+            }
+            *p = 0;
+            Text_UpdateSubtextContents(s_text, s_lobby_rows[i], "%s", row);
+        }
     }
 
     queue = 0;
@@ -628,6 +646,8 @@ static void peppy_room_refresh(void)
         if (name[0])
         {
             queue++;
+            *p++ = (s_pick_col == PICK_QUEUE && s_pick_row == i) ? '>' : ' ';
+            *p++ = ' ';
             p = put_u8(p, (u8)(i + 1));
             *p++ = '.';
             *p++ = ' ';
@@ -1058,9 +1078,55 @@ static void peppy_room_back(void)
  *
  * Z watches the match, when there is one.
  */
+/* Move the highlight.
+ *
+ * Up and down within a column, left and right between them. It stops at the
+ * ends rather than wrapping, and it does not walk past the last real name -
+ * a cursor sitting on an empty row has nothing to act on.
+ */
+static void peppy_room_count_names(void *msrb, int *queue, int *lobby)
+{
+    const char *roster = (const char *)msrb + MSRB_ROSTER;
+    int i;
+
+    *queue = *lobby = 0;
+    for (i = 0; i < QUEUE_ROWS; i++)
+        if (roster[(MSRB_ROSTER_ACTIVE + i) * MSRB_ROSTER_STRIDE])
+            (*queue)++;
+    for (i = 0; i < LOBBY_ROWS; i++)
+        if (roster[(MSRB_ROSTER_ACTIVE + MSRB_ROSTER_QUEUE + i) * MSRB_ROSTER_STRIDE])
+            (*lobby)++;
+}
+
+static void peppy_room_move_pick(void)
+{
+    u32 pressed = peppy_pad_pressed();
+    void *msrb = FN_LoadMatchState(0);
+    int queue, lobby, limit;
+
+    if (!msrb)
+        return;
+    peppy_room_count_names(msrb, &queue, &lobby);
+
+    if (pressed & PAD_STICK_LEFT)
+        s_pick_col = PICK_QUEUE;
+    if (pressed & PAD_STICK_RIGHT)
+        s_pick_col = PICK_LOBBY;
+
+    limit = (s_pick_col == PICK_QUEUE) ? queue : lobby;
+    if ((pressed & PAD_STICK_UP) && s_pick_row > 0)
+        s_pick_row--;
+    if ((pressed & PAD_STICK_DOWN) && s_pick_row + 1 < limit)
+        s_pick_row++;
+    if (s_pick_row >= limit)
+        s_pick_row = limit > 0 ? limit - 1 : 0;
+}
+
 static void peppy_room_buttons(void)
 {
     u32 pressed = peppy_pad_pressed();
+
+    peppy_room_move_pick();
 
     /* Start joins the queue, and once you are in it Start is how you go and
      * practise while you wait. It is never how you leave. */
@@ -1247,6 +1313,8 @@ void peppy_room_load(void *scene)
     s_p1_line = -1;
     s_p2_line = -1;
     s_queued = 0;
+    s_pick_col = PICK_QUEUE;
+    s_pick_row = 0;
     s_roster_reported = 0;
     s_browse_cursor = 0;
     s_browse_hint = -1;
