@@ -302,11 +302,9 @@ bl PeppyRoomScenePrep       #ScenePrep
 bl PeppyRoomSceneDecide     #SceneDecide
 .byte 0x51                  #Common Minor ID (Peppy room)
 .align 2
-# Training's, read out of major 0x1c minor 2. The room runs training underneath
-# itself, and an in-game scene is handed its minor data as the match to start -
-# so this is the match.
-.long 0x8048e4c0            #Minor Data 1
-.long 0x8048e5f8            #Minor Data 2
+# The splash's, which is what the room borrows to draw over.
+.long 0x80490880            #Minor Data 1
+.long 0x804d68d0            #Minor Data 2
 #Peppy training
 # Waiting in a queue is exactly when somebody wants to be in training, so
 # training is a minor of THIS major rather than a major of its own. Melee's
@@ -381,6 +379,7 @@ blr
 .set PEPPY_MINOR_LEAVE_MAJOR, 0xFE
 .set PEPPY_MAJOR_MAIN_MENU, 1
 
+.set MajorSetup_TrainingMode, 0x801b2298
 .set MajorLoad_TrainingMode, 0x801b23c4
 .set ScenePrep_TrainingMode_CSS, 0x801b1b74
 .set ScenePrep_TrainingMode_InGame, 0x801b1f70
@@ -422,10 +421,28 @@ logf LOG_LEVEL_NOTICE, "Peppy: training next"
 restore
 blr
 
+# Build the match this scene is about to start.
+#
+# Training's own prep writes it through *(scene + 0x10), and outside the
+# training major that pointer is null - so left alone it writes the match to
+# address zero and this scene starts one that is all zeroes, including a stage
+# id of zero that StartMelee then goes looking for forever.
+#
+# Pointing it at the scene itself gives Melee somewhere real to put it. The
+# stage is the only piece left over, because that one comes from training's
+# stage select, which has not run.
+.set PEPPY_TRAIN_STAGE, 0x1F        # Battlefield
+
 PeppyTrainScenePrep:
 backup
-logf LOG_LEVEL_NOTICE, "Peppy: training prep"
+mr r31, r3
+stw r31, 0x10(r31)
+branchl r12, MajorSetup_TrainingMode
+mr r3, r31
 branchl r12, ScenePrep_TrainingMode_InGame
+li r3, PEPPY_TRAIN_STAGE
+sth r3, 0xE(r31)
+logf LOG_LEVEL_NOTICE, "Peppy: training match built, stage %d", "lhz r5, 0xE(r31)"
 restore
 blr
 

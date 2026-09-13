@@ -33,8 +33,8 @@ static void peppy_log(const char *msg)
 }
 
 /* Melee's own, which this scene is a copy of. */
-void SceneLoad_TrainingModeInGame(void);
-void SceneThink_TrainingModeInGame(void);
+void SceneLoad_TrainingModeInGame(void *scene);
+void SceneThink_TrainingModeInGame(void *scene);
 void SceneLeave_InGame(void);
 
 /* One frame's worth of grace before believing the roster. The match state
@@ -42,18 +42,20 @@ void SceneLeave_InGame(void);
  * pairing is torn down would read the last one and bounce straight out. */
 static int s_settle;
 
-void peppy_train_load(void)
+void peppy_train_load(void *scene)
 {
     s_settle = 0;
-    SceneLoad_TrainingModeInGame();
+    /* The scene pointer is the match. Melee hands it to every scene and
+     * everything about starting one hangs off it. */
+    SceneLoad_TrainingModeInGame(scene);
     peppy_log("Peppy: training");
 }
 
-void peppy_train_think(void)
+void peppy_train_think(void *scene)
 {
     void *msrb;
 
-    SceneThink_TrainingModeInGame();
+    SceneThink_TrainingModeInGame(scene);
 
     if (s_settle < 120)
     {
