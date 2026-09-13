@@ -1004,8 +1004,9 @@ void peppy_room_load(void)
          *
          * The artwork is not cleared this time: the stage and the character
          * are the point. */
-        MajorSetup_TrainingMode();
-        MajorLoad_TrainingMode();
+        /* The scene's load only. The training major's setup and load are not
+         * called: they set that major up, and calling them from inside this one
+         * put the game back in the menu. */
         SceneLoad_TrainingModeInGame();
     }
 
