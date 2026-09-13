@@ -390,9 +390,11 @@ blr
 # one - so it runs here, once, on the way into the first of its scenes.
 PeppyTrainCSSPrep:
 backup
-logf LOG_LEVEL_NOTICE, "Peppy: training character select"
+logf LOG_LEVEL_NOTICE, "Peppy: css prep in"
 branchl r12, MajorLoad_TrainingMode
+logf LOG_LEVEL_NOTICE, "Peppy: css major loaded"
 branchl r12, ScenePrep_TrainingMode_CSS
+logf LOG_LEVEL_NOTICE, "Peppy: css prep out"
 restore
 blr
 
