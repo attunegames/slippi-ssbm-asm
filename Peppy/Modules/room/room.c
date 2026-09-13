@@ -798,7 +798,7 @@ static void peppy_room_browse_buttons(void *msrb)
     if (pressed & PAD_B)
     {
         peppy_log("Peppy: leaving the room list");
-        SCENE_CTRL.pending_minor = SCENE_MINOR_LEAVE_MAJOR;
+        SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_CSS);
         Scene_ExitMinor();
     }
 }
