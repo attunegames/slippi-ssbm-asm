@@ -1716,27 +1716,51 @@ lbz r3, OFST_R13_ONLINE_MODE(r13)
 cmpwi r3, ONLINE_MODE_ROOMS
 bne PeppySlpCSS_SKIP
 
+# The table itself first. It is made by SceneLoad_CSS, and a room has never been
+# there - so *CSSDT_BUF_ADDR was NULL, and reading the archive pointer at +4 read
+# address 0x00000004 instead: "01" and the disc version bytes out of GALE01's own
+# header, 0x30310002. That is the whole of the pointer that killed both clients.
+loadwz REG_PEPPY_CSSDT, CSSDT_BUF_ADDR
+cmpwi REG_PEPPY_CSSDT, 0
+bne PeppySlpCSS_HAVE_TABLE
+
+li r3, CSSDT_SIZE
+branchl r12, HSD_MemAlloc
+mr REG_PEPPY_CSSDT, r3
+li r4, CSSDT_SIZE
+branchl r12, Zero_AreaLength
+
+load r3, CSSDT_BUF_ADDR
+stw REG_PEPPY_CSSDT, 0(r3)
+
+li r3, MSRB_SIZE
+branchl r12, HSD_MemAlloc
+stw r3, CSSDT_MSRB_ADDR(REG_PEPPY_CSSDT)
+
+PeppySlpCSS_HAVE_TABLE:
+cmpwi REG_PEPPY_CSSDT, 0
+beq PeppySlpCSS_SKIP
+
+# And then the archive, the same two calls the character select makes.
 bl PeppySlpCSSStrings
 mflr REG_PEPPY_STR
 
 mr r3, REG_PEPPY_STR
 branchl r12, 0x80016be0     # File_Load
 mr REG_PEPPY_ARC, r3
+cmpwi REG_PEPPY_ARC, 0
+beq PeppySlpCSS_SKIP
 
 mr r3, REG_PEPPY_ARC
 addi r4, REG_PEPPY_STR, 11  # the symbol, just past the file name
 branchl r12, 0x80380358     # File_GetSymbol
 mr REG_PEPPY_SYM, r3
-
-loadwz REG_PEPPY_CSSDT, CSSDT_BUF_ADDR
-
-logf LOG_LEVEL_NOTICE, "Peppy: slpCSS arc %x sym %x cssdt %x was %x", "mr r5, REG_PEPPY_ARC", "mr r6, REG_PEPPY_SYM", "mr r7, REG_PEPPY_CSSDT", "lwz r8, CSSDT_SLPCSS_ADDR(REG_PEPPY_CSSDT)"
-
 cmpwi REG_PEPPY_SYM, 0
 beq PeppySlpCSS_SKIP
-cmpwi REG_PEPPY_CSSDT, 0
-beq PeppySlpCSS_SKIP
+
 stw REG_PEPPY_SYM, CSSDT_SLPCSS_ADDR(REG_PEPPY_CSSDT)
+
+logf LOG_LEVEL_NOTICE, "Peppy: draft given cssdt %x arc %x sym %x", "mr r5, REG_PEPPY_CSSDT", "mr r6, REG_PEPPY_ARC", "mr r7, REG_PEPPY_SYM"
 
 PeppySlpCSS_SKIP:
 
