@@ -392,7 +392,21 @@
 .set MSRB_ROOMLIST_OWNER, 6 # char[16]
 .set MSRB_ROOMLIST_STRIDE, 22
 
-.set MSRB_SIZE, MSRB_ROOMLIST + MSRB_ROOMLIST_SLOTS * MSRB_ROOMLIST_STRIDE
+# What the pair in the match have settled on, for everyone ELSE in the room.
+# The two of them agree it between themselves over netplay; this is the room's
+# copy, carried by the tick, so the queue can watch it happen.
+# 0xFF means nothing picked yet - a question mark, not a guess. Appended, so
+# nothing above moves.
+.set MSRB_DRAFT, MSRB_ROOMLIST + MSRB_ROOMLIST_SLOTS * MSRB_ROOMLIST_STRIDE
+.set MSRB_DRAFT_STAGE, MSRB_DRAFT + 0       # u8, external stage id
+.set MSRB_DRAFT_P1_CHAR, MSRB_DRAFT + 1     # u8
+.set MSRB_DRAFT_P1_COLOR, MSRB_DRAFT + 2    # u8
+.set MSRB_DRAFT_P2_CHAR, MSRB_DRAFT + 3     # u8
+.set MSRB_DRAFT_P2_COLOR, MSRB_DRAFT + 4    # u8
+.set MSRB_DRAFT_PLAYING, MSRB_DRAFT + 5     # u8, 0 = still drafting
+.set MSRB_DRAFT_NONE, 0xFF
+
+.set MSRB_SIZE, MSRB_DRAFT + 6
 
 ################################################################################
 # Rank Info Response Buffer

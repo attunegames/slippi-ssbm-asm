@@ -187,6 +187,77 @@ static void *s_text;
  * was there long before anything was highlighted. */
 static void *s_msrb;
 
+/* Dressing the backdrop.
+ *
+ * The room borrows the Classic Mode Splash for its camera, and that scene is
+ * also the versus splash - two characters in front of a stage. It has been
+ * drawing an empty one this whole time because nothing filled in who is
+ * playing. Everything it needs is one block, the same one SplashSceneInit
+ * copies from Dolphin before a real match:
+ *
+ *     +0x0E              stage, halfword
+ *     +0x60 + n*0x24     character
+ *     +0x61 + n*0x24     slot type - 0 a human is here, 3 nobody is
+ *     +0x63 + n*0x24     costume
+ *
+ * The difference is where the values come from. The two in the match agree
+ * them over netplay and nobody else is in that conversation, so for everybody
+ * else they arrive by the room tick instead - see MSRB_DRAFT.
+ */
+#define VS_DATA_R13_OFS  (-0x77C0)
+#define VS_DATA_SKIP     (1424 + 8)
+#define MATCH_STAGE      0x0E
+#define MATCH_P_BASE     0x60
+#define MATCH_P_STRIDE   0x24
+#define MATCH_P_CHAR     0x00
+#define MATCH_P_SLOT     0x01
+#define MATCH_P_COLOR    0x03
+#define MATCH_SLOT_HUMAN 0
+#define MATCH_SLOT_EMPTY 3
+
+static u8 *peppy_vs_data(void)
+{
+    char *r13 = (char *)peppy_r13();
+    u8 *blk = *(u8 **)(r13 + VS_DATA_R13_OFS);
+
+    return blk ? blk + VS_DATA_SKIP : 0;
+}
+
+static int peppy_room_dress_splash(void *msrb)
+{
+    const u8 *d = (const u8 *)msrb + MSRB_DRAFT;
+    u8 *vs = peppy_vs_data();
+    int i;
+
+    if (!vs)
+        return 0;
+    /* Nobody has picked anything yet, so there is nobody to draw. Left alone
+     * rather than filled with a guess - the backdrop on its own is honest. */
+    if (d[1] == MSRB_DRAFT_NONE && d[3] == MSRB_DRAFT_NONE)
+        return 0;
+
+    if (d[0] != MSRB_DRAFT_NONE)
+        *(u16 *)(vs + MATCH_STAGE) = (u16)d[0];
+
+    for (i = 0; i < 2; i++)
+    {
+        u8 *port = vs + MATCH_P_BASE + i * MATCH_P_STRIDE;
+        u8 chr = d[1 + i * 2];
+
+        if (chr == MSRB_DRAFT_NONE)
+        {
+            port[MATCH_P_SLOT] = MATCH_SLOT_EMPTY;
+            continue;
+        }
+        port[MATCH_P_CHAR] = chr;
+        port[MATCH_P_COLOR] = d[2 + i * 2];
+        port[MATCH_P_SLOT] = MATCH_SLOT_HUMAN;
+    }
+    for (i = 2; i < 4; i++)
+        vs[MATCH_P_BASE + i * MATCH_P_STRIDE + MATCH_P_SLOT] = MATCH_SLOT_EMPTY;
+    return 1;
+}
+
 static void *peppy_room_msrb(void)
 {
     s_msrb = FN_LoadMatchState(s_msrb);
@@ -197,6 +268,8 @@ static void *peppy_room_msrb(void)
  * does differ, because a browser that was its own scene would be a second
  * module and a second MxScn entry for one column of text. */
 static int s_browsing;
+/* Whether the borrowed splash was given a match to draw. */
+static int s_dressed;
 static int s_browse_rows[BROWSE_ROWS];
 static int s_browse_hi[BROWSE_ROWS];
 static int s_browse_cursor;
@@ -216,6 +289,7 @@ static int s_next_sym = -1;     /* blue, steady - "and this is available" */
 static int s_spin_frame;
 static int s_p1_line = -1;
 static int s_p2_line = -1;
+static int s_state_line = -1;
 static int s_queue_rows[QUEUE_ROWS];
 static int s_lobby_rows[LOBBY_ROWS];
 /* Every highlightable line is drawn twice, in two colours, at the same place -
@@ -259,6 +333,20 @@ void peppy_room_set_players(const char *p1, const char *p2)
         Text_UpdateSubtextContents(s_text, s_p1_line, "%s", p1 ? p1 : "");
     if (s_p2_line >= 0)
         Text_UpdateSubtextContents(s_text, s_p2_line, "%s", p2 ? p2 : "");
+}
+
+/* Choosing, or playing. */
+static void peppy_room_draft_state(void *msrb)
+{
+    const u8 *d = (const u8 *)msrb + MSRB_DRAFT;
+
+    if (s_state_line < 0)
+        return;
+    if (d[1] == MSRB_DRAFT_NONE && d[3] == MSRB_DRAFT_NONE && !d[5])
+        Text_UpdateSubtextContents(s_text, s_state_line, "%s", "");
+    else
+        Text_UpdateSubtextContents(s_text, s_state_line, "%s",
+                                   d[5] ? "PLAYING" : "CHOOSING");
 }
 
 /* Called when the queue state changes; the roster will drive this once it is
@@ -439,7 +527,7 @@ static void peppy_room_viewport(void *gobj, int top_half)
  *
  * Left standing because the hard part - finding the text's GObj, reading its
  * render link, matching it to a camera - is what that will need. */
-__attribute__((unused)) static void peppy_room_split(void)
+static void peppy_room_split(void)
 {
     char line[100];
     char *p = line;
@@ -674,6 +762,7 @@ static void peppy_room_refresh(void)
 
     peppy_room_two_tone(s_back_line, s_back_hi, "BACK", s_pick_col == PICK_BACK);
 
+    peppy_room_draft_state(msrb);
     if (s_p1_line >= 0)
     {
         peppy_room_name(name, roster + 0 * MSRB_ROSTER_STRIDE);
@@ -927,6 +1016,11 @@ static void peppy_room_build(void)
                      "VS", SIZE_HEADING, X_VS, Y_DIVIDER);
     s_p2_line = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
                                  "", SIZE_HEADING, X_P2, Y_DIVIDER);
+    /* Under the VS, because the two states look identical otherwise: a pair
+     * still choosing and a pair mid-game both draw two characters on a stage. */
+    s_state_line = FG_CreateSubtext(text, COL_WAIT, PEPPY_SUBTEXT_PLAIN, 0,
+                                    "", SIZE_ACTION, X_VS - 28.0f,
+                                    Y_DIVIDER + 26.0f);
 
     /* Which room you are actually in. It was nowhere on the screen, which is
      * fine right up until somebody wants to tell a friend the code. */
@@ -1455,6 +1549,8 @@ void peppy_room_load(void *scene)
 
         s_browsing = msrb0 && (*(u8 *)((char *)msrb0 + MSRB_ROOM_FLAGS)
                                & MSRB_ROOM_FLAG_BROWSING);
+        /* Before the load, because the load is what builds from it. */
+        s_dressed = !s_browsing && msrb0 && peppy_room_dress_splash(msrb0);
     }
 
     /* The room is a menu and wants a menu's backdrop.
@@ -1477,7 +1573,13 @@ void peppy_room_load(void *scene)
      * Tried twice: with that scene's own minor data, and with the scene pointer
      * this load is handed. Same both times, so it is not the argument. */
     SceneLoad_ClassicModeSplash(scene);
-    peppy_room_clear_borrowed_scene();
+    /* The sweep is what kept the borrowed scene's own artwork off the screen -
+     * the 1-P Mode furniture that has no business in a room. But once the block
+     * above is filled in, the things it would sweep away ARE the two characters
+     * and the stage they are playing on, which is the whole point. So it only
+     * runs when there is nothing to show. */
+    if (!s_dressed)
+        peppy_room_clear_borrowed_scene();
 
     s_text = 0;
     s_queue_line = -1;
@@ -1492,6 +1594,7 @@ void peppy_room_load(void *scene)
     s_lobby_head = -1;
     s_p1_line = -1;
     s_p2_line = -1;
+    s_state_line = -1;
     s_queued = 0;
     s_pick_col = PICK_QUEUE;
     s_pick_row = 0;
@@ -1560,8 +1663,11 @@ void peppy_room_load(void *scene)
         peppy_room_set_queued(msrb ? peppy_room_self_queued(msrb) : 0);
     }
     peppy_room_start_searching();
-    /* Not split - see peppy_room_split. The room has the screen to itself
-     * until there is something to put in the other half. */
+    /* Split only when there is something in the other half. With nothing to
+     * show, the room is better off with the whole screen than with half of it
+     * and a blank band. */
+    if (s_dressed)
+        peppy_room_split();
     peppy_log("Peppy: room scene built");
 }
 
