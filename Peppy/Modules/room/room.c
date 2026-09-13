@@ -984,7 +984,7 @@ __attribute__((unused)) static u32 peppy_css_data(void)
     return *(u32 *)((char *)peppy_sda() - 0x77c0) + 0xd10;
 }
 
-static void peppy_dump_at(u32 base, int rows)
+__attribute__((unused)) static void peppy_dump_at(u32 base, int rows)
 {
     char line[128];
     int row;
@@ -1038,6 +1038,7 @@ __attribute__((unused)) static void peppy_dump_match_struct(void)
  * made every attempt at training walk off into a stage that does not exist. */
 void peppy_room_load(void *scene)
 {
+    (void)scene;
     /* A text object registers its own draw callback but still needs a camera
      * and a render pass to be drawn into, and nothing sets those up for a
      * scene invented from nothing -- which is why the first build of this ran
