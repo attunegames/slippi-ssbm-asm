@@ -318,7 +318,7 @@ bl PeppyRoomSceneDecide     #SceneDecide
 .byte 7                     #Minor Scene ID
 .byte 3                     #Amount of persistent heaps
 .align 2
-.long 0x801b1f70            #ScenePrep_TrainingMode_InGame
+bl PeppyTrainScenePrep      #ScenePrep
 bl PeppyTrainSceneDecide    #SceneDecide
 .byte 0x52                  #Common Minor ID (Peppy training)
 .align 2
@@ -348,6 +348,23 @@ blr
 # is no new state anywhere and nothing to keep in step.
 .set PEPPY_MINOR_LEAVE_MAJOR, 0xFE
 .set PEPPY_MAJOR_MAIN_MENU, 1
+
+# The major's own load, then the scene's own prep. An in-game scene loads the
+# stage and characters its match describes, and in the training major that
+# match is filled in by the training menus before ever reaching here - so on
+# this path something has to stand in for them.
+.set MajorLoad_TrainingMode, 0x801b23c4
+.set ScenePrep_TrainingMode_InGame, 0x801b1f70
+
+PeppyTrainScenePrep:
+backup
+logf LOG_LEVEL_NOTICE, "Peppy: training prep"
+branchl r12, MajorLoad_TrainingMode
+logf LOG_LEVEL_NOTICE, "Peppy: training major loaded"
+branchl r12, ScenePrep_TrainingMode_InGame
+logf LOG_LEVEL_NOTICE, "Peppy: training scene prepped"
+restore
+blr
 
 # The Decide is ours and does nothing. Melee's would send you on to training's
 # own character select, which is a minor of the training major and does not
