@@ -861,16 +861,11 @@ static void peppy_room_check_paired(void *msrb)
  */
 static void peppy_room_train(void)
 {
-    peppy_log("Peppy: off to practise");
-
-    /* Asked for the way Melee's own menus ask for a match: the raw minor id in
-     * the short data area. The scene controller's pending byte carries menu
-     * scenes around perfectly well - it is what takes a matched player to the
-     * character select - but an in-game scene wants this one, which is what
-     * Slippi's stage select writes when it starts a game. */
-    *(u8 *)(peppy_sda() + SDA_NEXT_MINOR) = ONLINE_MINOR_TRAIN;
-    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN);
-    Scene_ExitMinor();
+    /* Nothing routes to the training scene yet. Going there either sits on this
+     * screen forever or, if the scene is asked for the way Melee's own menus
+     * ask for a match - the raw minor id at SDA_NEXT_MINOR - takes the game
+     * somewhere that is not code at all. Both are written up in main.asm. */
+    peppy_log("Peppy: practice is not ready yet");
 }
 
 /* Leaving the room.
