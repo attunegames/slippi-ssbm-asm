@@ -1506,15 +1506,19 @@ void peppy_room_think(void)
         if (msrb)
             peppy_room_redress(msrb);
     }
-    /* The borrowed splash preloads its character models across frames, and its
-     * own think is what advances that - so borrowing the load alone leaves it
-     * saying NOW LOADING for ever, which is exactly what the top half showed.
+    /* ⚠️ Do NOT call SceneThink_ClassicModeSplash here to finish the preload.
      *
-     * Only once there is a match in it. If this turns out to advance the scene
-     * on its own when the preload finishes, the room will exit itself and that
-     * will be obvious immediately. */
-    if (s_dressed)
-        SceneThink_ClassicModeSplash();
+     * It does advance it - and then advances the SCENE, because that is the
+     * other half of what a splash think is for. The room threw itself into the
+     * game-prep scene, which for anybody who is not one of the two playing is a
+     * DISCONNECTED box and no way back. Tried once, on purpose, and that is
+     * exactly what happened.
+     *
+     * So the borrowed splash stays on NOW LOADING for ever: its character models
+     * preload across frames and nothing here can finish them. Full-body
+     * characters in the top half need something other than borrowing this
+     * scene - the portraits the draft uses are frame-addressed and preload
+     * nothing, which is the next thing to try. */
     peppy_room_refresh();
     peppy_room_buttons();
 }
