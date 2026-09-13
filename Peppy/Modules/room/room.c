@@ -1309,12 +1309,20 @@ static void peppy_room_spin(void)
  * one got to, so the next build knows which half to look in. */
 static void peppy_room_mark(const char *what, int n)
 {
-    char line[48];
+    const u8 *ctrl = (const u8 *)&SCENE_CTRL;
+    char line[64];
     char *o = put(line, "Peppy: ");
+    int i;
 
     o = put(o, what);
     *o++ = ' ';
     o = put_hex(o, (u32)n);
+    o = put(o, " scn");
+    for (i = 0; i < 6; i++)
+    {
+        *o++ = ' ';
+        o = put_u8(o, ctrl[i]);
+    }
     *o = 0;
     peppy_log(line);
 }
@@ -1324,8 +1332,6 @@ void peppy_room_think(void)
     s_tick++;
     if ((s_tick % 60) == 0)
         peppy_room_mark("tick", s_tick);
-    if (s_tick > 2050 && s_tick < 2400)
-        peppy_room_mark("frame-in", s_tick);
 
     /* The roster changes while people come and go, so it is read every frame
      * rather than once at load. */
@@ -1342,14 +1348,8 @@ void peppy_room_think(void)
     }
 
     peppy_room_spin();
-    if (s_tick > 2050 && s_tick < 2400)
-        peppy_room_mark("spun", s_tick);
     peppy_room_refresh();
-    if (s_tick > 2050 && s_tick < 2400)
-        peppy_room_mark("drawn", s_tick);
     peppy_room_buttons();
-    if (s_tick > 2050 && s_tick < 2400)
-        peppy_room_mark("frame-out", s_tick);
 }
 
 /* Melee's match: what stage, which characters, how many stocks. 0x8046b6a0 is
@@ -1470,8 +1470,14 @@ void peppy_room_load(void *scene)
      *
      * Tried twice: with that scene's own minor data, and with the scene pointer
      * this load is handed. Same both times, so it is not the argument. */
-    SceneLoad_ClassicModeSplash(scene);
-    peppy_room_clear_borrowed_scene();
+    /* TEMPORARY - the borrow is off, to find out whether the splash's own
+     * machinery is what stops the room about half a minute in. The screen is
+     * black without it; the tick log is the whole point of this build. */
+    if (0)
+    {
+        SceneLoad_ClassicModeSplash(scene);
+        peppy_room_clear_borrowed_scene();
+    }
 
     s_text = 0;
     s_queue_line = -1;
