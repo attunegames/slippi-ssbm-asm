@@ -976,6 +976,10 @@ void peppy_room_think(void)
 #define TRAIN_MINOR_DATA 0x8048e4c0
 
 void ScenePrep_TrainingMode_InGame(void *minor_data);
+/* Where this scene's minor data actually lives. The prep writes through this
+ * rather than through its own argument, so the load has to be handed the same
+ * thing or it starts a different match from the one that was just prepared. */
+void *GetMinorSceneData1(void);
 
 /* Where the character select keeps its picks: a pointer in the short data
  * area, plus 0xd10. Training's own in-game prep reads exactly this. */
@@ -1092,17 +1096,17 @@ void peppy_room_load(void)
          *   ScenePrep copies that into the minor data
          *   SceneLoad hands the minor data to StartMelee
          */
-        MajorSetup_TrainingMode();
-        peppy_log("Peppy: training set up");
-        ScenePrep_TrainingMode_InGame((void *)TRAIN_MINOR_DATA);
-        peppy_log("Peppy: training match prepared");
-        /* What the prep actually produced. StartMelee reads the stage from
-         * +0x0E of this, so if that is zero it is looking for a stage that
-         * does not exist. */
-        peppy_dump_at(TRAIN_MINOR_DATA, 4);
-        peppy_dump_at(peppy_css_data(), 4);
-        SceneLoad_TrainingModeInGame((void *)TRAIN_MINOR_DATA);
-        peppy_log("Peppy: TRAINING IS RUNNING");
+        {
+            void *md;
+
+            MajorSetup_TrainingMode();
+            ScenePrep_TrainingMode_InGame(0);
+            md = GetMinorSceneData1();
+            peppy_log("Peppy: training match prepared");
+            peppy_dump_at((u32)md, 4);
+            SceneLoad_TrainingModeInGame(md);
+            peppy_log("Peppy: TRAINING IS RUNNING");
+        }
     }
 
     s_text = 0;
