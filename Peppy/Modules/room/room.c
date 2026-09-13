@@ -160,6 +160,7 @@ static const char *const MODE_NAMES[] = {
 /* The refresh runs every frame and is written top-down; these two are the
  * ways out of the scene and read better next to each other, further down. */
 static void peppy_room_go_to_draft(const char *why);
+static void peppy_room_go_to_splash(const char *why);
 static void peppy_room_check_paired(void *msrb);
 static void peppy_room_train(void);
 static void peppy_room_move_pick(void);
@@ -1009,6 +1010,18 @@ static void peppy_room_build(void)
  * The flag rather than the roster decides it: two names in the active slots
  * mean a pair has been introduced, not that there is anything on screen yet.
  */
+/* Into a game with nothing to pick - which is what watching is.
+ *
+ * The splash is minor 4 of this major. Its init has to run first, and that
+ * lives in the codeset, so PeppyRoomSceneDecide makes the call when it sees
+ * this minor asked for. */
+static void peppy_room_go_to_splash(const char *why)
+{
+    peppy_log(why);
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_SPLASH);
+    Scene_ExitMinor();
+}
+
 /* Matched players go to the draft - stage, then characters - and never see the
  * character select. */
 static void peppy_room_go_to_draft(const char *why)
@@ -1050,13 +1063,21 @@ static void peppy_room_spectate(void)
         return;
     }
 
-    /* The same screen the players are on, because that is the whole mechanism:
-     * a watcher's pads are driven by the players' replayed inputs, so the two
-     * only stay in step while both are in the same scene. Sending watchers to
-     * the character select worked right up until players stopped going there -
-     * now they draft first, and a watcher sat on a character select being fed
-     * inputs meant for a stage grid, waiting for a Start that never came. */
-    peppy_room_go_to_draft("Peppy: watching the match");
+    /* Straight into the game, past every screen where something gets chosen.
+     *
+     * A watcher has nothing to choose and no way to advance a screen that
+     * expects a choice. The draft does not run on pad inputs - it runs on the
+     * step results the two players relay to each other, which a watcher never
+     * receives - so one sent there sits on "select a stage to ban" until the
+     * match it is meant to be watching has finished. The character select was
+     * the same in its own way.
+     *
+     * There is nothing to wait for either: WATCHABLE already means Dolphin has
+     * both players' selections AND a timeline of frames, which only happens
+     * once the game is live. The match block is filled in from the stream, and
+     * the splash's init is what copies it into the scene - so that is the
+     * screen a watcher wants, and the codeset's room Decide makes that call. */
+    peppy_room_go_to_splash("Peppy: watching the match");
 }
 
 /* Paired up: the room's job is done and the character select takes over.
