@@ -1022,18 +1022,18 @@ static void peppy_room_back(void)
 {
     if (s_queued)
         peppy_room_set_queued(0);
-    peppy_log("Peppy: leaving the room");
+    peppy_log("Peppy: left the queue");
 
-    /* Straight to the character select, which is one screen from the menu and
-     * has Melee's own BACK on it.
+    /* And stays here.
      *
-     * This used to ask to leave the MAJOR, through a sentinel minor the scene's
-     * Decide watched for. That never worked, and once the table gained a
-     * catch-all entry - whose entire job is to swallow ids above the table -
-     * the sentinel was being caught by it, and the two left the game with no
-     * scene at all. */
-    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_CSS);
-    Scene_ExitMinor();
+     * Leaving the ROOM is unsolved - leaving the online major has never worked
+     * from a scene of ours, and every stand-in destination is wrong in its own
+     * way. Asking for a sentinel minor left the game with no scene at all once
+     * the table gained a catch-all; the character select advances itself to a
+     * versus splash while the match state still looks live.
+     *
+     * So B does the part that is real - it takes you out of the queue - and
+     * does not pretend to do the part that is not. */
 }
 
 /* The room's buttons.
