@@ -30,7 +30,11 @@ CSS_LEAVE = 0x80266D70
 SCENES = [
     # id,   file,               think,       load,       leave
     (0x51, "PeppyRoom.dat",     0,           0,          0),
-    (0x52, "PeppyTrain.dat",    TRAIN_THINK, TRAIN_LOAD, TRAIN_LEAVE),
+    # No module: Melee's own training scene, called by the scene machinery with
+    # the arguments it expects. A module here would replace those functions and
+    # has to hand the scene pointer back through, which is one more thing to get
+    # wrong while the basic case is still unproven.
+    (0x52, None,                TRAIN_THINK, TRAIN_LOAD, TRAIN_LEAVE),
     (0x53, None,                CSS_THINK,   CSS_LOAD,   CSS_LEAVE),
 ]
 
