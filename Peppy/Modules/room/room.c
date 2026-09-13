@@ -1032,21 +1032,73 @@ static void peppy_room_train(void)
 
 /* Leaving the room for real.
  *
- * Two steps, because they are two different things. Dolphin is told to let go
- * of the room, which stops the heartbeat and the pairing - and only then is the
- * character select worth going to, because it opens idle rather than rushing on
- * to a versus splash the way it does while a match still looks live. Melee's
- * own BACK is waiting there, and it has always known how to leave online.
+ * Not a new screen: the same one, rebuilt as the room list. Joining from that
+ * list already turns the browser into a room without leaving the scene - this
+ * is that, backwards - and it sidesteps the thing that has never worked, which
+ * is ending the online major from a scene of ours. You came in through the
+ * list, so the list is where out goes.
+ *
+ * Two messages, because they are two different things. Dolphin is told to let
+ * go of the room, which takes the queue with it and tells the room so the other
+ * screens stop drawing your name; and then to start fetching the public list
+ * again, because that thread stops the moment a room is joined.
  */
 static void peppy_room_exit_room(void)
 {
+    void *msrb = FN_LoadMatchState(0);
+    u8 mode = msrb ? *(u8 *)((char *)msrb + MSRB_ROOM_MODE) : 0;
+    void *gobj;
+    int i;
+
     peppy_log("Peppy: leaving the room");
 
     peppy_exi_buf[0] = PEPPY_CMD_LEAVE_ROOM;
     FN_EXITransferBuffer(peppy_exi_buf, 1, CONST_ExiWrite);
 
-    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_CSS);
-    Scene_ExitMinor();
+    peppy_exi_buf[0] = PEPPY_CMD_LIST_ROOMS;
+    peppy_exi_buf[1] = mode;
+    FN_EXITransferBuffer(peppy_exi_buf, 2, CONST_ExiWrite);
+
+    /* Same swap the join does: throw the text object away and make another.
+     * Asking for the scene again lands on a black screen - whatever the engine
+     * does with a minor that re-enters itself, it is not "run Load again". */
+    gobj = peppy_find_text_gobj();
+    if (gobj)
+        GObj_Destroy(gobj);
+    s_text = peppy_room_new_text();
+    if (!s_text)
+    {
+        peppy_log("Peppy: left, but could not build the room list");
+        return;
+    }
+
+    s_browsing = 1;
+    s_queued = 0;
+    s_browse_cursor = 0;
+    s_browse_hint = -1;
+    for (i = 0; i < BROWSE_ROWS; i++)
+        s_browse_rows[i] = -1;
+    /* The room's own line numbers belonged to the object that was just
+     * destroyed. Nothing in browse mode reads them, but a stale index is the
+     * kind of thing that outlives the reason it was safe. */
+    s_queue_line = -1;
+    s_line2 = -1;
+    s_spin_wait = -1;
+    s_spin_done = -1;
+    s_next_sym = -1;
+    s_room_line = -1;
+    s_queue_head = -1;
+    s_lobby_head = -1;
+    s_p1_line = -1;
+    s_p2_line = -1;
+    s_back_line = -1;
+    for (i = 0; i < QUEUE_ROWS; i++)
+        s_queue_rows[i] = -1;
+    for (i = 0; i < LOBBY_ROWS; i++)
+        s_lobby_rows[i] = -1;
+
+    peppy_room_build_browser(s_text);
+    peppy_log("Peppy: room list built");
 }
 
 /* Leaving the room.
@@ -1098,10 +1150,11 @@ static void peppy_room_back(void)
 
 /* The room's buttons.
  *
- * START joins or leaves the queue - both the line it prints and the message
- * that decides whether this client is offered a game.
+ * START joins the queue, and once you are in it goes off to practise.
  *
- * B leaves the room entirely.
+ * B leaves the QUEUE and stays in the room. BACK - the corner, highlighted with
+ * the stick and taken with A - leaves the ROOM, and takes the queue with it.
+ * Two different things, so two different buttons.
  *
  * Z watches the match, when there is one.
  */
@@ -1134,6 +1187,19 @@ static void peppy_room_move_pick(void)
     if (!msrb)
         return;
     peppy_room_count_names(msrb, &queue, &lobby);
+
+    /* TEMPORARY. Up and down were measured; left and right were guessed at from
+     * the shape of them, which is not the same thing. Say what actually arrives
+     * so the next build can stop guessing. */
+    if (pressed)
+    {
+        char line[32];
+        char *o = put(line, "Peppy: pad ");
+
+        o = put_hex(o, pressed);
+        *o = 0;
+        peppy_log(line);
+    }
 
     if (pressed & (PAD_STICK_LEFT | PAD_DPAD_LEFT))
         s_pick_col = PICK_QUEUE;
