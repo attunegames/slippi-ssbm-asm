@@ -542,30 +542,13 @@ stb r3, 0x5(r4)
 restore
 blr
 
-PeppyRoomSceneDecide:
-backup
-
-load r31, 0x80479d30
-lbz r3, 0x5(r31)
-cmpwi r3, PEPPY_MINOR_LEAVE_MAJOR
-bne PeppyRoomSceneDecide_EXIT
-
-# Zero, which is the character select - one screen from the menu, and Melee's
-# own BACK gets the rest of the way. It is not what this wants.
+# Nothing to decide. The room names its own next scene from its Think.
 #
-# What it wants is to end the MAJOR, and that is still unsolved. From here, with
-# the major already named, 0xFF - the value that terminates a minor scene table
-# - freezes the picture exactly as it did from the module's Think. So does
-# every other way tried; see peppy_room_back in room.c for the full list. Zero
-# at least always lands somewhere.
-li r3, 0
-stb r3, 0x5(r31)
-
-li r3, PEPPY_MAJOR_MAIN_MENU
-branchl r12, Event_StoreSceneNumber
-
-PeppyRoomSceneDecide_EXIT:
-restore
+# This used to watch for a sentinel minor meaning "leave the major" and answer
+# with Event_StoreSceneNumber. It never worked - eight ways are written up in
+# peppy_room_back in room.c - and the catch-all entry in the minor table now
+# swallows any such sentinel before this ever sees it.
+PeppyRoomSceneDecide:
 blr
 
 DATA_BLRL:
