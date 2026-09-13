@@ -477,14 +477,6 @@ lwz r4, 0x10(r31)
 li r3, PEPPY_TRAIN_STAGE
 sth r3, 0xE(r4)
 logf LOG_LEVEL_NOTICE, "Peppy: training match built, stage %d", "lhz r5, 0xE(r4)"
-# The six player slots the match carries, at +0x60 with a 0x24 stride. A slot
-# type of 3 is "nobody", and a match of six nobodies is not a match.
-logf LOG_LEVEL_NOTICE, "Peppy: slot0 %x", "lwz r5, 0x60(r31)"
-logf LOG_LEVEL_NOTICE, "Peppy: slot0b %x", "lwz r5, 0x64(r31)"
-logf LOG_LEVEL_NOTICE, "Peppy: slot1 %x", "lwz r5, 0x84(r31)"
-logf LOG_LEVEL_NOTICE, "Peppy: slot2 %x", "lwz r5, 0xA8(r31)"
-logf LOG_LEVEL_NOTICE, "Peppy: head0 %x", "lwz r5, 0x0(r31)"
-logf LOG_LEVEL_NOTICE, "Peppy: head1 %x", "lwz r5, 0x4(r31)"
 restore
 blr
 

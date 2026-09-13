@@ -868,13 +868,9 @@ static void peppy_room_check_paired(void *msrb)
 static void peppy_room_train(void)
 {
     peppy_log("Peppy: off to practise");
-    /* TEST BUILD: straight to training, skipping the character select.
-     *
-     * The crash to be caught happens when the training scene ends, and getting
-     * there through the menus needs a character picked - which a scripted pad
-     * cannot do. This reaches the same place with one button. Put it back to
-     * ONLINE_MINOR_TRAIN_CSS before shipping. */
-    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN);
+    /* Training's character select first. A match needs a character in it, and
+     * this is where one comes from. */
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN_CSS);
     Scene_ExitMinor();
 }
 
