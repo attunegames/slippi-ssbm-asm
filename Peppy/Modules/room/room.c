@@ -983,7 +983,7 @@ void *GetMinorSceneData1(void);
 
 /* Where the character select keeps its picks: a pointer in the short data
  * area, plus 0xd10. Training's own in-game prep reads exactly this. */
-static u32 peppy_css_data(void)
+__attribute__((unused)) static u32 peppy_css_data(void)
 {
     return *(u32 *)((char *)peppy_sda() - 0x77c0) + 0xd10;
 }
