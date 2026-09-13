@@ -457,17 +457,26 @@ blr
 # stage select, which has not run.
 .set PEPPY_TRAIN_STAGE, 0x1F        # Battlefield
 
+# A ScenePrep is handed the minor DESCRIPTOR, not the match - Melee does
+# `addi r3, r27, 0` on the way in. The descriptor already points at a match
+# buffer at +0x10, and Melee's own prep writes through exactly that.
+#
+# Writing to +0x10 here, as this used to, pointed the descriptor at itself, and
+# Melee's prep then wrote ninety-six bytes of match data over the minor table -
+# taking the decide pointers of every entry after this one with it. The table
+# read clean at room load and was rubble by the time anything was called
+# through it, which is the whole "Unknown instruction at PC = 010000fc" crash.
 PeppyTrainScenePrep:
 backup
-logf LOG_LEVEL_NOTICE, "Peppy: training prep reached"
 mr r31, r3
-stw r31, 0x10(r31)
 branchl r12, MajorSetup_TrainingMode
 mr r3, r31
 branchl r12, ScenePrep_TrainingMode_InGame
+# The stage goes in the match, which is where the descriptor points.
+lwz r4, 0x10(r31)
 li r3, PEPPY_TRAIN_STAGE
-sth r3, 0xE(r31)
-logf LOG_LEVEL_NOTICE, "Peppy: training match built, stage %d", "lhz r5, 0xE(r31)"
+sth r3, 0xE(r4)
+logf LOG_LEVEL_NOTICE, "Peppy: training match built, stage %d", "lhz r5, 0xE(r4)"
 # The six player slots the match carries, at +0x60 with a 0x24 stride. A slot
 # type of 3 is "nobody", and a match of six nobodies is not a match.
 logf LOG_LEVEL_NOTICE, "Peppy: slot0 %x", "lwz r5, 0x60(r31)"
