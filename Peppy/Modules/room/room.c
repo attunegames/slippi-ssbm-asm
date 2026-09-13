@@ -265,6 +265,22 @@ static void peppy_room_set_queued(int queued)
 #define PEPPY_CLASS_TEXT    0
 #define PEPPY_CLASS_CAMERA  20
 
+/* Is this one of the character select's hands?
+ *
+ * Kept by pointer rather than by class, because the hand shares its class with
+ * the rest of that scene's models - keeping the class would keep the character
+ * grid with it. */
+static int peppy_room_is_cursor(void *g)
+{
+    void **objs = (void **)CSS_CURSOR_OBJS;
+    int i;
+
+    for (i = 0; i < CSS_CURSOR_PORTS; i++)
+        if (objs[i] == g)
+            return 1;
+    return 0;
+}
+
 static void peppy_room_clear_borrowed_scene(void)
 {
     void **heads = peppy_gobj_heads();
@@ -282,7 +298,8 @@ static void peppy_room_clear_borrowed_scene(void)
         {
             void *next = *(void **)((char *)g + PEPPY_GOBJ_NEXT);
 
-            GObj_Destroy(g);
+            if (!peppy_room_is_cursor(g))
+                GObj_Destroy(g);
             g = next;
         }
     }
@@ -1201,7 +1218,19 @@ void peppy_room_load(void *scene)
      * to hold, which the match-state call just above had already overwritten.
      * Entering the room from the menu got away with it; coming back from
      * training did not, and the room drew nothing at all. */
-    SceneLoad_ClassicModeSplash(scene);
+    /* The room list is a menu and borrows the splash for its camera. A room
+     * borrows the CHARACTER SELECT instead, because that is the scene that owns
+     * the hand - it is created by that load and moved every frame by Melee's
+     * own cursor think reading the stick. Everything else that load builds is
+     * thrown away immediately afterwards.
+     *
+     * Each load is handed the data it expects: a scene load reads its minor
+     * data from the argument, so the room can pass the character select's while
+     * its own descriptor still names the splash's. */
+    if (s_browsing)
+        SceneLoad_ClassicModeSplash(scene);
+    else
+        CSS_LoadFunction((void *)CSS_MINOR_DATA);
     peppy_room_clear_borrowed_scene();
 
     s_text = 0;
