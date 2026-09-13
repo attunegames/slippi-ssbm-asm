@@ -165,7 +165,6 @@ static void peppy_room_check_paired(void *msrb);
 static void peppy_room_train(void);
 static void peppy_room_move_pick(void);
 static void peppy_room_exit_room(void);
-static int s_tick;   /* TEMPORARY - see peppy_room_think */
 /* Joining from the list turns the browser back into a room without leaving the
  * scene, so it needs both builders before either is defined. */
 static void *peppy_room_new_text(void);
@@ -174,6 +173,25 @@ static void peppy_room_set_queued(int queued);
 static void peppy_room_start_searching(void);
 
 static void *s_text;
+/* The match state buffer, made once and kept.
+ *
+ * FN_LoadMatchState takes the buffer to fill and allocates a new one when it is
+ * handed zero - and never gives it back. Every call in Slippi's own code passes
+ * zero, and every one of them is a scene setting itself up, once. This screen
+ * reads the roster every frame, two and three times a frame, and passing zero
+ * there is thirteen hundred bytes a go: about five megabytes a minute, until
+ * the heap has nothing left and the game stops where it stands. The picture
+ * freezes, the emulated CPU carries on, and nothing in the log says why.
+ *
+ * That is the whole of the "the room dies about half a minute in" bug, and it
+ * was there long before anything was highlighted. */
+static void *s_msrb;
+
+static void *peppy_room_msrb(void)
+{
+    s_msrb = FN_LoadMatchState(s_msrb);
+    return s_msrb;
+}
 /* The screen has two shapes: a room, and the list of public rooms you pick one
  * from. Same scene, same text object - only what gets built and what the pad
  * does differ, because a browser that was its own scene would be a second
@@ -619,7 +637,7 @@ static void peppy_room_refresh(void)
 
     if (!s_text)
         return;
-    msrb = FN_LoadMatchState(0);
+    msrb = peppy_room_msrb();
     if (!msrb)
         return;
     roster = (const char *)msrb + MSRB_ROSTER;
@@ -1017,7 +1035,7 @@ static void peppy_room_start_searching(void)
 
 static void peppy_room_spectate(void)
 {
-    void *msrb = FN_LoadMatchState(0);
+    void *msrb = peppy_room_msrb();
 
     if (!msrb || !(*(u8 *)((char *)msrb + MSRB_ROOM_FLAGS)
                    & MSRB_ROOM_FLAG_WATCHABLE))
@@ -1078,7 +1096,7 @@ static void peppy_room_train(void)
  */
 static void peppy_room_exit_room(void)
 {
-    void *msrb = FN_LoadMatchState(0);
+    void *msrb = peppy_room_msrb();
     u8 mode = msrb ? *(u8 *)((char *)msrb + MSRB_ROOM_MODE) : 0;
     void *gobj;
     int i;
@@ -1215,25 +1233,12 @@ static void peppy_room_count_names(void *msrb, int *queue, int *lobby)
 static void peppy_room_move_pick(void)
 {
     u32 pressed = peppy_pad_pressed();
-    void *msrb = FN_LoadMatchState(0);
+    void *msrb = peppy_room_msrb();
     int queue, lobby, limit;
 
     if (!msrb)
         return;
     peppy_room_count_names(msrb, &queue, &lobby);
-
-    /* TEMPORARY. Up and down were measured; left and right were guessed at from
-     * the shape of them, which is not the same thing. Say what actually arrives
-     * so the next build can stop guessing. */
-    if (pressed)
-    {
-        char line[32];
-        char *o = put(line, "Peppy: pad ");
-
-        o = put_hex(o, pressed);
-        *o = 0;
-        peppy_log(line);
-    }
 
     if (pressed & (PAD_STICK_LEFT | PAD_DPAD_LEFT))
         s_pick_col = PICK_QUEUE;
@@ -1303,41 +1308,13 @@ static void peppy_room_spin(void)
     s_spin_frame = (s_spin_frame + 1) % (2 * SPINNER_FRAMES);
 }
 
-/* TEMPORARY. The room stops thinking about thirty-seven seconds after it is
- * built, every time, with or without a button pressed - the picture stops and
- * the emulated CPU carries on. Count frames and say where in the frame the last
- * one got to, so the next build knows which half to look in. */
-static void peppy_room_mark(const char *what, int n)
-{
-    const u8 *ctrl = (const u8 *)&SCENE_CTRL;
-    char line[64];
-    char *o = put(line, "Peppy: ");
-    int i;
-
-    o = put(o, what);
-    *o++ = ' ';
-    o = put_hex(o, (u32)n);
-    o = put(o, " scn");
-    for (i = 0; i < 6; i++)
-    {
-        *o++ = ' ';
-        o = put_u8(o, ctrl[i]);
-    }
-    *o = 0;
-    peppy_log(line);
-}
-
 void peppy_room_think(void)
 {
-    s_tick++;
-    if ((s_tick % 60) == 0)
-        peppy_room_mark("tick", s_tick);
-
     /* The roster changes while people come and go, so it is read every frame
      * rather than once at load. */
     if (s_browsing)
     {
-        void *msrb = FN_LoadMatchState(0);
+        void *msrb = peppy_room_msrb();
 
         if (msrb)
         {
@@ -1348,11 +1325,7 @@ void peppy_room_think(void)
     }
 
     peppy_room_spin();
-    /* TEMPORARY - the drawing is off, to find out whether what stops the room
-     * half a minute in is the text being rewritten every frame. Everything else
-     * still runs, the match state included. */
-    if (0)
-        peppy_room_refresh();
+    peppy_room_refresh();
     peppy_room_buttons();
 }
 
@@ -1436,6 +1409,11 @@ __attribute__((unused)) static void peppy_dump_match_struct(void)
  * made every attempt at training walk off into a stage that does not exist. */
 void peppy_room_load(void *scene)
 {
+    /* A fresh buffer for a fresh entry. One per visit to the room, which is
+     * what Slippi's own scenes cost too - the ruinous version was one per
+     * frame. See peppy_room_msrb. */
+    s_msrb = 0;
+
     /* A text object registers its own draw callback but still needs a camera
      * and a render pass to be drawn into, and nothing sets those up for a
      * scene invented from nothing -- which is why the first build of this ran
@@ -1449,7 +1427,7 @@ void peppy_room_load(void *scene)
      * builds a camera of its own.  Its artwork showing through is cosmetic and
      * the next thing to go. */
     {
-        void *msrb0 = FN_LoadMatchState(0);
+        void *msrb0 = peppy_room_msrb();
 
         s_browsing = msrb0 && (*(u8 *)((char *)msrb0 + MSRB_ROOM_FLAGS)
                                & MSRB_ROOM_FLAG_BROWSING);
@@ -1495,7 +1473,6 @@ void peppy_room_load(void *scene)
     s_pick_row = 0;
     s_back_line = -1;
     s_back_hi = -1;
-    s_tick = 0;
     s_roster_reported = 0;
     s_browse_cursor = 0;
     s_browse_hint = -1;
@@ -1554,7 +1531,7 @@ void peppy_room_load(void *scene)
      * "not queued", because coming back from training or from spectating you
      * never left. */
     {
-        void *msrb = FN_LoadMatchState(0);
+        void *msrb = peppy_room_msrb();
 
         peppy_room_set_queued(msrb ? peppy_room_self_queued(msrb) : 0);
     }

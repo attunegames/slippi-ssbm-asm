@@ -42,9 +42,15 @@ void SceneLeave_InGame(void);
  * pairing is torn down would read the last one and bounce straight out. */
 static int s_settle;
 
+/* The match state buffer, made once and kept - see peppy_room_msrb in room.c
+ * for what passing zero every frame costs. Thirteen hundred bytes a call,
+ * never given back, and this is asked once a frame. */
+static void *s_msrb;
+
 void peppy_train_load(void *scene)
 {
     s_settle = 0;
+    s_msrb = 0;
     /* The scene pointer is the match. Melee hands it to every scene and
      * everything about starting one hangs off it. */
     SceneLoad_TrainingModeInGame(scene);
@@ -66,7 +72,7 @@ void peppy_train_think(void *scene)
     /* The room names the pair it has made in the first two roster slots. A name
      * in there means the wait is over - Melee is about to be handed a match,
      * and the character select is where that is answered. */
-    msrb = FN_LoadMatchState(0);
+    msrb = s_msrb = FN_LoadMatchState(s_msrb);
     if (!msrb)
         return;
     if (!*(char *)((char *)msrb + MSRB_ROSTER))
