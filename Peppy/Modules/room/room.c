@@ -179,6 +179,7 @@ static void *s_text;
  * module and a second MxScn entry for one column of text. */
 static int s_browsing;
 static int s_browse_rows[BROWSE_ROWS];
+static int s_browse_hi[BROWSE_ROWS];
 static int s_browse_cursor;
 static int s_browse_hint;
 static int s_room_line;
@@ -198,6 +199,16 @@ static int s_p1_line = -1;
 static int s_p2_line = -1;
 static int s_queue_rows[QUEUE_ROWS];
 static int s_lobby_rows[LOBBY_ROWS];
+/* Every highlightable line is drawn twice, in two colours, at the same place -
+ * the lit one carries the text and the dim one carries nothing, or the other
+ * way round. A subtext's colour is fixed when it is made, so a line cannot
+ * change colour; and a marker character is no good either, because this font is
+ * Shift-JIS and has no ASCII '>' - it takes the width and draws nothing, which
+ * is what an invisible cursor looked like. Worse, '[' is something the
+ * formatter tries to read, and "[BACK]" wedged the text draw outright: the
+ * emulated CPU went on running and the picture never moved again. */
+static int s_queue_hi[QUEUE_ROWS];
+static int s_lobby_hi[LOBBY_ROWS];
 static int s_queued;
 /* Which name is highlighted, and in which column. The lobby is where a friends
  * list would start, so the cursor has to be able to reach both. */
@@ -206,7 +217,18 @@ static int s_queued;
 #define PICK_BACK  2        /* the corner, reachable by going up off the top */
 static int s_pick_col;
 static int s_pick_row;
-static int s_back_line = -1;
+static int s_back_line = -1;   /* grey, shown when BACK is not the pick */
+static int s_back_hi = -1;     /* gold, shown when it is */
+
+/* One line, two colours. The text goes to the lit copy or the dim one and the
+ * other is emptied, which is how a line appears to change colour. */
+static void peppy_room_two_tone(int dim, int lit, const char *str, int highlighted)
+{
+    if (dim >= 0)
+        Text_UpdateSubtextContents(s_text, dim, "%s", highlighted ? "" : str);
+    if (lit >= 0)
+        Text_UpdateSubtextContents(s_text, lit, "%s", highlighted ? str : "");
+}
 
 /* The two names on the line.  Empty when nobody is matched, which is the state
  * the room sits in most of the time. */
@@ -607,9 +629,7 @@ static void peppy_room_refresh(void)
         peppy_room_report_roster(msrb);
     }
 
-    if (s_back_line >= 0)
-        Text_UpdateSubtextContents(s_text, s_back_line, "%s",
-                                   s_pick_col == PICK_BACK ? "[BACK]" : " BACK ");
+    peppy_room_two_tone(s_back_line, s_back_hi, "BACK", s_pick_col == PICK_BACK);
 
     if (s_p1_line >= 0)
     {
@@ -629,18 +649,15 @@ static void peppy_room_refresh(void)
                                         + i) * MSRB_ROSTER_STRIDE);
         if (name[0])
             lobby++;
-        if (s_lobby_rows[i] >= 0)
         {
             char *p = row;
 
             if (name[0])
-            {
-                *p++ = (s_pick_col == PICK_LOBBY && s_pick_row == i) ? '>' : ' ';
-                *p++ = ' ';
                 p = put(p, name);
-            }
             *p = 0;
-            Text_UpdateSubtextContents(s_text, s_lobby_rows[i], "%s", row);
+            peppy_room_two_tone(s_lobby_rows[i], s_lobby_hi[i], row,
+                                name[0] && s_pick_col == PICK_LOBBY
+                                && s_pick_row == i);
         }
     }
 
@@ -653,16 +670,15 @@ static void peppy_room_refresh(void)
         if (name[0])
         {
             queue++;
-            *p++ = (s_pick_col == PICK_QUEUE && s_pick_row == i) ? '>' : ' ';
-            *p++ = ' ';
             p = put_u8(p, (u8)(i + 1));
             *p++ = '.';
             *p++ = ' ';
             p = put(p, name);
         }
         *p = 0;
-        if (s_queue_rows[i] >= 0)
-            Text_UpdateSubtextContents(s_text, s_queue_rows[i], "%s", row);
+        peppy_room_two_tone(s_queue_rows[i], s_queue_hi[i], row,
+                            name[0] && s_pick_col == PICK_QUEUE
+                            && s_pick_row == i);
     }
 
     /* An empty column and a column that is not working look identical, so say
@@ -699,9 +715,14 @@ static void peppy_room_build_browser(void *text)
                      "ROOM   HOST", SIZE_NAME, COL_LEFT, Y_ROOM);
 
     for (i = 0; i < BROWSE_ROWS; i++)
+    {
         s_browse_rows[i] = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN,
                                             0, "", SIZE_NAME, COL_LEFT,
                                             Y_HEADING + ROW_STEP * i);
+        s_browse_hi[i] = FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN,
+                                          0, "", SIZE_NAME, COL_LEFT,
+                                          Y_HEADING + ROW_STEP * i);
+    }
 
     s_browse_hint = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
                                      "", SIZE_ACTION, COL_LEFT, Y_ACTIONS);
@@ -712,7 +733,8 @@ static void peppy_room_build_browser(void *text)
 
 /* One row: a marker for the row the cursor is on, the code, the host and how
  * many people are in there. */
-static void peppy_room_browse_row(const char *entry, int selected, int line)
+static void peppy_room_browse_row(const char *entry, int selected, int line,
+                                  int lit)
 {
     char row[48];
     char *p = row;
@@ -721,16 +743,12 @@ static void peppy_room_browse_row(const char *entry, int selected, int line)
     u8 players = *(const u8 *)(entry + MSRB_ROOMLIST_PLAYERS);
     int i;
 
-    if (line < 0)
-        return;
     if (!code[0])
     {
-        Text_UpdateSubtextContents(s_text, line, "%s", "");
+        peppy_room_two_tone(line, lit, "", 0);
         return;
     }
 
-    *p++ = selected ? '>' : ' ';
-    *p++ = ' ';
     p = put(p, code);
     p = put(p, "   ");
     for (i = 0; i < MSRB_ROOMLIST_STRIDE - MSRB_ROOMLIST_OWNER && owner[i]; i++)
@@ -738,7 +756,7 @@ static void peppy_room_browse_row(const char *entry, int selected, int line)
     p = put(p, "   ");
     p = put_u8(p, players);
     *p = 0;
-    Text_UpdateSubtextContents(s_text, line, "%s", row);
+    peppy_room_two_tone(line, lit, row, selected);
 }
 
 static void peppy_room_browse_refresh(void *msrb)
@@ -754,7 +772,8 @@ static void peppy_room_browse_refresh(void *msrb)
 
     for (i = 0; i < BROWSE_ROWS; i++)
         peppy_room_browse_row(list + i * MSRB_ROOMLIST_STRIDE,
-                              i == s_browse_cursor, s_browse_rows[i]);
+                              i == s_browse_cursor, s_browse_rows[i],
+                              s_browse_hi[i]);
 
     if (s_browse_hint >= 0)
         Text_UpdateSubtextContents(s_text, s_browse_hint, "%s",
@@ -888,13 +907,23 @@ static void peppy_room_build(void)
                                     Y_HEADING);
 
     for (i = 0; i < QUEUE_ROWS; i++)
+    {
         s_queue_rows[i] = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN,
                                            0, "", SIZE_NAME, COL_LEFT,
                                            Y_FIRST_NAME + ROW_STEP * i);
+        s_queue_hi[i] = FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN,
+                                         0, "", SIZE_NAME, COL_LEFT,
+                                         Y_FIRST_NAME + ROW_STEP * i);
+    }
     for (i = 0; i < LOBBY_ROWS; i++)
+    {
         s_lobby_rows[i] = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN,
                                            0, "", SIZE_NAME, COL_RIGHT,
                                            Y_FIRST_NAME + ROW_STEP * i);
+        s_lobby_hi[i] = FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN,
+                                         0, "", SIZE_NAME, COL_RIGHT,
+                                         Y_FIRST_NAME + ROW_STEP * i);
+    }
 
     /* Start is the only thing that changes: once you are in the queue it stops
      * offering to put you there and offers practice instead, which is where
@@ -916,10 +945,13 @@ static void peppy_room_build(void)
                      STR_SPECTATE, SIZE_ACTION, COL_LEFT + X_SYMBOL,
                      Y_ACTIONS + 2.0f * ROW_ACTION);
 
-    /* The same corner the character select keeps its own BACK in. Kept by index
-     * so the brackets can go around it when it is the thing highlighted. */
+    /* The same corner the character select keeps its own BACK in. Twice over,
+     * grey and gold, so that highlighting it is a change of colour - see
+     * peppy_room_two_tone for why it cannot be anything else. */
     s_back_line = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                                   " BACK ", SIZE_HEADING, X_BACK, Y_DIVIDER);
+                                   "BACK", SIZE_HEADING, X_BACK, Y_DIVIDER);
+    s_back_hi = FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
+                                 "", SIZE_HEADING, X_BACK, Y_DIVIDER);
 }
 
 /* ----------------------------------------------------------------- exports */
@@ -1077,7 +1109,7 @@ static void peppy_room_exit_room(void)
     s_browse_cursor = 0;
     s_browse_hint = -1;
     for (i = 0; i < BROWSE_ROWS; i++)
-        s_browse_rows[i] = -1;
+        s_browse_rows[i] = s_browse_hi[i] = -1;
     /* The room's own line numbers belonged to the object that was just
      * destroyed. Nothing in browse mode reads them, but a stale index is the
      * kind of thing that outlives the reason it was safe. */
@@ -1092,10 +1124,11 @@ static void peppy_room_exit_room(void)
     s_p1_line = -1;
     s_p2_line = -1;
     s_back_line = -1;
+    s_back_hi = -1;
     for (i = 0; i < QUEUE_ROWS; i++)
-        s_queue_rows[i] = -1;
+        s_queue_rows[i] = s_queue_hi[i] = -1;
     for (i = 0; i < LOBBY_ROWS; i++)
-        s_lobby_rows[i] = -1;
+        s_lobby_rows[i] = s_lobby_hi[i] = -1;
 
     peppy_room_build_browser(s_text);
     peppy_log("Peppy: room list built");
@@ -1428,6 +1461,7 @@ void peppy_room_load(void *scene)
     s_pick_col = PICK_QUEUE;
     s_pick_row = 0;
     s_back_line = -1;
+    s_back_hi = -1;
     s_roster_reported = 0;
     s_browse_cursor = 0;
     s_browse_hint = -1;
@@ -1435,11 +1469,11 @@ void peppy_room_load(void *scene)
         int i;
 
         for (i = 0; i < QUEUE_ROWS; i++)
-            s_queue_rows[i] = -1;
+            s_queue_rows[i] = s_queue_hi[i] = -1;
         for (i = 0; i < LOBBY_ROWS; i++)
-            s_lobby_rows[i] = -1;
+            s_lobby_rows[i] = s_lobby_hi[i] = -1;
         for (i = 0; i < BROWSE_ROWS; i++)
-            s_browse_rows[i] = -1;
+            s_browse_rows[i] = s_browse_hi[i] = -1;
     }
 
     s_text = peppy_room_new_text();
