@@ -217,7 +217,7 @@ static void *s_msrb;
 
 static u8 *peppy_vs_data(void)
 {
-    char *r13 = (char *)peppy_r13();
+    char *r13 = (char *)peppy_sda();
     u8 *blk = *(u8 **)(r13 + VS_DATA_R13_OFS);
 
     return blk ? blk + VS_DATA_SKIP : 0;
