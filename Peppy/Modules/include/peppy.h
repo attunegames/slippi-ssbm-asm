@@ -262,6 +262,10 @@ void *FN_LoadMatchState(int unused);
 #define PEPPY_CMD_SET_QUEUED 0xC6
 /* Let go of the room itself, as opposed to just the queue. */
 #define PEPPY_CMD_LEAVE_ROOM 0xC9
+/* Start fetching the public rooms of one mode. The menu sends this on its way
+ * in; the room sends it again when somebody backs out, because the list thread
+ * stops the moment a room is joined. Payload is the mode. */
+#define PEPPY_CMD_LIST_ROOMS 0xC7
 
 /* Slippi's "start looking for an opponent". It is what starts the matchmaking
  * thread, and therefore what starts the room ticking - without it Dolphin
