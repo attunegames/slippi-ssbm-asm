@@ -302,10 +302,10 @@ bl PeppyRoomScenePrep       #ScenePrep
 bl PeppyRoomSceneDecide     #SceneDecide
 .byte 0x51                  #Common Minor ID (Peppy room)
 .align 2
-# The room sits on the Classic Mode Splash scene for now, so it gets the same
-# minor data Slippi's own splash minor passes.
-.long 0x80490880            #Minor Data 1
-.long 0x804d68d0            #Minor Data 2
+# Training's own minor data, read out of major 0x1c minor 2: the room runs
+# training underneath itself, so it is handed what training expects.
+.long 0x8048e4c0            #Minor Data 1
+.long 0x8048e5f8            #Minor Data 2
 #Peppy training
 # Waiting in a queue is exactly when somebody wants to be in training, so
 # training is a minor of THIS major rather than a major of its own. Melee's

@@ -71,11 +71,12 @@ class Scn:
         for _, _, ident, _ in self.entries():
             if ident == minor_id:
                 raise ValueError(f"scene {minor_id:#04x} already exists")
-        end = None
-        for _, off, _, _ in self.entries():
-            end = off + STRIDE
-        if end is None:
+        # Insert BEFORE the table's last entry, which is where Slippi put its own
+        # GameSetup scene rather than appending past it.
+        offs = [off for _, off, _, _ in self.entries()]
+        if not offs:
             raise ValueError("no entries found")
+        end = offs[-1]
 
         # Everything at or past the insertion point slides up by one entry.
         self.data[end:end] = bytes(STRIDE)
