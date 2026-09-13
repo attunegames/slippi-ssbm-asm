@@ -469,16 +469,18 @@ blr
 # taking the decide pointers of every entry after this one with it. The table
 # read clean at room load and was rubble by the time anything was called
 # through it, which is the whole "Unknown instruction at PC = 010000fc" crash.
+# Melee's own prep, and nothing else.
+#
+# This used to call MajorSetup_TrainingMode and force a stage, because at the
+# time nothing else supplied either. The character select does the major setup
+# now and the stage select picks the stage, so doing it again here only undoes
+# their work - it was overwriting the chosen stage with Battlefield, and the
+# second major setup is what tipped the game out of online mode.
 PeppyTrainScenePrep:
 backup
 mr r31, r3
-branchl r12, MajorSetup_TrainingMode
-mr r3, r31
 branchl r12, ScenePrep_TrainingMode_InGame
-# The stage goes in the match, which is where the descriptor points.
 lwz r4, 0x10(r31)
-li r3, PEPPY_TRAIN_STAGE
-sth r3, 0xE(r4)
 logf LOG_LEVEL_NOTICE, "Peppy: training match built, stage %d", "lhz r5, 0xE(r4)"
 # The match's own player slots, read through the descriptor this time. A slot
 # type of 3 is nobody, and a match of nobodies has nothing to render.
