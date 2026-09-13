@@ -1040,7 +1040,6 @@ __attribute__((unused)) static void peppy_dump_match_struct(void)
  * made every attempt at training walk off into a stage that does not exist. */
 void peppy_room_load(void *scene)
 {
-    (void)scene;
     /* A text object registers its own draw callback but still needs a camera
      * and a render pass to be drawn into, and nothing sets those up for a
      * scene invented from nothing -- which is why the first build of this ran
@@ -1060,11 +1059,14 @@ void peppy_room_load(void *scene)
                                & MSRB_ROOM_FLAG_BROWSING);
     }
 
-    /* The room is a menu and wants a menu's backdrop. Training is its own scene
-     * again - an in-game load cannot be called from inside another scene's
-     * load, because what it starts is spread across frames that only the scene
-     * machinery runs. */
-    SceneLoad_ClassicModeSplash();
+    /* The room is a menu and wants a menu's backdrop.
+     *
+     * It is handed the scene, because a scene load reads its minor data out of
+     * that argument. Called bare - as this was - it read whatever r3 happened
+     * to hold, which the match-state call just above had already overwritten.
+     * Entering the room from the menu got away with it; coming back from
+     * training did not, and the room drew nothing at all. */
+    SceneLoad_ClassicModeSplash(scene);
     peppy_room_clear_borrowed_scene();
 
     s_text = 0;
