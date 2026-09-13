@@ -542,13 +542,48 @@ stb r3, 0x5(r4)
 restore
 blr
 
-# Nothing to decide. The room names its own next scene from its Think.
+# The room names its own next scene from its Think. The one thing left to do
+# here is set up the draft, when that is where we are going.
 #
-# This used to watch for a sentinel minor meaning "leave the major" and answer
-# with Event_StoreSceneNumber. It never worked - eight ways are written up in
-# peppy_room_back in room.c - and the catch-all entry in the minor table now
-# swallows any such sentinel before this ever sees it.
+# The draft is Slippi's BETWEEN-games screen - stage, then characters, with the
+# loser picking - so a room is presented to it as a set already underway. Game
+# one has nothing to counterpick from and would skip straight past it.
+#
+# This used to live in the character select's decide, which is where ranked does
+# it. Matched players do not go through the character select any more: they went
+# there, picked, and then reached the draft and picked again.
+.set PEPPY_MINOR_PENDING_DRAFT, 6       # minor 5, game prep
+
 PeppyRoomSceneDecide:
+backup
+
+load r4, 0x80479d30
+lbz r3, 0x5(r4)
+cmpwi r3, PEPPY_MINOR_PENDING_DRAFT
+bne PeppyRoomSceneDecide_EXIT
+
+bl GamePrepData_BLRL
+mflr r31
+
+mr r3, r31
+li r4, GPDO_SIZE
+branchl r12, Zero_AreaLength
+
+# Zeroed just now, so the winner callback has to go back in.
+bl SinglesDetermineWinner_BLRL
+mflr r3
+stw r3, GPDO_FN_COMPUTE_RANKED_WINNER(r31)
+
+li r3, 3
+stb r3, GPDO_MAX_GAMES(r31)
+li r3, 2                    # not game one - there is something to counterpick
+sth r3, GPDO_CUR_GAME(r31)
+li r3, 0
+stb r3, GPDO_TIEBREAK_GAME_NUM(r31)
+stb r3, GPDO_COLOR_BAN_ACTIVE(r31)
+
+PeppyRoomSceneDecide_EXIT:
+restore
 blr
 
 DATA_BLRL:
@@ -675,7 +710,7 @@ beq CSSSceneDecide_Adv_IsRanked
 cmpwi r3, ONLINE_MODE_UNRANKED
 beq CSSSceneDecide_Adv_IsUnranked
 cmpwi r3, ONLINE_MODE_ROOMS
-beq CSSSceneDecide_Adv_IsRooms
+beq CSSSceneDecide_Adv_IsUnranked
 cmpwi r3, ONLINE_MODE_PARTY
 beq CSSSceneDecide_Adv_IsUnranked
 cmpwi r3, ONLINE_MODE_DIRECT
@@ -716,44 +751,6 @@ stb r3, GPDO_TIEBREAK_GAME_NUM(REG_GAME_PREP_DATA)
 stb r3, GPDO_COLOR_BAN_ACTIVE(REG_GAME_PREP_DATA)
 
 # Set next scene as game prep
-load r4, 0x80479d30
-li r3, 0x06
-stb r3, 0x5(r4)
-b CSSSceneDecide_Exit
-
-################################################################################
-# Rooms Mode Logic
-################################################################################
-# Rooms borrows ranked's draft screen - the one with the stage thumbnails, the
-# turn timer and the BAN / STAGE / OPP CHAR / YOUR CHAR tracker. It is Slippi's
-# BETWEEN-GAMES screen, where the loser counterpicks, and that is exactly what a
-# room is: the winner stays and whoever is next picks against them.
-#
-# So the set is presented as already underway. Game one of a set has nothing to
-# counterpick from and goes straight to the splash, which is what Rooms used to
-# do and why the screen was never seen.
-CSSSceneDecide_Adv_IsRooms:
-bl GamePrepData_BLRL
-mflr REG_GAME_PREP_DATA
-
-mr r3, REG_GAME_PREP_DATA
-li r4, GPDO_SIZE
-branchl r12, Zero_AreaLength
-
-# Zeroed above, so the winner callback has to go back in.
-bl SinglesDetermineWinner_BLRL
-mflr r3
-stw r3, GPDO_FN_COMPUTE_RANKED_WINNER(REG_GAME_PREP_DATA)
-
-li r3, 3
-stb r3, GPDO_MAX_GAMES(REG_GAME_PREP_DATA)
-li r3, 2                    # not game one - there is something to counterpick
-sth r3, GPDO_CUR_GAME(REG_GAME_PREP_DATA)
-li r3, 0
-stb r3, GPDO_TIEBREAK_GAME_NUM(REG_GAME_PREP_DATA)
-stb r3, GPDO_COLOR_BAN_ACTIVE(REG_GAME_PREP_DATA)
-
-# Next scene is game prep, which is where that screen lives.
 load r4, 0x80479d30
 li r3, 0x06
 stb r3, 0x5(r4)

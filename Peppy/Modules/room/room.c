@@ -160,6 +160,7 @@ static const char *const MODE_NAMES[] = {
 /* The refresh runs every frame and is written top-down; these two are the
  * ways out of the scene and read better next to each other, further down. */
 static void peppy_room_go_to_css(const char *why);
+static void peppy_room_go_to_draft(const char *why);
 static void peppy_room_check_paired(void *msrb);
 static void peppy_room_train(void);
 /* Joining from the list turns the browser back into a room without leaving the
@@ -901,6 +902,20 @@ static void peppy_room_go_to_css(const char *why)
     Scene_ExitMinor();
 }
 
+/* Matched players go to the draft - stage, then characters - and never see the
+ * character select.
+ *
+ * They used to go there, pick, and then reach the draft and pick again, which
+ * is one pick too many. The character select is also the last place Peppy's old
+ * room panel is still drawn, so this retires that too. Spectators still go that
+ * way: there is nothing for them to draft. */
+static void peppy_room_go_to_draft(const char *why)
+{
+    peppy_log(why);
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_GAMESETUP);
+    Scene_ExitMinor();
+}
+
 /* Ask Dolphin to start looking.
  *
  * This is the character select's own first act, and nothing had taken it over
@@ -950,7 +965,7 @@ static void peppy_room_check_paired(void *msrb)
     u8 state = *(u8 *)((char *)msrb + MSRB_CONNECTION_STATE);
 
     if (state == MM_STATE_CONNECTION_SUCCESS)
-        peppy_room_go_to_css("Peppy: matched - handing over to the character select");
+        peppy_room_go_to_draft("Peppy: matched - handing over to the draft");
 }
 
 /* Off to practise.
