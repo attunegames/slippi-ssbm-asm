@@ -133,6 +133,20 @@ void SceneLoad_DebugMenu(void);
  * works by luck on a fresh entry and not at all after something else has run. */
 void SceneLoad_ClassicModeSplash(void *scene);
 
+/* Melee's character select, and its hand.
+ *
+ * The hand is a GObj the character select's load creates, driven every frame by
+ * CSS_CursorThink reading the stick. Its pointer per port lives in
+ * CSS_CursorObjPointers, which is how the room can keep it while throwing the
+ * rest of that scene away. */
+void CSS_LoadFunction(void *scene);
+#define CSS_CURSOR_OBJS     0x804A0BC0
+#define CSS_CURSOR_PORTS    4
+/* The character select's own minor data, read out of the online major's table.
+ * A scene load reads its data from the argument, so the room can hand it this
+ * while its own descriptor still names the splash's. */
+#define CSS_MINOR_DATA      0x80497758
+
 /* Better base than the splash: the main menu is the blue grid Peppy's own
  * menus already sit on, it is a real scene so text renders, it carries none of
  * the splash's stage and item loading, and Melee ships a function for taking
