@@ -382,6 +382,10 @@
 # The screen is showing the public room list rather than a room. Dolphin knows
 # this because the menu told it, and the room scene draws whichever it is told.
 .set MSRB_ROOM_FLAG_BROWSING, 2
+# This client is not one of the two in the match - a watcher, or somebody in the
+# queue. Dolphin works it out from the roster, because the game cannot: "is the
+# active pair empty" is false for everybody while a pair is playing.
+.set MSRB_ROOM_FLAG_ONLOOKER, 4
 # Public rooms, as of the last fetch. Same shape as the roster - fixed stride so
 # the draw can index it - and appended, so nothing above moves.
 .set MSRB_ROOMLIST_COUNT, MSRB_ROOM_FLAGS + 1 # u8
