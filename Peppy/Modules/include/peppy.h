@@ -63,6 +63,8 @@ typedef struct SceneController {
 #define ONLINE_MINOR_CSS        0
 #define ONLINE_MINOR_ROOM       6
 #define ONLINE_MINOR_TRAIN      7
+#define ONLINE_MINOR_TRAIN_CSS  8
+#define ONLINE_MINOR_TRAIN_SSS  9
 
 /* Melee's major scene table: one 0x14-byte entry per major, with the pointer to
  * that major's minor list at +0x10. */
