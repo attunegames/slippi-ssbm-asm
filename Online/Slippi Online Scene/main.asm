@@ -1668,12 +1668,70 @@ restore
 blr
 #endregion
 
+################################################################################
+# Routine: PeppySlpCSSStrings
+# ------------------------------------------------------------------------------
+# The file and the symbol inside it, laid out the way SceneLoadCSS.asm lays them
+# out: the name at +0 and the symbol at +11, so one pointer reaches both.
+################################################################################
+PeppySlpCSSStrings:
+blrl
+.string "slpCSS.dat"
+.string "slpCSS"
+.align 2
+
 GamePrepScenePrep:
 .set REG_GPD, 31
+.set REG_PEPPY_STR, 30
 
 backup
 
 lwz REG_GPD, 0x10(r3) # Grabs load data
+
+################################################################################
+# Peppy: the draft wants the character select's archive
+################################################################################
+# GameSetup.dat builds its models out of it -
+#
+#     r9  = *CSSDT_BUF_ADDR        the character select's data table
+#     r29 = *(r9 + 4)              this pointer
+#     r9  = *(r29 + 0x10)          a JOBJ descriptor
+#
+# at code+0x38e4 - and only SceneLoad_CSS ever fills it in, because Slippi only
+# reaches this screen between games of a set, after that scene has run. A room
+# comes straight from its own queue, so it arrives with the field holding
+# whatever was last in the buffer: 0x30310002, and both clients died on it.
+#
+# So do what that scene does - load the file, ask the archive for the symbol,
+# write it down. HERE and not in the room module, because a file loaded from a
+# scene lives on that scene's heap and the room's is about to be freed. This
+# runs inside the draft's own scene, before its module's Load.
+#
+# Not conditional on the field being empty: it is not empty when it is wrong,
+# it is stale.
+lbz r3, OFST_R13_ONLINE_MODE(r13)
+cmpwi r3, ONLINE_MODE_ROOMS
+bne PeppySlpCSS_SKIP
+
+bl PeppySlpCSSStrings
+mflr REG_PEPPY_STR
+
+mr r3, REG_PEPPY_STR
+branchl r12, 0x80016be0     # File_Load
+cmpwi r3, 0
+beq PeppySlpCSS_SKIP
+
+addi r4, REG_PEPPY_STR, 11  # the symbol, just past the file name
+branchl r12, 0x80380358     # File_GetSymbol
+cmpwi r3, 0
+beq PeppySlpCSS_SKIP
+
+loadwz r4, CSSDT_BUF_ADDR
+cmpwi r4, 0
+beq PeppySlpCSS_SKIP
+stw r3, CSSDT_SLPCSS_ADDR(r4)
+
+PeppySlpCSS_SKIP:
 
 # Check if this is a tiebreak. If it is a tiebreak, we dont want to invalidate since the same
 # characters will be loaded

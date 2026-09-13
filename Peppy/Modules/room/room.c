@@ -999,10 +999,16 @@ static void peppy_room_go_to_css(const char *why)
     Scene_ExitMinor();
 }
 
-/* The draft - stage, then characters. Nothing reaches it from here yet; see the
- * note under peppy_room_check_paired for why, and for what it would take. Kept
- * because that is a change of one call site, not a rewrite. */
-__attribute__((unused)) static void peppy_room_go_to_draft(const char *why)
+/* ⚠️ The draft builds its screen out of the character select's archive, and a
+ * room hands over without ever visiting that screen. Loading it is done in
+ * GamePrepScenePrep over in the codeset, NOT here: a file loaded from this
+ * scene lives on this scene's heap, and this scene is about to end. See the
+ * note there.
+ */
+
+/* Matched players go to the draft - stage, then characters - and never see the
+ * character select. */
+static void peppy_room_go_to_draft(const char *why)
 {
     peppy_log(why);
     SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_GAMESETUP);
@@ -1058,35 +1064,23 @@ static void peppy_room_check_paired(void *msrb)
     u8 state = *(u8 *)((char *)msrb + MSRB_CONNECTION_STATE);
 
     if (state == MM_STATE_CONNECTION_SUCCESS)
-        peppy_room_go_to_css("Peppy: matched - handing over to the character select");
+        peppy_room_go_to_draft("Peppy: matched - handing over to the draft");
 }
 
-/* ⚠️ Why not straight to the draft.
+/* ⚠️ What the draft needs, and does not bring with it.
  *
- * It was, and it crashed both clients the moment a pair was made - the same
- * place every time, reading 0x10 off a pointer that held 0x30310002.
+ * Slippi only ever reaches that screen from the VS scene's decide, between
+ * games of a set, so it helps itself to things the character select has already
+ * put out - the archive above being the one that crashed us. If another turns
+ * up, the way to find it is in peppy-assets/gamesetup: Dolphin's MMU panic logs
+ * the link register and every GPR, and gsdis2.py turns the register that held
+ * the bad pointer into an offset inside GameSetup.dat.
  *
- * The draft builds its screen from Slippi's character-select assets:
- *
- *     r9  = *CSSDT_BUF_ADDR        the character select's data table
- *     r29 = *(r9 + 4)              CSSDT_SLPCSS_ADDR
- *     r9  = *(r29 + 0x10)          a JOBJ descriptor to build models from
- *
- * at GameSetup.dat code+0x38e4. Nothing but the online character select's own
- * load fills that in, so a room that hands over directly reads whatever was
- * last in the buffer.
- *
- * Which fits what the screen IS: Slippi only ever reaches it from the VS
- * scene's decide, between games of a set. Game one goes through the character
- * select in ranked too, and everything the draft shows - who won, the stage
- * that was played, the character each player used last - is a description of a
- * game that has already happened. Telling it the set was on game two made it
- * believe one had; it did not make one exist.
- *
- * So game one picks characters the ordinary way. The draft belongs after a
- * game, where the character select has run and its assets are loaded - which
- * needs VSSceneDecide to route Rooms the way it routes ranked. That is the next
- * piece of work, not this one. */
+ * GPDO_CUR_GAME is 2 because this is the BETWEEN-games screen and game one has
+ * nothing to counterpick from. A room's first game is a fresh pairing, so there
+ * is no previous result to show - that is a thing to fill in, not a thing to
+ * avoid the screen over.
+ */
 
 /* Off to practise.
  *
