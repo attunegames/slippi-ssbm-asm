@@ -59,6 +59,8 @@ static void peppy_log(const char *msg)
 #define Y_ACTIONS      340.0f
 #define ROW_ACTION      30.0f    /* gap between status lines */
 #define X_SYMBOL        22.0f    /* line sits this far right of its symbol */
+#define SIZE_SPINNER    0.45f    /* Slippi draws its symbols a little larger */
+#define SPINNER_FRAMES    15     /* frames per icon, as Slippi spins it */
 
 #define X_COUNT         74.0f    /* the number, just right of its heading */
 
@@ -85,6 +87,10 @@ static void peppy_log(const char *msg)
 static const u8 COL_WHITE[4] = {0xFF, 0xFF, 0xFF, 0xFF};
 static const u8 COL_GRAY[4]  = {0x8E, 0x91, 0x96, 0xFF};
 static const u8 COL_GOLD[4]  = {0xF5, 0xC4, 0x42, 0xFF};
+/* Slippi's own two status colours, same values: green once a thing is done,
+ * blue while it is still waiting on you. */
+static const u8 COL_DONE[4]  = {0x33, 0xFF, 0x2F, 0xFF};
+static const u8 COL_WAIT[4]  = {0x3C, 0xBC, 0xFF, 0xFF};
 
 /* Text struct fields Melee expects set before anything is drawn, taken from
  * the values Slippi's own CSS text uses. */
@@ -177,9 +183,14 @@ static int s_room_wait;
 static int s_queue_head;
 static int s_lobby_head;
 static int s_queue_line = -1;
-static int s_queue_sym = -1;
 static int s_line2 = -1;
-static int s_line2_sym = -1;
+/* Three symbols in the same two places rather than one that changes colour: a
+ * subtext's colour is fixed when it is made, so the one that should show gets
+ * the character and the others get nothing. */
+static int s_spin_wait = -1;    /* blue, alternates - "still waiting on you" */
+static int s_spin_done = -1;    /* green, steady - "that one is done" */
+static int s_next_sym = -1;     /* blue, steady - "and this is available" */
+static int s_spin_frame;
 static int s_p1_line = -1;
 static int s_p2_line = -1;
 static int s_queue_rows[QUEUE_ROWS];
@@ -220,15 +231,17 @@ static void peppy_room_set_queued(int queued)
      *
      * Not queued: one thing to do, and it is not done yet. Queued: that one is
      * done, and practising becomes the next thing available. */
-    Text_UpdateSubtextContents(s_text, s_queue_sym,
-                               queued ? SYM_DONE : SYM_TODO);
     Text_UpdateSubtextContents(s_text, s_queue_line,
                                queued ? STR_IN_QUEUE : STR_JOIN);
+    if (s_spin_done >= 0)
+        Text_UpdateSubtextContents(s_text, s_spin_done, queued ? SYM_DONE : "");
+    if (s_spin_wait >= 0 && queued)
+        Text_UpdateSubtextContents(s_text, s_spin_wait, "");
+    if (s_next_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_next_sym, queued ? SYM_NEXT : "");
     if (s_line2 >= 0)
-    {
-        Text_UpdateSubtextContents(s_text, s_line2_sym, queued ? SYM_NEXT : "");
         Text_UpdateSubtextContents(s_text, s_line2, queued ? STR_PRACTICE : "");
-    }
+    s_spin_frame = 0;
 
     /* Dolphin only needs telling when it actually changes. */
     if (!changed)
@@ -863,11 +876,13 @@ static void peppy_room_build(void)
     s_queue_line = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
                                     "", SIZE_ACTION,
                                     COL_LEFT + X_SYMBOL, Y_ACTIONS);
-    s_queue_sym = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                                   "", SIZE_ACTION, COL_LEFT, Y_ACTIONS);
-    s_line2_sym = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                                   "", SIZE_ACTION, COL_LEFT,
-                                   Y_ACTIONS + ROW_ACTION);
+    s_spin_wait = FG_CreateSubtext(text, COL_WAIT, PEPPY_SUBTEXT_PLAIN, 0,
+                                   "", SIZE_SPINNER, COL_LEFT, Y_ACTIONS);
+    s_spin_done = FG_CreateSubtext(text, COL_DONE, PEPPY_SUBTEXT_PLAIN, 0,
+                                   "", SIZE_SPINNER, COL_LEFT, Y_ACTIONS);
+    s_next_sym = FG_CreateSubtext(text, COL_WAIT, PEPPY_SUBTEXT_PLAIN, 0,
+                                  "", SIZE_SPINNER, COL_LEFT,
+                                  Y_ACTIONS + ROW_ACTION);
     s_line2 = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
                                "", SIZE_ACTION, COL_LEFT + X_SYMBOL,
                                Y_ACTIONS + ROW_ACTION);
@@ -1040,6 +1055,20 @@ static void peppy_room_buttons(void)
         peppy_room_back();
 }
 
+/* The waiting symbol alternates, the way Slippi's does while it searches: two
+ * icons, fifteen frames each. Only while there is something still waiting on
+ * you - once you are in the queue that line is done and stops moving. */
+static void peppy_room_spin(void)
+{
+    if (s_queued || s_spin_wait < 0)
+        return;
+    if (s_spin_frame % SPINNER_FRAMES == 0)
+        Text_UpdateSubtextContents(s_text, s_spin_wait,
+                                   (s_spin_frame / SPINNER_FRAMES) ? SYM_TODO
+                                                                   : SYM_NEXT);
+    s_spin_frame = (s_spin_frame + 1) % (2 * SPINNER_FRAMES);
+}
+
 void peppy_room_think(void)
 {
     /* The roster changes while people come and go, so it is read every frame
@@ -1056,6 +1085,7 @@ void peppy_room_think(void)
         return;
     }
 
+    peppy_room_spin();
     peppy_room_refresh();
     peppy_room_buttons();
 }
@@ -1171,9 +1201,11 @@ void peppy_room_load(void *scene)
 
     s_text = 0;
     s_queue_line = -1;
-    s_queue_sym = -1;
     s_line2 = -1;
-    s_line2_sym = -1;
+    s_spin_wait = -1;
+    s_spin_done = -1;
+    s_next_sym = -1;
+    s_spin_frame = 0;
     s_room_line = -1;
     s_room_wait = 0;
     s_queue_head = -1;
