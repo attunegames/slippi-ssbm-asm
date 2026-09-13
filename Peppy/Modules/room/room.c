@@ -208,11 +208,17 @@ void peppy_room_set_players(const char *p1, const char *p2)
  * misread button. */
 static void peppy_room_set_queued(int queued)
 {
-    if (!s_text || s_queue_line < 0 || queued == s_queued)
+    int changed;
+
+    if (!s_text || s_queue_line < 0)
         return;
+    changed = (queued != s_queued);
     s_queued = queued;
 
-    /* Not queued: one thing to do, and it is not done yet. Queued: that one is
+    /* Drawn every time, not only on a change - the lines are created empty and
+     * a room that opens in the state it is already in would never fill them.
+     *
+     * Not queued: one thing to do, and it is not done yet. Queued: that one is
      * done, and practising becomes the next thing available. */
     Text_UpdateSubtextContents(s_text, s_queue_sym,
                                queued ? SYM_DONE : SYM_TODO);
@@ -223,6 +229,10 @@ static void peppy_room_set_queued(int queued)
         Text_UpdateSubtextContents(s_text, s_line2_sym, queued ? SYM_NEXT : "");
         Text_UpdateSubtextContents(s_text, s_line2, queued ? STR_PRACTICE : "");
     }
+
+    /* Dolphin only needs telling when it actually changes. */
+    if (!changed)
+        return;
 
     /* Dolphin is what talks to the room, so tell it: until this says otherwise
      * the client is present and watching, and pd_tick leaves it out of the
@@ -410,6 +420,25 @@ static int peppy_room_self_queued(void *msrb)
     const char *me = (const char *)msrb + MSRB_LOCAL_NAME;
     const char *roster = (const char *)msrb + MSRB_ROSTER;
     int slot;
+
+    {
+        char line[80];
+        char *o = line;
+        int n;
+
+        for (n = 0; "Peppy: me="[n]; n++)
+            *o++ = "Peppy: me="[n];
+        for (n = 0; n < 16 && me[n]; n++)
+            *o++ = me[n];
+        *o++ = ' ';
+        *o++ = 'q';
+        *o++ = '0';
+        *o++ = '=';
+        for (n = 0; n < 16 && roster[MSRB_ROSTER_ACTIVE * MSRB_ROSTER_STRIDE + n]; n++)
+            *o++ = roster[MSRB_ROSTER_ACTIVE * MSRB_ROSTER_STRIDE + n];
+        *o = 0;
+        peppy_log(line);
+    }
 
     if (!*me)
         return 0;
