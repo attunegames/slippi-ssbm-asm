@@ -242,9 +242,14 @@ static inline u32 peppy_pad_pressed(void)
 #define CONST_ExiWrite 1
 
 void FN_EXITransferBuffer(void *buf, int len, int mode);
-/* Returns the match state read buffer: the block Dolphin fills and Melee reads,
- * which is where the room's roster arrives. */
-void *FN_LoadMatchState(int unused);
+/* Fills and returns the match state read buffer: the block Dolphin fills and
+ * Melee reads, which is where the room's roster arrives.
+ *
+ * The argument is the buffer to fill. Hand it zero and it allocates one -
+ * MSRB-sized, off the heap, never given back - so anything that asks more than
+ * once must keep what it was given and hand it back in. Slippi's own callers
+ * all pass zero because they all ask once, on the way into a scene. */
+void *FN_LoadMatchState(void *buf);
 
 /* Slippi's logf macro transfers out of a scratch buffer hung off r13 at
  * OFST_R13_SB_ADDR, but every caller of that macro is online code -- there is
