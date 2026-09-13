@@ -101,6 +101,15 @@ void Scene_ExitMajor(void);
 /* Names the major to go to next. Event_StoreSceneNumber was supposed to do
  * this and the controller never changed, so this is the one that says it. */
 void Scene_SetNextMajor(int major);
+/* Both at once, and the pair Melee's own character select uses to get back to
+ * the menu: the major to go to next, and the flag that ends this one.
+ *
+ * Scene_ProcessMajor is a loop - run the minor, then look at byte 0xC - so this
+ * only takes effect once the minor's Think has finished, which means it must be
+ * followed by Scene_ExitMinor. Setting the flag without ending the minor leaves
+ * the loop spinning inside a scene that has already been told to go, which is
+ * what every earlier attempt at this looked like. */
+void MenuController_WriteToPendingMajor_1to_0xC(int major);
 
 /* Sets the major scene to go to next and flags the current one to end. The
  * minor is not its business - the new major's Load picks that. */
