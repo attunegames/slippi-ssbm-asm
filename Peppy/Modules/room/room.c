@@ -1007,6 +1007,10 @@ void peppy_room_load(void)
         /* The scene's load only. The training major's setup and load are not
          * called: they set that major up, and calling them from inside this one
          * put the game back in the menu. */
+        /* Setup only, not the major's load - that one put the game back in the
+         * menu. Setup is where training decides what match it is about to
+         * play, which is the thing an in-game scene cannot start without. */
+        MajorSetup_TrainingMode();
         peppy_log("Peppy: borrowing training's load");
         SceneLoad_TrainingModeInGame();
         peppy_log("Peppy: training's load came back");
