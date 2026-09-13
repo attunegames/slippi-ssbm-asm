@@ -1470,14 +1470,8 @@ void peppy_room_load(void *scene)
      *
      * Tried twice: with that scene's own minor data, and with the scene pointer
      * this load is handed. Same both times, so it is not the argument. */
-    /* TEMPORARY - the borrow is off, to find out whether the splash's own
-     * machinery is what stops the room about half a minute in. The screen is
-     * black without it; the tick log is the whole point of this build. */
-    if (0)
-    {
-        SceneLoad_ClassicModeSplash(scene);
-        peppy_room_clear_borrowed_scene();
-    }
+    SceneLoad_ClassicModeSplash(scene);
+    peppy_room_clear_borrowed_scene();
 
     s_text = 0;
     s_queue_line = -1;
@@ -1560,7 +1554,11 @@ void peppy_room_load(void *scene)
 
         peppy_room_set_queued(msrb ? peppy_room_self_queued(msrb) : 0);
     }
-    peppy_room_start_searching();
+    /* TEMPORARY - matchmaking is not started, to find out whether the thing
+     * that stops the room half a minute in is Slippi's search. The room will
+     * have no roster in it; the tick log is the point. */
+    if (0)
+        peppy_room_start_searching();
     /* Not split - see peppy_room_split. The room has the screen to itself
      * until there is something to put in the other half. */
     peppy_log("Peppy: room scene built");
