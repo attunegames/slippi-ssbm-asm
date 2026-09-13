@@ -967,6 +967,35 @@ void peppy_room_think(void)
     peppy_room_buttons();
 }
 
+/* Melee's match: what stage, which characters, how many stocks. 0x8046b6a0 is
+ * the struct the whole game reads it from - Slippi's own code calls it "some
+ * static match state struct" in half a dozen places. */
+#define MATCH_STRUCT 0x8046b6a0
+
+static void peppy_dump_match_struct(void)
+{
+    char line[128];
+    int row;
+
+    for (row = 0; row < 8; row++)
+    {
+        char *o = line;
+        int k;
+
+        for (k = 0; "Peppy: m "[k]; k++)
+            *o++ = "Peppy: m "[k];
+        o = put_hex(o, row * 0x20);
+        *o++ = ':';
+        for (k = 0; k < 0x20; k += 4)
+        {
+            *o++ = ' ';
+            o = put_hex(o, *(u32 *)(MATCH_STRUCT + row * 0x20 + k));
+        }
+        *o = 0;
+        peppy_log(line);
+    }
+}
+
 void peppy_room_load(void)
 {
     /* A text object registers its own draw callback but still needs a camera
@@ -1007,13 +1036,15 @@ void peppy_room_load(void)
         /* The scene's load only. The training major's setup and load are not
          * called: they set that major up, and calling them from inside this one
          * put the game back in the menu. */
-        /* Setup only, not the major's load - that one put the game back in the
-         * menu. Setup is where training decides what match it is about to
-         * play, which is the thing an in-game scene cannot start without. */
+        /* Diagnosis, not the feature: does training's setup actually fill in a
+         * match? An in-game scene loads the stage and characters its match
+         * names, and if this comes back empty then that is what its load has
+         * been waiting on all along. The load itself is not called here - the
+         * room still has to work. */
+        SceneLoad_ClassicModeSplash();
+        peppy_room_clear_borrowed_scene();
         MajorSetup_TrainingMode();
-        peppy_log("Peppy: borrowing training's load");
-        SceneLoad_TrainingModeInGame();
-        peppy_log("Peppy: training's load came back");
+        peppy_dump_match_struct();
     }
 
     s_text = 0;
