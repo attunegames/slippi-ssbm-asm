@@ -217,6 +217,12 @@ void SceneThink_ClassicModeSplash(void);
  * and are not guessed at here. */
 #define PAD_STICK_UP   0x00010000
 #define PAD_STICK_DOWN 0x00020000
+#define PAD_STICK_LEFT  0x00040000
+#define PAD_STICK_RIGHT 0x00080000
+/* The d-pad, which nothing in the room uses, taken as well - so sideways still
+ * works if the stick's left and right do not sit where up and down suggest. */
+#define PAD_DPAD_LEFT   0x0001
+#define PAD_DPAD_RIGHT  0x0002
 
 /* Any port: a room is watched by whoever is sitting there, not by a fixed
  * controller slot. */

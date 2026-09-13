@@ -1108,9 +1108,9 @@ static void peppy_room_move_pick(void)
         return;
     peppy_room_count_names(msrb, &queue, &lobby);
 
-    if (pressed & PAD_STICK_LEFT)
+    if (pressed & (PAD_STICK_LEFT | PAD_DPAD_LEFT))
         s_pick_col = PICK_QUEUE;
-    if (pressed & PAD_STICK_RIGHT)
+    if (pressed & (PAD_STICK_RIGHT | PAD_DPAD_RIGHT))
         s_pick_col = PICK_LOBBY;
 
     limit = (s_pick_col == PICK_QUEUE) ? queue : lobby;
