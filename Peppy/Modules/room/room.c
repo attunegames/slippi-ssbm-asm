@@ -597,13 +597,14 @@ static void peppy_room_show_code(void *msrb)
 
     /* A room that could not be made leaves this empty, and the screen would
      * otherwise sit there looking like a room with nobody in it. Say which it
-     * is; B is the way out either way. */
+     * is, and say how to get out - B only leaves the queue, and there is no
+     * queue to leave here. Up from an empty column reaches BACK. */
     if (!code[0])
     {
         if (++s_room_wait > 180)
         {
             Text_UpdateSubtextContents(s_text, s_room_line, "%s",
-                                       "NO ROOM - press B to go back");
+                                       "NO ROOM - press UP then A to leave");
             s_room_line = -1;
         }
         return;
