@@ -477,6 +477,12 @@ lwz r4, 0x10(r31)
 li r3, PEPPY_TRAIN_STAGE
 sth r3, 0xE(r4)
 logf LOG_LEVEL_NOTICE, "Peppy: training match built, stage %d", "lhz r5, 0xE(r4)"
+# The match's own player slots, read through the descriptor this time. A slot
+# type of 3 is nobody, and a match of nobodies has nothing to render.
+logf LOG_LEVEL_NOTICE, "Peppy: match p0 %x", "lwz r5, 0x60(r4)"
+logf LOG_LEVEL_NOTICE, "Peppy: match p1 %x", "lwz r5, 0x84(r4)"
+logf LOG_LEVEL_NOTICE, "Peppy: match p2 %x", "lwz r5, 0xA8(r4)"
+logf LOG_LEVEL_NOTICE, "Peppy: match p3 %x", "lwz r5, 0xCC(r4)"
 restore
 blr
 
