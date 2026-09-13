@@ -1683,6 +1683,9 @@ blrl
 GamePrepScenePrep:
 .set REG_GPD, 31
 .set REG_PEPPY_STR, 30
+.set REG_PEPPY_ARC, 29
+.set REG_PEPPY_SYM, 28
+.set REG_PEPPY_CSSDT, 27
 
 backup
 
@@ -1718,18 +1721,22 @@ mflr REG_PEPPY_STR
 
 mr r3, REG_PEPPY_STR
 branchl r12, 0x80016be0     # File_Load
-cmpwi r3, 0
-beq PeppySlpCSS_SKIP
+mr REG_PEPPY_ARC, r3
 
+mr r3, REG_PEPPY_ARC
 addi r4, REG_PEPPY_STR, 11  # the symbol, just past the file name
 branchl r12, 0x80380358     # File_GetSymbol
-cmpwi r3, 0
-beq PeppySlpCSS_SKIP
+mr REG_PEPPY_SYM, r3
 
-loadwz r4, CSSDT_BUF_ADDR
-cmpwi r4, 0
+loadwz REG_PEPPY_CSSDT, CSSDT_BUF_ADDR
+
+logf LOG_LEVEL_NOTICE, "Peppy: slpCSS arc %x sym %x cssdt %x was %x", "mr r5, REG_PEPPY_ARC", "mr r6, REG_PEPPY_SYM", "mr r7, REG_PEPPY_CSSDT", "lwz r8, CSSDT_SLPCSS_ADDR(REG_PEPPY_CSSDT)"
+
+cmpwi REG_PEPPY_SYM, 0
 beq PeppySlpCSS_SKIP
-stw r3, CSSDT_SLPCSS_ADDR(r4)
+cmpwi REG_PEPPY_CSSDT, 0
+beq PeppySlpCSS_SKIP
+stw REG_PEPPY_SYM, CSSDT_SLPCSS_ADDR(REG_PEPPY_CSSDT)
 
 PeppySlpCSS_SKIP:
 
