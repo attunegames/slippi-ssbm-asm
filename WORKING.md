@@ -46,3 +46,41 @@ watcher catching up needs TWO things together, in `shouldAdvanceOnlineFrame`:
 
 ⚠️ At this commit the room scene does not exist yet; it was written the
 following night. That build's flow is Rooms -> character select.
+
+---
+
+## spectate on the CURRENT build - still broken, 2026-09-13
+
+Fixed and verified tonight:
+
+* **pacing** - catches up and settles. Log shows `9 behind` holding steady at
+  60fps. Two halves, both needed: `PeppyCatchUpSpeed(behind > 10)` and
+  `RESP_ADVANCE` rationed to `(frame % 2) == 0`.
+
+NOT fixed:
+
+* **divergence** - right clock, wrong damage. The watcher simulates a different
+  match.
+
+What has been ruled out, by diffing against `works/spectate`:
+
+* Dolphin's watch path - timeline struct, pad lookup, `PeppyWatchPad`,
+  `PeppyWatchSetFrame`, the skip test, remote pad supply, the RNG offset. All
+  unchanged in substance.
+* `ForceEngineOnRollback` - the only in-game codeset change, and inert now that
+  nothing sends `RESP_CATCHUP`.
+* The character-select entry. TRIED and it does not start at all: on the 10th
+  the players were on that screen and THEIR inputs drove the watcher's copy of
+  it into the match. They draft now, so nothing drives it.
+
+Last thing tried, unverified: the input source port. `InitOnlinePlay` reads the
+1P port from `-0x5108(r13)`, written by `CSS_StoreSinglePlayerPortNumber` from
+the character select's A press. A watcher never presses A, so on the splash
+path it holds whatever was there; the watched inputs go to port 0. Now forced
+to 0 in `PeppyRoomSceneDecide`.
+
+⚠️ Two harness runs in a row proved nothing and looked fine:
+  * both characters idle - two still characters match trivially
+  * Charlie joined the queue early and became a PLAYER, not a watcher
+A test that cannot fail is not evidence. The harness now makes them fight and
+delays Charlie's Start past the first pairing.
