@@ -1115,7 +1115,7 @@ static void peppy_room_build(void)
  * The splash is minor 4 of this major. Its init has to run first, and that
  * lives in the codeset, so PeppyRoomSceneDecide makes the call when it sees
  * this minor asked for. */
-__attribute__((unused)) static void peppy_room_go_to_splash(const char *why)
+static void peppy_room_go_to_splash(const char *why)
 {
     peppy_log(why);
     SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_SPLASH);
@@ -1124,7 +1124,7 @@ __attribute__((unused)) static void peppy_room_go_to_splash(const char *why)
 
 /* Hand the screen to Melee's own character select, which is where Dolphin's
  * watch setup expects a watcher to be. */
-static void peppy_room_go_to_css(const char *why)
+__attribute__((unused)) static void peppy_room_go_to_css(const char *why)
 {
     peppy_log(why);
     SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_CSS);
@@ -1186,8 +1186,19 @@ static void peppy_room_spectate(void)
      * once the game is live. The match block is filled in from the stream, and
      * the splash's init is what copies it into the scene - so that is the
      * screen a watcher wants, and the codeset's room Decide makes that call. */
-    /* ⚠️ The CHARACTER SELECT, not the splash - this is how the build that was
-     * confirmed working on 2026-09-10 did it, and the difference matters.
+    /* ⚠️ NOT the character select, even though that is how the build confirmed
+     * working on 2026-09-10 did it. Tried, and it does not start: that build's
+     * players were on the character select too and THEIR inputs drove the
+     * watcher's copy of it into the match. Players draft now, so a watcher sent
+     * there sits on it for ever with "have match info" and never begins.
+     *
+     * The splash does start. It also diverges - right clock, wrong damage - and
+     * that is a separate unsolved problem. Dolphin's watch path is byte for
+     * byte what it was on the 10th; the difference is somewhere in how the
+     * scene is entered, and it is not this.
+     *
+     * Old note, kept because the reasoning is still good and only the
+     * conclusion was wrong:
      *
      * Dolphin's watch setup runs in prepareOnlineMatchState and is written for
      * a client sitting on that screen: it is where the netplay client is made,
@@ -1198,7 +1209,7 @@ static void peppy_room_spectate(void)
      * The character select is not a place a Rooms player belongs, so the CSS's
      * own handler sends anyone who is not watching back to the room. A watcher
      * stays, because it has a match to be shown. */
-    peppy_room_go_to_css("Peppy: watching the match");
+    peppy_room_go_to_splash("Peppy: watching the match");
 }
 
 /* Paired up: the room's job is done and the character select takes over.
