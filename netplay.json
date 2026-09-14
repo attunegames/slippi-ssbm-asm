@@ -383,6 +383,22 @@
       ]
     },
     {
+      "name": "Optional: Boot Straight To Playback",
+      "authors": [
+        "Fizzi",
+        "Nikki",
+        "UnclePunch"
+      ],
+      "build": [
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Playback/Core/Scene",
+          "isRecursive": true,
+          "annotation": "Slippi's own playback entry: hijacks boot into the DebugMelee major. TEST ONLY - leave disabled. Enabling it makes the build unable to reach Peppy at all; real entry comes from our menu."
+        }
+      ]
+    },
+    {
       "name": "Recommended: Normal Lag Reduction",
       "authors": [
         "Hannes Mann"
