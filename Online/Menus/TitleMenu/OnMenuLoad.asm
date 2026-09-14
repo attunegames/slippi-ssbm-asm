@@ -235,6 +235,14 @@ li r3, MINOR_PLAYBACK_ENTRY
 branchl r12, Scene_MinorIDToMinorSceneFunctionTable
 logf LOG_LEVEL_WARN, "[Peppy] minor 3 function table at %x (Slippi patches 801b16a8)", "mr r5, r3"
 
+# Dump the live entry. Slippi's static patch replaces ScenePrep_DebugResult with
+# ScenePrep_DebugMenu (0x801b09c0) at a fixed offset in the DEAD table, so the
+# live entry should still hold the original ScenePrep_DebugResult pointer - some
+# 0x801bxxxx value. Whichever slot that is, is the slot to write.
+mr REG_PB_MAJOR, r3
+logf LOG_LEVEL_WARN, "[Peppy] entry +0=%x +4=%x +8=%x +c=%x +10=%x", "lwz r5, 0x0(REG_PB_MAJOR)", "lwz r6, 0x4(REG_PB_MAJOR)", "lwz r7, 0x8(REG_PB_MAJOR)", "lwz r8, 0xC(REG_PB_MAJOR)", "lwz r9, 0x10(REG_PB_MAJOR)"
+logf LOG_LEVEL_WARN, "[Peppy] entry +14=%x +18=%x +1c=%x +20=%x", "lwz r5, 0x14(REG_PB_MAJOR)", "lwz r6, 0x18(REG_PB_MAJOR)", "lwz r7, 0x1C(REG_PB_MAJOR)", "lwz r8, 0x20(REG_PB_MAJOR)"
+
 bl PEPPY_PB_MAJOR_LOAD
 mflr r3
 stw r3, 0x4(REG_PB_MAJOR)
