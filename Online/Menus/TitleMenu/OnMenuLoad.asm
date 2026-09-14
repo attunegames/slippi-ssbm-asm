@@ -267,9 +267,21 @@ load r4, 0x80479D30
 li r3, 0
 stb r3, 0x5(r4)
 
+load REG_PB_MAJOR, 0x80479D30
+logf LOG_LEVEL_WARN, "[Peppy] before: major=%x pending=%x flagC=%x", "lbz r5, 0x0(REG_PB_MAJOR)", "lbz r6, 0x1(REG_PB_MAJOR)", "lbz r7, 0xC(REG_PB_MAJOR)"
+
 li r3, SCENE_MAJOR_DEBUG_MELEE
 branchl r12, MenuController_WriteToPendingMajor_1to_0xC
+
+# Did that function do what its name says? If pending is 0e here then it worked
+# and something later overrode it; if not, the symbol is not what we think.
+load REG_PB_MAJOR, 0x80479D30
+logf LOG_LEVEL_WARN, "[Peppy] after write: major=%x pending=%x flagC=%x (asked for 0e)", "lbz r5, 0x0(REG_PB_MAJOR)", "lbz r6, 0x1(REG_PB_MAJOR)", "lbz r7, 0xC(REG_PB_MAJOR)"
+
 branchl r12, Scene_ExitMinor
+
+load REG_PB_MAJOR, 0x80479D30
+logf LOG_LEVEL_WARN, "[Peppy] after exit: major=%x pending=%x flagC=%x", "lbz r5, 0x0(REG_PB_MAJOR)", "lbz r6, 0x1(REG_PB_MAJOR)", "lbz r7, 0xC(REG_PB_MAJOR)"
 
 PEPPY_PLAYBACK_THINK_EXIT:
 restore
