@@ -86,6 +86,9 @@ PEPPY_PB_HAVE_BUF:
 # CONST_PeppyCmdReplayWaiting is a peek - deliberately not 0x88, which loads the
 # game and marks it played, leaving SceneThink_Playback's own poll waiting
 # forever on a replay already loaded behind it.
+# Peppy diag: once a second, what the CSS thinks is going on.
+logf LOG_LEVEL_WARN, "[Peppy] css: charSelected=%d conn=%d inputs=%x", "lbz r5, -0x49A9(r13)", "lbz r6, MSRB_CONNECTION_STATE(REG_MSRB_ADDR)", "mr r7, REG_INPUTS"
+
 li r3, CONST_PeppyCmdReplayWaiting
 stb r3, 0(REG_TXB_ADDR)
 mr r3, REG_TXB_ADDR
