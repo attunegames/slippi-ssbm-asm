@@ -112,10 +112,15 @@ backup
 # Dispatch on the scene we are in
 ################################################################################
 getMinorMajor r3
+logf LOG_LEVEL_WARN, "[Peppy] StartMelee: scene=%x (online=0208 playback=010e)", "mr r5, r3"
+
+getMinorMajor r3
 cmpwi r3, SCENE_ONLINE_IN_GAME
 beq PEPPY_PATH_ONLINE
 cmpwi r3, SCENE_PLAYBACK_IN_GAME
 beq PEPPY_PATH_PLAYBACK
+
+logf LOG_LEVEL_WARN, "[Peppy] StartMelee: neither path - doing nothing"
 b PEPPY_END
 
 
@@ -125,6 +130,7 @@ b PEPPY_END
 ################################################################################
 ################################################################################
 PEPPY_PATH_PLAYBACK:
+logf LOG_LEVEL_WARN, "[Peppy] StartMelee: playback path"
 '''
 
 ONLINE_BANNER = '''
@@ -135,6 +141,7 @@ ONLINE_BANNER = '''
 ################################################################################
 ################################################################################
 PEPPY_PATH_ONLINE:
+logf LOG_LEVEL_WARN, "[Peppy] StartMelee: online path"
 '''
 
 EPILOGUE = '''
