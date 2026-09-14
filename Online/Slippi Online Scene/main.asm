@@ -570,6 +570,22 @@ lbz r3, 0x5(r4)
 # of what is owed, and it has to run before the scene loads.
 cmpwi r3, PEPPY_MINOR_PENDING_SPLASH
 bne PeppyRoomSceneDecide_NOT_SPLASH
+
+# Peppy: say which port the local inputs come from, because nothing else will.
+#
+# InitOnlinePlay reads the 1P port out of -0x5108(r13) and makes it the game's
+# input source. That byte is written by CSS_StoreSinglePlayerPortNumber, from
+# the character select's A press - and a watcher never presses A, so on this
+# path it holds whatever happened to be there.
+#
+# The watched inputs are fed into port 0. If the input source says anything
+# else, Melee reads a port nothing is feeding, takes a neutral controller for
+# it, and simulates a DIFFERENT match - the clock stays right and the damage
+# does not. That is the divergence, and it is why going through the character
+# select used to work: it set this byte on the way past.
+li r3, 0
+stb r3, -0x5108(r13)
+
 bl SplashSceneInit
 b PeppyRoomSceneDecide_EXIT
 
