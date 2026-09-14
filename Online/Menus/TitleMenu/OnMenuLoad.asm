@@ -12,6 +12,10 @@
 .set ADDR_MajorStruct_DebugMelee, 0x803dada8
 .set SCENE_MAJOR_DEBUG_MELEE, 0xE
 .set MINOR_PLAYBACK_ENTRY, 0x3
+# Slippi's Change Debug Result Screen MinorType to Debug Menu, the half that does
+# not survive to the menu. Same address and value as their gecko code.
+.set PB_SCENEPREP_SLOT, 0x801b16a8
+.set PB_SCENEPREP_DEBUGMENU, 0x801b09c0
 # A peek at whether a replay is queued. Deliberately NOT
 # CONST_SlippiCmdCheckForReplay (0x88): that one loads the game and marks it
 # played, and the playback scene polls 0x88 itself in a loop - asking it here
@@ -218,21 +222,31 @@ li r3, SCENE_MAJOR_DEBUG_MELEE
 branchl r12, Scene_GetMajorSceneStruct
 mr REG_PB_MAJOR, r3
 
-# Identify what Slippi's two static patch addresses actually are, by dumping the
-# memory around them. m-ex's minor-scene entries are documented (mxscn.py) as
-#   u8 minorId; u8 pad[3]; void *think; void *load; void *leave; char *codeFile
-# at a 0x14 stride, so the shape should be recognisable either way.
-load REG_PB_MAJOR, 0x803dda90
-logf LOG_LEVEL_WARN, "[Peppy] 803dda90: %x %x %x %x %x", "lwz r5, 0x0(REG_PB_MAJOR)", "lwz r6, 0x4(REG_PB_MAJOR)", "lwz r7, 0x8(REG_PB_MAJOR)", "lwz r8, 0xC(REG_PB_MAJOR)", "lwz r9, 0x10(REG_PB_MAJOR)"
-logf LOG_LEVEL_WARN, "[Peppy] 803ddaa4: %x %x %x %x %x", "lwz r5, 0x14(REG_PB_MAJOR)", "lwz r6, 0x18(REG_PB_MAJOR)", "lwz r7, 0x1C(REG_PB_MAJOR)", "lwz r8, 0x20(REG_PB_MAJOR)", "lwz r9, 0x24(REG_PB_MAJOR)"
+# Re-apply Slippi's ScenePrep patch.
+#
+# Their playback codeset installs the scene with two static writes. One of them,
+# 0x803dda9c, sticks. The other, 0x801b16a8, does not: measured here it still
+# held 0x7c0802a6, the original value, not the 0x801b09c0 their gecko code
+# writes. That address is in Melee's scene-code region, which is reloaded as
+# scenes come and go, so a write applied once at boot is long gone by the time
+# anyone has reached a menu. Their build never notices - it boots straight into
+# the scene and nothing loads over it first.
+#
+# Without that half the prep is still the Debug RESULT screen rather than the
+# debug menu, so the handover lands somewhere that was never the playback scene.
+# Writing it immediately before leaving puts it back. Same address, same value,
+# their patch, just applied late enough to survive.
+load r3, PB_SCENEPREP_SLOT
+load r4, PB_SCENEPREP_DEBUGMENU
+stw r4, 0(r3)
 
-load REG_PB_MAJOR, 0x801b1698
-logf LOG_LEVEL_WARN, "[Peppy] 801b1698: %x %x %x %x %x", "lwz r5, 0x0(REG_PB_MAJOR)", "lwz r6, 0x4(REG_PB_MAJOR)", "lwz r7, 0x8(REG_PB_MAJOR)", "lwz r8, 0xC(REG_PB_MAJOR)", "lwz r9, 0x10(REG_PB_MAJOR)"
+logf LOG_LEVEL_WARN, "[Peppy] ScenePrep slot now %x (want 801b09c0)", "load r5, PB_SCENEPREP_SLOT", "lwz r5, 0(r5)"
 
-# And the live global minor list, for comparison.
-branchl r12, Scene_GetMinorSceneFunctionListStart
-mr REG_PB_MAJOR, r3
-logf LOG_LEVEL_WARN, "[Peppy] minor list starts @%x: %x %x %x %x", "mr r5, REG_PB_MAJOR", "lwz r6, 0x0(REG_PB_MAJOR)", "lwz r7, 0x4(REG_PB_MAJOR)", "lwz r8, 0x8(REG_PB_MAJOR)"
+# It is code, so the instruction cache has to be told.
+load r3, PB_SCENEPREP_SLOT
+li r4, 4
+branchl r12, TRK_flush_cache
+
 
 bl PEPPY_PB_MAJOR_LOAD
 mflr r3
