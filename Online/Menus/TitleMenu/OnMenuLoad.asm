@@ -34,6 +34,7 @@ CODE_START:
 .set REG_FG_USER_DISPLAY, 30
 .set REG_DATA_ADDR, 29
 .set REG_TXB_ADDR, 28
+.set REG_PB_ANSWER, 27
 
 backup
 
@@ -112,6 +113,8 @@ branchl r12, HSD_Free
 # actually queued up and is otherwise inert on every other trip through the
 # main menu.
 
+logf LOG_LEVEL_WARN, "[Peppy] Menu load: asking Dolphin whether a replay is waiting"
+
 li r3, 1
 branchl r12, HSD_MemAlloc
 mr REG_TXB_ADDR, r3
@@ -129,11 +132,17 @@ li r4, 1
 li r5, CONST_ExiRead
 branchl r12, FN_EXITransferBuffer
 
-lbz r3, 0(REG_TXB_ADDR)
-cmpwi r3, 1
+# Keep the answer somewhere HSD_Free cannot reach - it is a call, so it lands
+# on the condition register, and testing after it tests the wrong thing.
+lbz REG_PB_ANSWER, 0(REG_TXB_ADDR)
 mr r3, REG_TXB_ADDR
 branchl r12, HSD_Free
+logf LOG_LEVEL_WARN, "[Peppy] Dolphin says replay-ready = %d", "mr r5, REG_PB_ANSWER"
+
+cmpwi REG_PB_ANSWER, 1
 bne PEPPY_NO_REPLAY_WAITING
+
+logf LOG_LEVEL_WARN, "[Peppy] Replay is ready - leaving the menu for the playback major"
 
 # The playback scene lives in the DebugMelee major and Slippi's boot code
 # points that major's load at the right minor on the way in. We are not using
