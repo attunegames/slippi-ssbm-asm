@@ -14,6 +14,10 @@
 .set MINOR_PLAYBACK_ENTRY, 0x3
 # Slippi's Change Debug Result Screen MinorType to Debug Menu, the half that does
 # not survive to the menu. Same address and value as their gecko code.
+.set SCENE_MAJOR_MAIN_MENU, 0x1
+.set PB_STATE_IDLE, 0
+.set PB_STATE_ARMED, 1
+.set PB_STATE_HOLDING, 2
 .set PB_SCENEPREP_SLOT, 0x801b16a8
 .set PB_SCENEPREP_DEBUGMENU, 0x801b09c0
 # A peek at whether a replay is queued. Deliberately NOT
@@ -49,6 +53,7 @@ CODE_START:
 .set REG_PB_ANSWER, 27
 .set REG_PB_DATA, 26
 .set REG_PB_MAJOR, 25
+.set REG_PB_SCENE, 24
 
 backup
 
@@ -171,7 +176,7 @@ bne PEPPY_PLAYBACK_SCHEDULED
 logf LOG_LEVEL_WARN, "[Peppy] A replay is queued - scheduling the handover"
 
 # Arm the think and schedule it.
-li r3, 1
+li r3, PB_STATE_ARMED
 stb r3, PB_DOFST_PENDING(REG_PB_DATA)
 
 li r3, 13
@@ -198,90 +203,74 @@ backup
 
 bl PEPPY_PB_DATA
 mflr REG_PB_DATA
+load REG_PB_SCENE, 0x80479D30
+
 lbz r3, PB_DOFST_PENDING(REG_PB_DATA)
-cmpwi r3, 1
-bne PEPPY_PLAYBACK_THINK_EXIT
+cmpwi r3, PB_STATE_IDLE
+beq PEPPY_PLAYBACK_THINK_EXIT
 
-# Once. The scene is about to go away and this function will keep being called
-# until it does.
-li r3, 0
+# Once the major has actually changed we are through, so stop touching it.
+lbz r3, 0x0(REG_PB_SCENE)
+cmpwi r3, SCENE_MAJOR_MAIN_MENU
+beq PEPPY_PB_STILL_ON_MENU
+
+li r3, PB_STATE_IDLE
 stb r3, PB_DOFST_PENDING(REG_PB_DATA)
+logf LOG_LEVEL_WARN, "[Peppy] handover complete - major %x minor %x", "lbz r5, 0x0(REG_PB_SCENE)", "lbz r6, 0x3(REG_PB_SCENE)"
+b PEPPY_PLAYBACK_THINK_EXIT
 
+PEPPY_PB_STILL_ON_MENU:
+lbz r3, PB_DOFST_PENDING(REG_PB_DATA)
+cmpwi r3, PB_STATE_HOLDING
+beq PEPPY_PB_HOLD
+
+################################################################################
+# First frame: set it all up and end the minor. Once only - repeating the exit
+# would keep restarting it.
+################################################################################
 logf LOG_LEVEL_WARN, "[Peppy] Leaving the menu for the playback major"
 
-# The playback scene lives in the DebugMelee major, and Slippi's boot code points
-# that major's load at the right minor on the way in. We are not using that code,
-# so we register the same callback ourselves. Everything it runs afterwards is
-# Slippi's, untouched.
-# Ask the game where that major's struct is rather than hardcoding it. Slippi's
-# boot code uses a fixed 0x803dada8, which is right in the playback build - but
-# that build has no m-ex in it, and ours does, and m-ex rearranges Melee's scene
-# tables. Writing a function pointer at a stale address is exactly the shape of
-# the crash this hit: an immediate, deterministic bad pointer.
-li r3, SCENE_MAJOR_DEBUG_MELEE
-branchl r12, Scene_GetMajorSceneStruct
-mr REG_PB_MAJOR, r3
-
-# Re-apply Slippi's ScenePrep patch.
-#
-# Their playback codeset installs the scene with two static writes. One of them,
-# 0x803dda9c, sticks. The other, 0x801b16a8, does not: measured here it still
-# held 0x7c0802a6, the original value, not the 0x801b09c0 their gecko code
-# writes. That address is in Melee's scene-code region, which is reloaded as
-# scenes come and go, so a write applied once at boot is long gone by the time
-# anyone has reached a menu. Their build never notices - it boots straight into
-# the scene and nothing loads over it first.
-#
-# Without that half the prep is still the Debug RESULT screen rather than the
-# debug menu, so the handover lands somewhere that was never the playback scene.
-# Writing it immediately before leaving puts it back. Same address, same value,
-# their patch, just applied late enough to survive.
+# Re-apply Slippi's ScenePrep patch. Their playback codeset installs the scene
+# with two static writes; 0x803dda9c sticks but 0x801b16a8 does not, because it
+# is in Melee's scene-code region which is reloaded as scenes come and go. A
+# write applied once at boot is long gone by the time anyone reaches a menu.
+# Their build never notices - it boots straight in and nothing loads over it.
+# Same address, same value, their patch, applied late enough to survive.
 load r3, PB_SCENEPREP_SLOT
 load r4, PB_SCENEPREP_DEBUGMENU
 stw r4, 0(r3)
-
-logf LOG_LEVEL_WARN, "[Peppy] ScenePrep slot now %x (want 801b09c0)", "load r5, PB_SCENEPREP_SLOT", "lwz r5, 0(r5)"
-
-# It is code, so the instruction cache has to be told.
 load r3, PB_SCENEPREP_SLOT
 li r4, 4
 branchl r12, TRK_flush_cache
 
-
-# NOT registering a major-load callback.
-#
-# Slippi's boot code registers one on DebugMelee so the major lands on the right
-# minor. Reproducing that here needs DebugMelee's struct, and the obvious way to
-# get it does not work: Scene_GetMajorSceneStruct ignores its argument and hands
-# back the CURRENT major, so writing the callback at +4 was scribbling on the
-# menu's own struct - the major we were in the middle of leaving. The scene
-# watcher caught the result: major 00 minor 47, which is nothing.
-#
-# So: switch majors and nothing else, and let the watcher say where that lands.
-# If it reaches major 0e cleanly then only the minor is left to solve.
-
-# Clear the pending minor first. room.c's exit_room does this before naming the
-# next major and it is the only part of that known-good sequence this was
-# missing; a stale pending minor is read by the incoming major's load.
-load r4, 0x80479D30
+# Clear the pending minor, the way room.c's exit_room does before naming the
+# next major - a stale value there is read by the incoming major's load.
 li r3, 0
-stb r3, 0x5(r4)
+stb r3, 0x5(REG_PB_SCENE)
 
-load REG_PB_MAJOR, 0x80479D30
-logf LOG_LEVEL_WARN, "[Peppy] before: major=%x pending=%x flagC=%x", "lbz r5, 0x0(REG_PB_MAJOR)", "lbz r6, 0x1(REG_PB_MAJOR)", "lbz r7, 0xC(REG_PB_MAJOR)"
+li r3, PB_STATE_HOLDING
+stb r3, PB_DOFST_PENDING(REG_PB_DATA)
 
 li r3, SCENE_MAJOR_DEBUG_MELEE
 branchl r12, MenuController_WriteToPendingMajor_1to_0xC
-
-# Did that function do what its name says? If pending is 0e here then it worked
-# and something later overrode it; if not, the symbol is not what we think.
-load REG_PB_MAJOR, 0x80479D30
-logf LOG_LEVEL_WARN, "[Peppy] after write: major=%x pending=%x flagC=%x (asked for 0e)", "lbz r5, 0x0(REG_PB_MAJOR)", "lbz r6, 0x1(REG_PB_MAJOR)", "lbz r7, 0xC(REG_PB_MAJOR)"
-
 branchl r12, Scene_ExitMinor
+b PEPPY_PLAYBACK_THINK_EXIT
 
-load REG_PB_MAJOR, 0x80479D30
-logf LOG_LEVEL_WARN, "[Peppy] after exit: major=%x pending=%x flagC=%x", "lbz r5, 0x0(REG_PB_MAJOR)", "lbz r6, 0x1(REG_PB_MAJOR)", "lbz r7, 0xC(REG_PB_MAJOR)"
+################################################################################
+# Every frame after: hold the destination.
+#
+# The write itself works - measured, pending goes to 0e and the exit flag to 1 -
+# but the menu's own next-scene logic runs after this function and puts its own
+# answer back, and the game ends up on major 18. So say it again each frame
+# until the transition actually happens. No allocation and no EXI on this path,
+# which is what made an earlier per-frame version die in EXIDma.
+################################################################################
+PEPPY_PB_HOLD:
+li r3, SCENE_MAJOR_DEBUG_MELEE
+stb r3, 0x1(REG_PB_SCENE)
+li r3, 1
+stb r3, 0xC(REG_PB_SCENE)
+
 
 PEPPY_PLAYBACK_THINK_EXIT:
 restore
