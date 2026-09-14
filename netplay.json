@@ -379,12 +379,6 @@
           "sourceFolder": "Playback/Core",
           "isRecursive": false,
           "annotation": "Replay frame fetch + restore. NOT recursive: Sounds/ collides with Online/Core/Sound, Scene/ boots straight to playback, StartMelee/ is merged above"
-        },
-        {
-          "type": "injectFolder",
-          "sourceFolder": "Playback/Core/FastForward",
-          "isRecursive": true,
-          "annotation": "Fast-forward while catching up to a live stream"
         }
       ]
     },
