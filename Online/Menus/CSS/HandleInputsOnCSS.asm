@@ -72,16 +72,15 @@ stb r3, PB_DOFST_TICK(REG_PB_DATA)
 cmpwi r3, 0
 bne PEPPY_NO_REPLAY_ON_CSS
 
-# The EXI buffer, allocated once. HSD_MemAlloc gives DMA-safe alignment; a
-# buffer inside the gecko code would not be guaranteed any.
-lwz REG_TXB_ADDR, PB_DOFST_BUF(REG_PB_DATA)
-cmpwi REG_TXB_ADDR, 0
-bne PEPPY_PB_HAVE_BUF
-li r3, 32
-branchl r12, HSD_MemAlloc
-mr REG_TXB_ADDR, r3
-stw REG_TXB_ADDR, PB_DOFST_BUF(REG_PB_DATA)
-PEPPY_PB_HAVE_BUF:
+# The EXI buffer.
+#
+# NOT an HSD_MemAlloc kept in this code's data. HSD heaps are reset between
+# scenes, so a pointer cached on the character select is dangling the moment a
+# match starts - and the next transfer DMAs into freed memory. That is what the
+# EXIDma crash was, every time, at the same address: Unknown Pointer 0x03414c40.
+#
+# OFST_R13_SB_ADDR is the buffer that survives scene changes, and the codeset's
+# own logf macro already uses it for exactly this.
 
 # CONST_PeppyCmdReplayWaiting is a peek - deliberately not 0x88, which loads the
 # game and marks it played, leaving SceneThink_Playback's own poll waiting
@@ -89,6 +88,7 @@ PEPPY_PB_HAVE_BUF:
 # Peppy diag: once a second, what the CSS thinks is going on.
 logf LOG_LEVEL_WARN, "[Peppy] css: charSelected=%d conn=%d inputs=%x", "lbz r5, -0x49A9(r13)", "lbz r6, MSRB_CONNECTION_STATE(REG_MSRB_ADDR)", "mr r7, REG_INPUTS"
 
+lwz REG_TXB_ADDR, OFST_R13_SB_ADDR(r13)
 li r3, CONST_PeppyCmdReplayWaiting
 stb r3, 0(REG_TXB_ADDR)
 mr r3, REG_TXB_ADDR
@@ -110,6 +110,7 @@ logf LOG_LEVEL_WARN, "[Peppy] something to watch - loading it before we go"
 # load and mark the replay played. The major's load lands on minor 1, playback
 # in-game, not on minor 3 where SceneThink_Playback would otherwise do this -
 # and pending_minor does not survive a major change, so we cannot ask for 3.
+lwz REG_TXB_ADDR, OFST_R13_SB_ADDR(r13)
 li r3, CONST_SlippiCmdCheckForReplay
 stb r3, 0(REG_TXB_ADDR)
 mr r3, REG_TXB_ADDR
@@ -145,8 +146,6 @@ blrl
 .set PB_DOFST_TICK, 0
 .byte 0
 .align 2
-.set PB_DOFST_BUF, 4
-.long 0
 
 PEPPY_NO_REPLAY_ON_CSS:
 
