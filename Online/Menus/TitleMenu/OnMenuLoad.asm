@@ -12,6 +12,11 @@
 .set ADDR_MajorStruct_DebugMelee, 0x803dada8
 .set SCENE_MAJOR_DEBUG_MELEE, 0xE
 .set MINOR_PLAYBACK_ENTRY, 0x3
+# A peek at whether a replay is queued. Deliberately NOT
+# CONST_SlippiCmdCheckForReplay (0x88): that one loads the game and marks it
+# played, and the playback scene polls 0x88 itself in a loop - asking it here
+# would leave that loop waiting forever on a replay already loaded behind it.
+.set CONST_PeppyCmdReplayWaiting, 0xCA
 .set MenuController_WriteToPendingMajor_1to_0xC, 0x801A42F8
 .set Scene_ExitMinor, 0x801A4B60
 
@@ -119,7 +124,7 @@ li r3, 1
 branchl r12, HSD_MemAlloc
 mr REG_TXB_ADDR, r3
 
-li r3, CONST_SlippiCmdCheckForReplay
+li r3, CONST_PeppyCmdReplayWaiting
 stb r3, 0(REG_TXB_ADDR)
 
 mr r3, REG_TXB_ADDR
