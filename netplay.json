@@ -16,6 +16,7 @@
         "$Required: General Codes",
         "$Required: Slippi Recording",
         "$Required: Slippi Online",
+        "$Required: Slippi Playback",
         "$Recommended: Normal Lag Reduction",
         "$Recommended: Apply Delay to all In-Game Scenes",
         "$Recommended: Lagless FoD",
@@ -38,6 +39,7 @@
         "$Required: General Codes",
         "$Required: Slippi Recording",
         "$Required: Slippi Online",
+        "$Required: Slippi Playback",
         "$Recommended: Normal Lag Reduction",
         "$Recommended: Apply Delay to all In-Game Scenes",
         "$Recommended: Lagless FoD",
@@ -355,6 +357,34 @@
           "sourceFolder": "External/PreventWobbling",
           "isRecursive": false,
           "annotation": "Disable wobbling [UnclePunch]"
+        }
+      ]
+    },
+    {
+      "name": "Required: Slippi Playback",
+      "authors": [
+        "Fizzi",
+        "Nikki",
+        "UnclePunch"
+      ],
+      "build": [
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Peppy/Playback",
+          "isRecursive": true,
+          "annotation": "StartMelee: online/playback dispatch at 0x8016e748"
+        },
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Playback/Core",
+          "isRecursive": false,
+          "annotation": "Replay frame fetch + restore. NOT recursive: Sounds/ collides with Online/Core/Sound, Scene/ boots straight to playback, StartMelee/ is merged above"
+        },
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Playback/Core/FastForward",
+          "isRecursive": true,
+          "annotation": "Fast-forward while catching up to a live stream"
         }
       ]
     },
