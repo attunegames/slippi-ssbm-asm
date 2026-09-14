@@ -107,19 +107,45 @@ branchl r12, HSD_Free
 ################################################################################
 # Section 4: Peppy - jump into Slippi's replay playback if one is waiting
 ################################################################################
-# Slippi enters playback by hijacking boot (Playback/Core/Scene/Boot). That
-# code is built but left disabled, because it takes the whole build with it -
-# a build that boots into playback can never reach Peppy. We open the same
-# door from here instead, so one build does both.
+# Slippi enters playback by hijacking boot (Playback/Core/Scene/Boot). That code
+# is built but left disabled, because it takes the whole build with it: a build
+# that boots into playback can never reach Peppy. We open the same door from the
+# menu instead, so one build does both.
 #
-# CONST_SlippiCmdCheckForReplay is Dolphin's "is a replay waiting" question:
-# it loads whatever the comm file names and answers 1 when the game is ready.
-# It only answers 1 once per new comm file, so this fires when a replay is
-# actually queued up and is otherwise inert on every other trip through the
-# main menu.
+# The check cannot happen here. This runs inside the scene's LOAD, and ending a
+# major only takes effect once a minor's Think has finished - at load there is no
+# minor running to end, so the request is simply lost and the menu carries on.
+# That is exactly what the first attempt did. So load schedules a per-frame
+# function instead, the same way SceneThink_Playback schedules its own, and the
+# work happens in the think where it can actually take.
 
-logf LOG_LEVEL_WARN, "[Peppy] Menu load: asking Dolphin whether a replay is waiting"
+#Create GObj
+li r3, 13
+li r4, 14
+li r5, 0
+branchl r12, GObj_Create
 
+#Schedule our think
+bl PEPPY_PLAYBACK_THINK
+mflr r4
+li r5, 0
+branchl r12, GObj_AddProc
+
+b PEPPY_PLAYBACK_SCHEDULED
+
+
+################################################################################
+# Runs once a frame while the menu is up.
+################################################################################
+PEPPY_PLAYBACK_THINK:
+blrl
+
+backup
+
+# Ask Dolphin whether a replay is queued. CONST_PeppyCmdReplayWaiting is a peek:
+# deliberately NOT CONST_SlippiCmdCheckForReplay (0x88), which loads the game and
+# marks it played. SceneThink_Playback polls 0x88 itself in a loop, so asking it
+# here would strand that loop waiting forever on a replay already loaded.
 li r3, 1
 branchl r12, HSD_MemAlloc
 mr REG_TXB_ADDR, r3
@@ -137,47 +163,49 @@ li r4, 1
 li r5, CONST_ExiRead
 branchl r12, FN_EXITransferBuffer
 
-# Keep the answer somewhere HSD_Free cannot reach - it is a call, so it lands
-# on the condition register, and testing after it tests the wrong thing.
+# Keep the answer somewhere HSD_Free cannot reach - it is a call, so it lands on
+# the condition register, and testing after it tests the wrong thing.
 lbz REG_PB_ANSWER, 0(REG_TXB_ADDR)
 mr r3, REG_TXB_ADDR
 branchl r12, HSD_Free
-logf LOG_LEVEL_WARN, "[Peppy] Dolphin says replay-ready = %d", "mr r5, REG_PB_ANSWER"
 
 cmpwi REG_PB_ANSWER, 1
-bne PEPPY_NO_REPLAY_WAITING
+bne PEPPY_PLAYBACK_THINK_EXIT
 
 logf LOG_LEVEL_WARN, "[Peppy] Replay is ready - leaving the menu for the playback major"
 
-# The playback scene lives in the DebugMelee major and Slippi's boot code
-# points that major's load at the right minor on the way in. We are not using
-# that code, so we register the same callback ourselves. Everything it runs
-# afterwards is Slippi's, untouched.
+# The playback scene lives in the DebugMelee major, and Slippi's boot code points
+# that major's load at the right minor on the way in. We are not using that code,
+# so we register the same callback ourselves. Everything it runs afterwards is
+# Slippi's, untouched.
 bl PEPPY_PB_MAJOR_LOAD
 mflr r3
 load r4, ADDR_MajorStruct_DebugMelee
 stw r3, 0x4(r4)
 
 # Ending the major: name the one to go to next AND flag this one, then end the
-# minor. Scene_ProcessMajor only looks at the flag between minors, so without
-# the second half the menu sits there having already been told to leave.
+# minor. Scene_ProcessMajor only looks at the flag between minors, so without the
+# second half the menu sits there having already been told to leave.
 li r3, SCENE_MAJOR_DEBUG_MELEE
 branchl r12, MenuController_WriteToPendingMajor_1to_0xC
 branchl r12, Scene_ExitMinor
 
-b PEPPY_NO_REPLAY_WAITING
+PEPPY_PLAYBACK_THINK_EXIT:
+restore
+blr
+
 
 PEPPY_PB_MAJOR_LOAD:
 blrl
 # Runs as the DebugMelee major loads. The playback scene is its result-screen
-# minor - Playback/Core/Scene/Change Debug Result Screen MinorType to Debug
-# Menu is what makes that minor the playback one.
+# minor - Playback/Core/Scene/Change Debug Result Screen MinorType to Debug Menu
+# is what makes that minor the playback one.
   li r3, MINOR_PLAYBACK_ENTRY
   load r4, 0x80479D30
   stb r3, 0x3(r4)
   blr
 
-PEPPY_NO_REPLAY_WAITING:
+PEPPY_PLAYBACK_SCHEDULED:
 
 restore
 
