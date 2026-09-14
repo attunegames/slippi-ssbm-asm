@@ -217,31 +217,23 @@ li r3, SCENE_MAJOR_DEBUG_MELEE
 branchl r12, Scene_GetMajorSceneStruct
 mr REG_PB_MAJOR, r3
 
-logf LOG_LEVEL_WARN, "[Peppy] DebugMelee major struct at %x (Slippi hardcodes 803dada8)", "mr r5, REG_PB_MAJOR"
-
-# Dump the struct so we can see where its minor list actually lives. m-ex loads
-# MxScn.dat at boot and rebuilds the scene tables in its own memory, which is
-# why the struct moved at all - and Slippi's other playback patches write to
-# fixed addresses in the ORIGINAL tables (Swap MinorType.asm -> 0x803dda9c,
-# ScenePrep_DebugResult -> 0x801b16a8). If nothing reads those any more then we
-# arrive at a minor that was never configured, which is what the hang looks like.
-logf LOG_LEVEL_WARN, "[Peppy] major +0=%x +4=%x +8=%x +c=%x", "lwz r5, 0x0(REG_PB_MAJOR)", "lwz r6, 0x4(REG_PB_MAJOR)", "lwz r7, 0x8(REG_PB_MAJOR)", "lwz r8, 0xC(REG_PB_MAJOR)"
-
-load r3, 0x803dda9c
-lwz r3, 0(r3)
-logf LOG_LEVEL_WARN, "[Peppy] word at Slippi's 803dda9c = %x (expects 07000000)", "mr r5, r3"
-
-li r3, MINOR_PLAYBACK_ENTRY
-branchl r12, Scene_MinorIDToMinorSceneFunctionTable
-logf LOG_LEVEL_WARN, "[Peppy] minor 3 function table at %x (Slippi patches 801b16a8)", "mr r5, r3"
-
-# Dump the live entry. Slippi's static patch replaces ScenePrep_DebugResult with
-# ScenePrep_DebugMenu (0x801b09c0) at a fixed offset in the DEAD table, so the
-# live entry should still hold the original ScenePrep_DebugResult pointer - some
-# 0x801bxxxx value. Whichever slot that is, is the slot to write.
+# Compare the three majors side by side. If DebugMelee's entry is empty while
+# the menu's and online's are populated, then m-ex simply has no scene there and
+# the handover can never land - which would explain the hang completely.
+li r3, 1
+branchl r12, Scene_GetMajorSceneStruct
 mr REG_PB_MAJOR, r3
-logf LOG_LEVEL_WARN, "[Peppy] entry +0=%x +4=%x +8=%x +c=%x +10=%x", "lwz r5, 0x0(REG_PB_MAJOR)", "lwz r6, 0x4(REG_PB_MAJOR)", "lwz r7, 0x8(REG_PB_MAJOR)", "lwz r8, 0xC(REG_PB_MAJOR)", "lwz r9, 0x10(REG_PB_MAJOR)"
-logf LOG_LEVEL_WARN, "[Peppy] entry +14=%x +18=%x +1c=%x +20=%x", "lwz r5, 0x14(REG_PB_MAJOR)", "lwz r6, 0x18(REG_PB_MAJOR)", "lwz r7, 0x1C(REG_PB_MAJOR)", "lwz r8, 0x20(REG_PB_MAJOR)"
+logf LOG_LEVEL_WARN, "[Peppy] major 01 (menu)  @%x +0=%x +4=%x +8=%x +c=%x", "mr r5, REG_PB_MAJOR", "lwz r6, 0x0(REG_PB_MAJOR)", "lwz r7, 0x4(REG_PB_MAJOR)", "lwz r8, 0x8(REG_PB_MAJOR)", "lwz r9, 0xC(REG_PB_MAJOR)"
+
+li r3, 8
+branchl r12, Scene_GetMajorSceneStruct
+mr REG_PB_MAJOR, r3
+logf LOG_LEVEL_WARN, "[Peppy] major 08 (online)@%x +0=%x +4=%x +8=%x +c=%x", "mr r5, REG_PB_MAJOR", "lwz r6, 0x0(REG_PB_MAJOR)", "lwz r7, 0x4(REG_PB_MAJOR)", "lwz r8, 0x8(REG_PB_MAJOR)", "lwz r9, 0xC(REG_PB_MAJOR)"
+
+li r3, SCENE_MAJOR_DEBUG_MELEE
+branchl r12, Scene_GetMajorSceneStruct
+mr REG_PB_MAJOR, r3
+logf LOG_LEVEL_WARN, "[Peppy] major 0e (dbgml)@%x +0=%x +4=%x +8=%x +c=%x", "mr r5, REG_PB_MAJOR", "lwz r6, 0x0(REG_PB_MAJOR)", "lwz r7, 0x4(REG_PB_MAJOR)", "lwz r8, 0x8(REG_PB_MAJOR)", "lwz r9, 0xC(REG_PB_MAJOR)"
 
 bl PEPPY_PB_MAJOR_LOAD
 mflr r3
