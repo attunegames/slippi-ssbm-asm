@@ -11,6 +11,8 @@
 .set REG_TXB_ADDR, 25
 .set REG_CSSDT_ADDR, 24
 .set REG_PB_ANSWER, 23
+.set REG_PB_DATA, 22
+.set PEPPY_PB_ASK_EVERY, 60
 
 # Peppy: handing over to Slippi's replay playback.
 .set CONST_PeppyCmdReplayWaiting, 0xCA
@@ -44,116 +46,89 @@ lwz REG_MSRB_ADDR, CSSDT_MSRB_ADDR(REG_CSSDT_ADDR) # Load where buf is stored
 li REG_ZERO, 0 # set to zero just in case :)
 
 ################################################################################
-# Peppy: hand over to Slippi's replay playback if a replay is queued
+# Peppy: hand over to Slippi's replay playback if one is waiting
 ################################################################################
-# This used to live at the end of SceneLoad_MainMenu and could never work there.
-# Melee's main menu decides its own next major, so the handover was overridden
-# every time - the write landed (pending-major 0e, exit flag 1) and the game
-# still came up on major 18. Worse, Scene_ExitMinor destroys the scheduling GObj
-# in the same frame, so nothing survived to say it again.
+# This runs once a frame on the online character select, which is where a queued
+# player sits, so it has to be nearly free. The first version was not: it did an
+# HSD_MemAlloc, two EXI transfers and an HSD_Free EVERY FRAME, through
+# matchmaking and match load, and it broke ordinary play - Alpha and Bravo could
+# not get through starting a match without the EXIDma crash. The note in this
+# project's own history says the same thing about FN_LoadMatchState: called per
+# frame, it killed the room every time.
 #
-# Here we are inside the online major, which is Peppy's own. The pair below is
-# the same one peppy_room_exit_room uses to leave that major for the menu, and
-# that is a feature known to work. This is also where the trigger belongs: you
-# start spectating because you are queued, not because you passed a menu.
-#
+# So: one allocation ever, kept in the code's own data, and the question is only
+# asked every PEPPY_PB_ASK_EVERY frames. Nothing else changed.
+bl PEPPY_PB_DATA
+mflr REG_PB_DATA
+
+# Count down to the next ask.
+lbz r3, PB_DOFST_TICK(REG_PB_DATA)
+addi r3, r3, 1
+cmpwi r3, PEPPY_PB_ASK_EVERY
+blt PEPPY_PB_NOT_YET
+li r3, 0
+PEPPY_PB_NOT_YET:
+stb r3, PB_DOFST_TICK(REG_PB_DATA)
+cmpwi r3, 0
+bne PEPPY_NO_REPLAY_ON_CSS
+
+# The EXI buffer, allocated once. HSD_MemAlloc gives DMA-safe alignment; a
+# buffer inside the gecko code would not be guaranteed any.
+lwz REG_TXB_ADDR, PB_DOFST_BUF(REG_PB_DATA)
+cmpwi REG_TXB_ADDR, 0
+bne PEPPY_PB_HAVE_BUF
+li r3, 32
+branchl r12, HSD_MemAlloc
+mr REG_TXB_ADDR, r3
+stw REG_TXB_ADDR, PB_DOFST_BUF(REG_PB_DATA)
+PEPPY_PB_HAVE_BUF:
+
 # CONST_PeppyCmdReplayWaiting is a peek - deliberately not 0x88, which loads the
 # game and marks it played, leaving SceneThink_Playback's own poll waiting
 # forever on a replay already loaded behind it.
-li r3, 1
-branchl r12, HSD_MemAlloc
-mr REG_TXB_ADDR, r3
-
 li r3, CONST_PeppyCmdReplayWaiting
 stb r3, 0(REG_TXB_ADDR)
-
 mr r3, REG_TXB_ADDR
 li r4, 1
 li r5, CONST_ExiWrite
 branchl r12, FN_EXITransferBuffer
-
 mr r3, REG_TXB_ADDR
 li r4, 1
 li r5, CONST_ExiRead
 branchl r12, FN_EXITransferBuffer
-
-# Keep the answer somewhere HSD_Free cannot reach - it is a call, so it lands on
-# the condition register.
 lbz REG_PB_ANSWER, 0(REG_TXB_ADDR)
-mr r3, REG_TXB_ADDR
-branchl r12, HSD_Free
 
 cmpwi REG_PB_ANSWER, 1
 bne PEPPY_NO_REPLAY_ON_CSS
 
-logf LOG_LEVEL_WARN, "[Peppy] replay queued - loading it before we go"
+logf LOG_LEVEL_WARN, "[Peppy] something to watch - loading it before we go"
 
-################################################################################
-# Load the replay here, with Slippi's own command.
-################################################################################
-# The major's load picks the minor and it picks 1 - playback IN-GAME - not 3,
-# the entry screen. pending_minor does not survive a major change, so asking for
-# 3 does nothing. Minor 3's job is to load the replay before the match starts,
-# and CONST_SlippiCmdCheckForReplay is the command it uses to do it, so do that
-# here instead. RestoreGameInfo then finds a loaded game when we arrive in-game,
-# which is what FetchGameFrame needs - without it every read came back
-# "DMARead: Empty", 3836 of them.
-#
-# This is the one place 0x88 is right rather than 0xCA: we WANT it to load and
-# mark the replay played. SceneThink_Playback, the other thing that polls it,
-# never runs here because we do not land on its minor.
-li r3, 1
-branchl r12, HSD_MemAlloc
-mr REG_TXB_ADDR, r3
-
+# Load it. This is the one place 0x88 is the right command: here we WANT it to
+# load and mark the replay played. The major's load lands on minor 1, playback
+# in-game, not on minor 3 where SceneThink_Playback would otherwise do this -
+# and pending_minor does not survive a major change, so we cannot ask for 3.
 li r3, CONST_SlippiCmdCheckForReplay
 stb r3, 0(REG_TXB_ADDR)
-
 mr r3, REG_TXB_ADDR
 li r4, 1
 li r5, CONST_ExiWrite
 branchl r12, FN_EXITransferBuffer
-
 mr r3, REG_TXB_ADDR
 li r4, 1
 li r5, CONST_ExiRead
 branchl r12, FN_EXITransferBuffer
-
 lbz REG_PB_ANSWER, 0(REG_TXB_ADDR)
-mr r3, REG_TXB_ADDR
-branchl r12, HSD_Free
 
-logf LOG_LEVEL_WARN, "[Peppy] replay load says %d", "mr r5, REG_PB_ANSWER"
+logf LOG_LEVEL_WARN, "[Peppy] load says %d", "mr r5, REG_PB_ANSWER"
 
+# A stream that has not delivered a parseable game yet answers 0. Leave it and
+# ask again later rather than handing over into a match with nothing behind it.
 cmpwi REG_PB_ANSWER, 1
 bne PEPPY_NO_REPLAY_ON_CSS
 
-# NOT re-applying Slippi's ScenePrep patch.
-#
-# Their gecko code writes 0x801b09c0 at 0x801b16a8, and 0x801b16a8 is the FIRST
-# INSTRUCTION of a function, not a pointer slot - the minor descriptor at
-# 0x803dda90 holds 0x801b16a8 as a pointer TO it. So the write replaces code
-# with a word that decodes as garbage.
-#
-# It cost nothing during a match, because that function is never called from
-# playback in-game. It cost everything the moment a replay ENDED and the scene
-# went to minor 3, whose prep is that function: Melee executed the word, jumped
-# to nothing, and died with "Unknown instruction at PC = 00000008, LR = 0".
-#
-# Re-applying it was a guess from when the handover was failing for an unrelated
-# reason, and the handover works without it.
-
-# Ask for the playback ENTRY minor, not zero.
-#
-# Zero landed us straight on minor 1, which is playback IN-GAME: FetchGameFrame
-# started asking Dolphin for frames of a replay nobody had loaded yet, and every
-# read came back "DMARead: Empty". Minor 3 is the entry screen, where
-# SceneThink_Playback polls for the replay, loads it, and only then starts the
-# match. Slippi's boot callback is what normally selects it; this asks directly.
-#
-# pending_minor is one-based - zero means "carry on as normal" - so minor 3 is 4.
+# Clear the pending minor, the way room.c's exit_room does.
 load r4, 0x80479D30
-li r3, MINOR_PLAYBACK_ENTRY + 1
+li r3, 0
 stb r3, 0x5(r4)
 
 li r3, SCENE_MAJOR_DEBUG_MELEE
@@ -162,7 +137,16 @@ branchl r12, Scene_ExitMinor
 
 b EXIT
 
+PEPPY_PB_DATA:
+blrl
+.set PB_DOFST_TICK, 0
+.byte 0
+.align 2
+.set PB_DOFST_BUF, 4
+.long 0
+
 PEPPY_NO_REPLAY_ON_CSS:
+
 
 ################################################################################
 # Play sound on lock-in state 1 -> 0 transition
