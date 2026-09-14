@@ -134,6 +134,17 @@ trigger belongs.
   (`0x801A50AC`), never the constant. Assume any hardcoded scene-table address
   taken from the playback codeset is wrong here.
 
+- **Two different minor numberings.** m-ex keeps ONE global minor-scene list -
+  `u8 minorId; pad[3]; think; load; leave; codeFile` at a 0x14 stride, the format
+  `Peppy/Modules/mxscn.py` documents. Global ids are what `MINOR_CSS 0x08`,
+  Slippi's GameSetup `0x50` and `MINOR_PEPPY_ROOM 0x51` refer to. A major's
+  *local* minor index is a different number: the online major's own minors run
+  0 CSS, 4 splash, 5 GameSetup, 6 room. Slippi's playback scene is DebugMelee's
+  LOCAL minor 3, which is not global scene 3 - global 3 is an in-game scene
+  (verified: global 4 is training in-game, whose think/load/leave match
+  `make_mxscn.py`'s TRAIN_* constants exactly). Reading one as the other sends
+  you to the wrong table.
+
 ## Reading the logs
 
 The replay lines live on the `EXPANSIONINTERFACE` channel, which is off by
