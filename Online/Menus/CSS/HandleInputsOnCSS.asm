@@ -52,6 +52,13 @@ lbz r3, OFST_R13_ONLINE_MODE(r13)
 cmpwi r3, ONLINE_MODE_ROOMS
 bne PEPPY_CSS_STAY
 
+# Except a watcher. Dolphin's watch setup is written for a client sitting on
+# this screen - it is where the netplay client is made and where a restart is
+# spent - and that is how the build confirmed working on 2026-09-10 did it.
+lbz r3, MSRB_ROOM_FLAGS(REG_MSRB_ADDR)
+andi. r3, r3, MSRB_ROOM_FLAG_WATCHABLE
+bne PEPPY_CSS_STAY
+
 # Minor 6 of this major is the room, and this byte is one-based.
 load r4, 0x80479d30
 li r3, 7
