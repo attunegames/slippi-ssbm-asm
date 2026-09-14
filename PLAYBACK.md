@@ -1,9 +1,38 @@
 # Slippi replay playback, inside Peppy's own window
 
-**Status: not yet confirmed working.** The codeset builds, Peppy still boots and
-runs normally with the replay hooks in it, and the menu reaches Dolphin and gets
-an answer. A replay has not yet been seen playing. Everything below is verified
-unless it says otherwise.
+**Status: WORKING.** Measured 2026-09-14 on `peppy-rebuild\Alpha`: from the
+online character select the game hands over to major 0e minor 01, the replay
+loads, and the match plays at 60 FPS in the Peppy window. The clock advanced
+06:42.36 -> 06:36.31 over six seconds of wall time, which is real time. Zero
+`DMARead: Empty`, zero errors. Not yet confirmed by a human watching it.
+
+Nothing in Slippi's replay mechanics changed. Their files are moved, not edited,
+and the one merged file is generated from them.
+
+## The recipe
+
+Codeset `playback-in-session`, Dolphin `playback-in-session`. A replay is queued
+by writing `<build>/Slippi/playback.txt` (see the end of this file). Then:
+
+1. `Online/Menus/CSS/HandleInputsOnCSS.asm`, inside the ONLINE major, asks
+   Dolphin `CONST_PeppyCmdReplayWaiting` (0xCA) - a peek that does not consume.
+2. On a yes it re-applies Slippi's ScenePrep patch, loads the replay with
+   `CONST_SlippiCmdCheckForReplay` (0x88), then
+   `MenuController_WriteToPendingMajor_1to_0xC(0x0E)` + `Scene_ExitMinor`.
+3. The major's load puts us on minor 1, playback in-game. `RestoreGameInfo`
+   finds the loaded game, `FetchGameFrame` streams frames, the match plays.
+
+⚠️ **It has to happen from inside Peppy's own major.** From Melee's main menu the
+same code cannot work - that menu decides its own next major and overrides the
+request every time (measured: the write lands, pending-major 0e and exit flag 1,
+and the game still comes up on major 18). Forcing the byte from Dolphin does not
+help either; the game overwrites it with 18 itself, so the destination is not
+read from there at all.
+
+⚠️ **The replay must be loaded BEFORE the handover.** The major's load picks minor
+1, not minor 3, and `pending_minor` does not survive a major change - so the
+entry screen that would normally load the replay never runs. Loading it from the
+scene we are leaving is what makes `RestoreGameInfo` find a game to start.
 
 ## The thing worth knowing first
 
