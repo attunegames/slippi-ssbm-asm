@@ -40,6 +40,7 @@ CODE_START:
 .set REG_DATA_ADDR, 29
 .set REG_TXB_ADDR, 28
 .set REG_PB_ANSWER, 27
+.set REG_PB_DATA, 26
 
 backup
 
@@ -109,38 +110,25 @@ branchl r12, HSD_Free
 ################################################################################
 # Slippi enters playback by hijacking boot (Playback/Core/Scene/Boot). That code
 # is built but left disabled, because it takes the whole build with it: a build
-# that boots into playback can never reach Peppy. We open the same door from the
-# menu instead, so one build does both.
+# that boots into playback can never reach Peppy. We open the same door here, so
+# one build does both.
 #
-# The check cannot happen here. This runs inside the scene's LOAD, and ending a
-# major only takes effect once a minor's Think has finished - at load there is no
-# minor running to end, so the request is simply lost and the menu carries on.
-# That is exactly what the first attempt did. So load schedules a per-frame
-# function instead, the same way SceneThink_Playback schedules its own, and the
-# work happens in the think where it can actually take.
+# Split in two on purpose.
+#
+# The ASK happens here, in the scene's load. One EXI transfer, once.
+#
+# The HANDOVER cannot happen here: ending a major only takes effect once a
+# minor's Think has finished, and at load there is no minor running to end, so
+# the request is dropped and the menu carries on. That was the first attempt.
+#
+# The second attempt moved the whole thing into a per-frame function, which did
+# leave the menu - and then died in EXIDma with a bad DMA pointer, because the
+# function kept running as the scene tore down, allocating a buffer and starting
+# a transfer each frame against a heap that was going away. So the think does no
+# EXI at all now: it reads a byte this code already fetched, and it fires once.
 
-#Create GObj
-li r3, 13
-li r4, 14
-li r5, 0
-branchl r12, GObj_Create
-
-#Schedule our think
-bl PEPPY_PLAYBACK_THINK
-mflr r4
-li r5, 0
-branchl r12, GObj_AddProc
-
-b PEPPY_PLAYBACK_SCHEDULED
-
-
-################################################################################
-# Runs once a frame while the menu is up.
-################################################################################
-PEPPY_PLAYBACK_THINK:
-blrl
-
-backup
+bl PEPPY_PB_DATA
+mflr REG_PB_DATA
 
 # Ask Dolphin whether a replay is queued. CONST_PeppyCmdReplayWaiting is a peek:
 # deliberately NOT CONST_SlippiCmdCheckForReplay (0x88), which loads the game and
@@ -170,9 +158,48 @@ mr r3, REG_TXB_ADDR
 branchl r12, HSD_Free
 
 cmpwi REG_PB_ANSWER, 1
+bne PEPPY_PLAYBACK_SCHEDULED
+
+logf LOG_LEVEL_WARN, "[Peppy] A replay is queued - scheduling the handover"
+
+# Arm the think and schedule it.
+li r3, 1
+stb r3, PB_DOFST_PENDING(REG_PB_DATA)
+
+li r3, 13
+li r4, 14
+li r5, 0
+branchl r12, GObj_Create
+
+bl PEPPY_PLAYBACK_THINK
+mflr r4
+li r5, 0
+branchl r12, GObj_AddProc
+
+b PEPPY_PLAYBACK_SCHEDULED
+
+
+################################################################################
+# Runs once a frame while the menu is up. No EXI, no allocation - just the
+# handover, once.
+################################################################################
+PEPPY_PLAYBACK_THINK:
+blrl
+
+backup
+
+bl PEPPY_PB_DATA
+mflr REG_PB_DATA
+lbz r3, PB_DOFST_PENDING(REG_PB_DATA)
+cmpwi r3, 1
 bne PEPPY_PLAYBACK_THINK_EXIT
 
-logf LOG_LEVEL_WARN, "[Peppy] Replay is ready - leaving the menu for the playback major"
+# Once. The scene is about to go away and this function will keep being called
+# until it does.
+li r3, 0
+stb r3, PB_DOFST_PENDING(REG_PB_DATA)
+
+logf LOG_LEVEL_WARN, "[Peppy] Leaving the menu for the playback major"
 
 # The playback scene lives in the DebugMelee major, and Slippi's boot code points
 # that major's load at the right minor on the way in. We are not using that code,
@@ -204,6 +231,12 @@ blrl
   load r4, 0x80479D30
   stb r3, 0x3(r4)
   blr
+
+PEPPY_PB_DATA:
+blrl
+.set PB_DOFST_PENDING, 0
+.byte 0
+.align 2
 
 PEPPY_PLAYBACK_SCHEDULED:
 
