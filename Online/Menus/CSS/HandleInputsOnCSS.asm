@@ -10,6 +10,15 @@
 .set REG_MSRB_ADDR, 26
 .set REG_TXB_ADDR, 25
 .set REG_CSSDT_ADDR, 24
+.set REG_PB_ANSWER, 23
+
+# Peppy: handing over to Slippi's replay playback.
+.set CONST_PeppyCmdReplayWaiting, 0xCA
+.set SCENE_MAJOR_DEBUG_MELEE, 0xE
+.set PB_SCENEPREP_SLOT, 0x801b16a8
+.set PB_SCENEPREP_DEBUGMENU, 0x801b09c0
+.set MenuController_WriteToPendingMajor_1to_0xC, 0x801A42F8
+.set Scene_ExitMinor, 0x801A4B60
 
 .set DISCONNECT_HOLD_DELAY, 0x30 # 3 seconds
 
@@ -32,6 +41,74 @@ mr REG_INPUTS, r7
 loadwz REG_CSSDT_ADDR, CSSDT_BUF_ADDR
 lwz REG_MSRB_ADDR, CSSDT_MSRB_ADDR(REG_CSSDT_ADDR) # Load where buf is stored
 li REG_ZERO, 0 # set to zero just in case :)
+
+################################################################################
+# Peppy: hand over to Slippi's replay playback if a replay is queued
+################################################################################
+# This used to live at the end of SceneLoad_MainMenu and could never work there.
+# Melee's main menu decides its own next major, so the handover was overridden
+# every time - the write landed (pending-major 0e, exit flag 1) and the game
+# still came up on major 18. Worse, Scene_ExitMinor destroys the scheduling GObj
+# in the same frame, so nothing survived to say it again.
+#
+# Here we are inside the online major, which is Peppy's own. The pair below is
+# the same one peppy_room_exit_room uses to leave that major for the menu, and
+# that is a feature known to work. This is also where the trigger belongs: you
+# start spectating because you are queued, not because you passed a menu.
+#
+# CONST_PeppyCmdReplayWaiting is a peek - deliberately not 0x88, which loads the
+# game and marks it played, leaving SceneThink_Playback's own poll waiting
+# forever on a replay already loaded behind it.
+li r3, 1
+branchl r12, HSD_MemAlloc
+mr REG_TXB_ADDR, r3
+
+li r3, CONST_PeppyCmdReplayWaiting
+stb r3, 0(REG_TXB_ADDR)
+
+mr r3, REG_TXB_ADDR
+li r4, 1
+li r5, CONST_ExiWrite
+branchl r12, FN_EXITransferBuffer
+
+mr r3, REG_TXB_ADDR
+li r4, 1
+li r5, CONST_ExiRead
+branchl r12, FN_EXITransferBuffer
+
+# Keep the answer somewhere HSD_Free cannot reach - it is a call, so it lands on
+# the condition register.
+lbz REG_PB_ANSWER, 0(REG_TXB_ADDR)
+mr r3, REG_TXB_ADDR
+branchl r12, HSD_Free
+
+cmpwi REG_PB_ANSWER, 1
+bne PEPPY_NO_REPLAY_ON_CSS
+
+logf LOG_LEVEL_WARN, "[Peppy] replay queued - leaving the online major for playback"
+
+# Slippi's ScenePrep patch does not survive to here: 0x801b16a8 is in Melee's
+# scene-code region, which is reloaded as scenes come and go, so their gecko
+# write is long gone. Same address, same value, applied late enough to last.
+load r3, PB_SCENEPREP_SLOT
+load r4, PB_SCENEPREP_DEBUGMENU
+stw r4, 0(r3)
+load r3, PB_SCENEPREP_SLOT
+li r4, 4
+branchl r12, TRK_flush_cache
+
+# Clear the pending minor first, the way room.c's exit_room does.
+load r4, 0x80479D30
+li r3, 0
+stb r3, 0x5(r4)
+
+li r3, SCENE_MAJOR_DEBUG_MELEE
+branchl r12, MenuController_WriteToPendingMajor_1to_0xC
+branchl r12, Scene_ExitMinor
+
+b EXIT
+
+PEPPY_NO_REPLAY_ON_CSS:
 
 ################################################################################
 # Play sound on lock-in state 1 -> 0 transition

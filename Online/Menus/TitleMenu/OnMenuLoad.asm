@@ -119,181 +119,20 @@ mr r3, REG_TXB_ADDR
 branchl r12, HSD_Free
 
 ################################################################################
-# Section 4: Peppy - jump into Slippi's replay playback if one is waiting
+# Section 4: Peppy - the playback handover used to live here
 ################################################################################
-# Slippi enters playback by hijacking boot (Playback/Core/Scene/Boot). That code
-# is built but left disabled, because it takes the whole build with it: a build
-# that boots into playback can never reach Peppy. We open the same door here, so
-# one build does both.
+# It cannot work from the main menu. Melee's main menu decides its own next
+# major, so the request was overridden every time: the write landed (pending
+# 0e, exit flag 1) and the game still came up on major 18. Forcing the byte from
+# Dolphin did not help either - the game overwrote it with 18 itself, which says
+# the destination is not read from there at all. And Scene_ExitMinor destroys
+# the scheduling GObj in the same frame, so nothing survived to say it twice.
 #
-# Split in two on purpose.
-#
-# The ASK happens here, in the scene's load. One EXI transfer, once.
-#
-# The HANDOVER cannot happen here: ending a major only takes effect once a
-# minor's Think has finished, and at load there is no minor running to end, so
-# the request is dropped and the menu carries on. That was the first attempt.
-#
-# The second attempt moved the whole thing into a per-frame function, which did
-# leave the menu - and then died in EXIDma with a bad DMA pointer, because the
-# function kept running as the scene tore down, allocating a buffer and starting
-# a transfer each frame against a heap that was going away. So the think does no
-# EXI at all now: it reads a byte this code already fetched, and it fires once.
+# It now lives in Online/Menus/CSS/HandleInputsOnCSS.asm, inside the online
+# major, where the same pair is already known to work - it is how
+# peppy_room_exit_room leaves that major. That is also where the trigger
+# belongs: spectating starts because you are queued.
 
-bl PEPPY_PB_DATA
-mflr REG_PB_DATA
-
-# Ask Dolphin whether a replay is queued. CONST_PeppyCmdReplayWaiting is a peek:
-# deliberately NOT CONST_SlippiCmdCheckForReplay (0x88), which loads the game and
-# marks it played. SceneThink_Playback polls 0x88 itself in a loop, so asking it
-# here would strand that loop waiting forever on a replay already loaded.
-li r3, 1
-branchl r12, HSD_MemAlloc
-mr REG_TXB_ADDR, r3
-
-li r3, CONST_PeppyCmdReplayWaiting
-stb r3, 0(REG_TXB_ADDR)
-
-mr r3, REG_TXB_ADDR
-li r4, 1
-li r5, CONST_ExiWrite
-branchl r12, FN_EXITransferBuffer
-
-mr r3, REG_TXB_ADDR
-li r4, 1
-li r5, CONST_ExiRead
-branchl r12, FN_EXITransferBuffer
-
-# Keep the answer somewhere HSD_Free cannot reach - it is a call, so it lands on
-# the condition register, and testing after it tests the wrong thing.
-lbz REG_PB_ANSWER, 0(REG_TXB_ADDR)
-mr r3, REG_TXB_ADDR
-branchl r12, HSD_Free
-
-cmpwi REG_PB_ANSWER, 1
-bne PEPPY_PLAYBACK_SCHEDULED
-
-logf LOG_LEVEL_WARN, "[Peppy] A replay is queued - scheduling the handover"
-
-# Arm the think and schedule it.
-li r3, PB_STATE_ARMED
-stb r3, PB_DOFST_PENDING(REG_PB_DATA)
-
-li r3, 13
-li r4, 14
-li r5, 0
-branchl r12, GObj_Create
-
-bl PEPPY_PLAYBACK_THINK
-mflr r4
-li r5, 0
-branchl r12, GObj_AddProc
-
-b PEPPY_PLAYBACK_SCHEDULED
-
-
-################################################################################
-# Runs once a frame while the menu is up. No EXI, no allocation - just the
-# handover, once.
-################################################################################
-PEPPY_PLAYBACK_THINK:
-blrl
-
-backup
-
-bl PEPPY_PB_DATA
-mflr REG_PB_DATA
-load REG_PB_SCENE, 0x80479D30
-
-lbz r3, PB_DOFST_PENDING(REG_PB_DATA)
-cmpwi r3, PB_STATE_IDLE
-beq PEPPY_PLAYBACK_THINK_EXIT
-
-# Once the major has actually changed we are through, so stop touching it.
-lbz r3, 0x0(REG_PB_SCENE)
-cmpwi r3, SCENE_MAJOR_MAIN_MENU
-beq PEPPY_PB_STILL_ON_MENU
-
-li r3, PB_STATE_IDLE
-stb r3, PB_DOFST_PENDING(REG_PB_DATA)
-logf LOG_LEVEL_WARN, "[Peppy] handover complete - major %x minor %x", "lbz r5, 0x0(REG_PB_SCENE)", "lbz r6, 0x3(REG_PB_SCENE)"
-b PEPPY_PLAYBACK_THINK_EXIT
-
-PEPPY_PB_STILL_ON_MENU:
-lbz r3, PB_DOFST_PENDING(REG_PB_DATA)
-cmpwi r3, PB_STATE_HOLDING
-beq PEPPY_PB_HOLD
-
-################################################################################
-# First frame: set it all up and end the minor. Once only - repeating the exit
-# would keep restarting it.
-################################################################################
-logf LOG_LEVEL_WARN, "[Peppy] Leaving the menu for the playback major"
-
-# Re-apply Slippi's ScenePrep patch. Their playback codeset installs the scene
-# with two static writes; 0x803dda9c sticks but 0x801b16a8 does not, because it
-# is in Melee's scene-code region which is reloaded as scenes come and go. A
-# write applied once at boot is long gone by the time anyone reaches a menu.
-# Their build never notices - it boots straight in and nothing loads over it.
-# Same address, same value, their patch, applied late enough to survive.
-load r3, PB_SCENEPREP_SLOT
-load r4, PB_SCENEPREP_DEBUGMENU
-stw r4, 0(r3)
-load r3, PB_SCENEPREP_SLOT
-li r4, 4
-branchl r12, TRK_flush_cache
-
-# Clear the pending minor, the way room.c's exit_room does before naming the
-# next major - a stale value there is read by the incoming major's load.
-li r3, 0
-stb r3, 0x5(REG_PB_SCENE)
-
-li r3, PB_STATE_HOLDING
-stb r3, PB_DOFST_PENDING(REG_PB_DATA)
-
-li r3, SCENE_MAJOR_DEBUG_MELEE
-branchl r12, MenuController_WriteToPendingMajor_1to_0xC
-branchl r12, Scene_ExitMinor
-b PEPPY_PLAYBACK_THINK_EXIT
-
-################################################################################
-# Every frame after: hold the destination.
-#
-# The write itself works - measured, pending goes to 0e and the exit flag to 1 -
-# but the menu's own next-scene logic runs after this function and puts its own
-# answer back, and the game ends up on major 18. So say it again each frame
-# until the transition actually happens. No allocation and no EXI on this path,
-# which is what made an earlier per-frame version die in EXIDma.
-################################################################################
-PEPPY_PB_HOLD:
-li r3, SCENE_MAJOR_DEBUG_MELEE
-stb r3, 0x1(REG_PB_SCENE)
-li r3, 1
-stb r3, 0xC(REG_PB_SCENE)
-
-
-PEPPY_PLAYBACK_THINK_EXIT:
-restore
-blr
-
-
-PEPPY_PB_MAJOR_LOAD:
-blrl
-# Runs as the DebugMelee major loads. The playback scene is its result-screen
-# minor - Playback/Core/Scene/Change Debug Result Screen MinorType to Debug Menu
-# is what makes that minor the playback one.
-  li r3, MINOR_PLAYBACK_ENTRY
-  load r4, 0x80479D30
-  stb r3, 0x3(r4)
-  blr
-
-PEPPY_PB_DATA:
-blrl
-.set PB_DOFST_PENDING, 0
-.byte 0
-.align 2
-
-PEPPY_PLAYBACK_SCHEDULED:
 
 restore
 
