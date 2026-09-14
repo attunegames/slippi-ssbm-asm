@@ -1506,6 +1506,13 @@ void peppy_room_think(void)
         if (msrb)
             peppy_room_redress(msrb);
     }
+    /* The borrowed splash asks for its character models and then waits, and the
+     * waiting is a preload that something has to pump. Preload_Update is that
+     * pump on its own - the splash's THINK does this and then advances the
+     * scene, which is the half that threw the room out. */
+    if (s_dressed)
+        Preload_Update();
+
     /* ⚠️ Do NOT call SceneThink_ClassicModeSplash here to finish the preload.
      *
      * It does advance it - and then advances the SCENE, because that is the
