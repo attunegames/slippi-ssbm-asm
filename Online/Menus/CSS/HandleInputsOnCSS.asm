@@ -253,10 +253,16 @@ stb r3, OFST_R13_ISWINNER (r13)
 li r3,  0
 stb r3, OFST_R13_CHOSESTAGE (r13)
 
+# Peppy diag: START was seen. Say what state we are in and whether a character
+# is selected, because the scripted harness gets this far and no match starts.
+logf LOG_LEVEL_WARN, "[Peppy] START seen: charSelected=%d connState=%d mode=%d", "lbz r5, -0x49A9(r13)", "lbz r6, MSRB_CONNECTION_STATE(REG_MSRB_ADDR)", "lbz r7, OFST_R13_ONLINE_MODE(r13)"
+
 # Check if character has been selected, if not, do nothing
 lbz r3, -0x49A9(r13)
 cmpwi r3, 0
 beq SKIP_START_MATCH
+
+logf LOG_LEVEL_WARN, "[Peppy] character is selected, searching"
 
 # Check which mode we are playing. direct mode should launch text entry
 lbz r3, OFST_R13_ONLINE_MODE(r13)
