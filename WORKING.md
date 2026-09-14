@@ -11,7 +11,24 @@ same time:
     git tag works/<feature> <sha> && git push origin works/<feature>
 
 To get a known-good state back, build both tagged commits and put them in their
-own folder under `Desktop\` - never over the live test installs. CI artifacts
+own folder under `Desktop\` - never over the live test installs.
+
+**The spectate rebuild (from 2026-09-14):**
+
+* `Desktop\peppy-spectate-good` - the confirmed-working Sept 10 build.
+  ⛔ NEVER deploy over this. It is the only thing we can measure against.
+* `Desktop\peppy-spectate-good - Copy` - where rebuilt versions go.
+* Source stays in `C:oot\slippi-ssbm-asm` and `C:oot\peppy-dolphin`,
+  branched from `works/spectate`.
+
+The plan, in four steps, testing spectate after each - the draft is last on
+purpose, because it is what moved players off the character select and the
+watcher's entry depended on that:
+
+  1. the room scene
+  2. the menus
+  3. the queue overlay
+  4. the draft CI artifacts
 survive for months, so check for an existing build of that SHA before starting
 a new one:
 
