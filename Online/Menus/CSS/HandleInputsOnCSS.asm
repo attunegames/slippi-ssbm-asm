@@ -15,6 +15,7 @@
 # Peppy: handing over to Slippi's replay playback.
 .set CONST_PeppyCmdReplayWaiting, 0xCA
 .set SCENE_MAJOR_DEBUG_MELEE, 0xE
+.set MINOR_PLAYBACK_ENTRY, 0x3
 .set PB_SCENEPREP_SLOT, 0x801b16a8
 .set PB_SCENEPREP_DEBUGMENU, 0x801b09c0
 .set MenuController_WriteToPendingMajor_1to_0xC, 0x801A42F8
@@ -97,9 +98,17 @@ load r3, PB_SCENEPREP_SLOT
 li r4, 4
 branchl r12, TRK_flush_cache
 
-# Clear the pending minor first, the way room.c's exit_room does.
+# Ask for the playback ENTRY minor, not zero.
+#
+# Zero landed us straight on minor 1, which is playback IN-GAME: FetchGameFrame
+# started asking Dolphin for frames of a replay nobody had loaded yet, and every
+# read came back "DMARead: Empty". Minor 3 is the entry screen, where
+# SceneThink_Playback polls for the replay, loads it, and only then starts the
+# match. Slippi's boot callback is what normally selects it; this asks directly.
+#
+# pending_minor is one-based - zero means "carry on as normal" - so minor 3 is 4.
 load r4, 0x80479D30
-li r3, 0
+li r3, MINOR_PLAYBACK_ENTRY + 1
 stb r3, 0x5(r4)
 
 li r3, SCENE_MAJOR_DEBUG_MELEE
