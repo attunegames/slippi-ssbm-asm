@@ -160,7 +160,6 @@ static const char *const MODE_NAMES[] = {
 /* The refresh runs every frame and is written top-down; these two are the
  * ways out of the scene and read better next to each other, further down. */
 static void peppy_room_go_to_draft(const char *why);
-static void peppy_room_go_to_splash(const char *why);
 static void peppy_room_go_to_css(const char *why);
 static void peppy_room_check_paired(void *msrb);
 static void peppy_room_train(void);
@@ -1116,7 +1115,7 @@ static void peppy_room_build(void)
  * The splash is minor 4 of this major. Its init has to run first, and that
  * lives in the codeset, so PeppyRoomSceneDecide makes the call when it sees
  * this minor asked for. */
-static void peppy_room_go_to_splash(const char *why)
+__attribute__((unused)) static void peppy_room_go_to_splash(const char *why)
 {
     peppy_log(why);
     SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_SPLASH);
