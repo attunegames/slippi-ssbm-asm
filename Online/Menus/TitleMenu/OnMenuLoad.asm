@@ -21,6 +21,7 @@
 .set Scene_ExitMinor, 0x801A4B60
 .set Scene_GetMajorSceneStruct, 0x801A50AC
 .set Scene_MinorIDToMinorSceneFunctionTable, 0x801A4CE0
+.set Scene_GetMinorSceneFunctionListStart, 0x801A50A0
 
 b CODE_START
 
@@ -217,23 +218,21 @@ li r3, SCENE_MAJOR_DEBUG_MELEE
 branchl r12, Scene_GetMajorSceneStruct
 mr REG_PB_MAJOR, r3
 
-# Compare the three majors side by side. If DebugMelee's entry is empty while
-# the menu's and online's are populated, then m-ex simply has no scene there and
-# the handover can never land - which would explain the hang completely.
-li r3, 1
-branchl r12, Scene_GetMajorSceneStruct
-mr REG_PB_MAJOR, r3
-logf LOG_LEVEL_WARN, "[Peppy] major 01 (menu)  @%x +0=%x +4=%x +8=%x +c=%x", "mr r5, REG_PB_MAJOR", "lwz r6, 0x0(REG_PB_MAJOR)", "lwz r7, 0x4(REG_PB_MAJOR)", "lwz r8, 0x8(REG_PB_MAJOR)", "lwz r9, 0xC(REG_PB_MAJOR)"
+# Identify what Slippi's two static patch addresses actually are, by dumping the
+# memory around them. m-ex's minor-scene entries are documented (mxscn.py) as
+#   u8 minorId; u8 pad[3]; void *think; void *load; void *leave; char *codeFile
+# at a 0x14 stride, so the shape should be recognisable either way.
+load REG_PB_MAJOR, 0x803dda90
+logf LOG_LEVEL_WARN, "[Peppy] 803dda90: %x %x %x %x %x", "lwz r5, 0x0(REG_PB_MAJOR)", "lwz r6, 0x4(REG_PB_MAJOR)", "lwz r7, 0x8(REG_PB_MAJOR)", "lwz r8, 0xC(REG_PB_MAJOR)", "lwz r9, 0x10(REG_PB_MAJOR)"
+logf LOG_LEVEL_WARN, "[Peppy] 803ddaa4: %x %x %x %x %x", "lwz r5, 0x14(REG_PB_MAJOR)", "lwz r6, 0x18(REG_PB_MAJOR)", "lwz r7, 0x1C(REG_PB_MAJOR)", "lwz r8, 0x20(REG_PB_MAJOR)", "lwz r9, 0x24(REG_PB_MAJOR)"
 
-li r3, 8
-branchl r12, Scene_GetMajorSceneStruct
-mr REG_PB_MAJOR, r3
-logf LOG_LEVEL_WARN, "[Peppy] major 08 (online)@%x +0=%x +4=%x +8=%x +c=%x", "mr r5, REG_PB_MAJOR", "lwz r6, 0x0(REG_PB_MAJOR)", "lwz r7, 0x4(REG_PB_MAJOR)", "lwz r8, 0x8(REG_PB_MAJOR)", "lwz r9, 0xC(REG_PB_MAJOR)"
+load REG_PB_MAJOR, 0x801b1698
+logf LOG_LEVEL_WARN, "[Peppy] 801b1698: %x %x %x %x %x", "lwz r5, 0x0(REG_PB_MAJOR)", "lwz r6, 0x4(REG_PB_MAJOR)", "lwz r7, 0x8(REG_PB_MAJOR)", "lwz r8, 0xC(REG_PB_MAJOR)", "lwz r9, 0x10(REG_PB_MAJOR)"
 
-li r3, SCENE_MAJOR_DEBUG_MELEE
-branchl r12, Scene_GetMajorSceneStruct
+# And the live global minor list, for comparison.
+branchl r12, Scene_GetMinorSceneFunctionListStart
 mr REG_PB_MAJOR, r3
-logf LOG_LEVEL_WARN, "[Peppy] major 0e (dbgml)@%x +0=%x +4=%x +8=%x +c=%x", "mr r5, REG_PB_MAJOR", "lwz r6, 0x0(REG_PB_MAJOR)", "lwz r7, 0x4(REG_PB_MAJOR)", "lwz r8, 0x8(REG_PB_MAJOR)", "lwz r9, 0xC(REG_PB_MAJOR)"
+logf LOG_LEVEL_WARN, "[Peppy] minor list starts @%x: %x %x %x %x", "mr r5, REG_PB_MAJOR", "lwz r6, 0x0(REG_PB_MAJOR)", "lwz r7, 0x4(REG_PB_MAJOR)", "lwz r8, 0x8(REG_PB_MAJOR)"
 
 bl PEPPY_PB_MAJOR_LOAD
 mflr r3
