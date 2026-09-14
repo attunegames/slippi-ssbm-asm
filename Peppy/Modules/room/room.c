@@ -1506,14 +1506,22 @@ void peppy_room_think(void)
         if (msrb)
             peppy_room_redress(msrb);
     }
-    /* The borrowed splash asks for its character models and then waits, and the
-     * waiting is a preload that something has to pump. Preload_Update is that
-     * pump on its own - the splash's THINK does this and then advances the
-     * scene, which is the half that threw the room out. */
-    if (s_dressed)
-        Preload_Update();
-
-    /* ⚠️ Do NOT call SceneThink_ClassicModeSplash here to finish the preload.
+    /* ⚠️ The borrowed splash cannot be made to draw the two characters. Three
+     * ways tried, all dead:
+     *
+     *   fill the match block only    NOW LOADING for ever - the models are a
+     *                               preload nothing here advances
+     *   Preload_Update() per frame   pumps the preload and changes nothing;
+     *                               building the models is separate work that
+     *                               lives in the scene's own think
+     *   SceneThink_ClassicModeSplash does both - and then advances the SCENE,
+     *                               throwing the room into game prep, which for
+     *                               anybody not playing is a DISCONNECTED box
+     *
+     * The data is all here and correct - see MSRB_DRAFT, and the split runs.
+     * What is missing is a renderer that does not belong to another scene.
+     *
+     * ⚠️ Do NOT call SceneThink_ClassicModeSplash here to finish the preload.
      *
      * It does advance it - and then advances the SCENE, because that is the
      * other half of what a splash think is for. The room threw itself into the
