@@ -1,13 +1,44 @@
-# Slippi replay playback, inside Peppy's own window
+# Slippi replay playback and spectating, inside Peppy's own window
 
-**Status: WORKING.** Measured 2026-09-14 on `peppy-rebuild\Alpha`: from the
-online character select the game hands over to major 0e minor 01, the replay
-loads, and the match plays at 60 FPS in the Peppy window. The clock advanced
-06:42.36 -> 06:36.31 over six seconds of wall time, which is real time. Zero
-`DMARead: Empty`, zero errors. Not yet confirmed by a human watching it.
+**Status: WORKING, on one machine.** Measured 2026-09-14 on `peppy-rebuild`:
 
-Nothing in Slippi's replay mechanics changed. Their files are moved, not edited,
-and the one merged file is generated from them.
+- **Replay playback** - Alpha plays a `.slp` in the Peppy window at 60 FPS.
+- **Spectating** - Bravo watches Alpha's live match in ITS Peppy window. Both
+  windows showed the same match with the watcher 0.35-0.43s behind, and the gap
+  held steady over ten seconds rather than drifting. `live.slp` grew past 1.6MB
+  as it played.
+
+No second window anywhere, and nothing in Slippi's replay mechanics changed -
+their files are moved, not edited, and the one merged file is generated from
+them.
+
+⚠️ **Not yet real-world.** Both clients are on one machine over 127.0.0.1, the
+broadcaster is found through a config file rather than the queue, and the
+"live match" is itself a replay being played back (playback re-records, so it
+broadcasts too - which is what makes a one-machine test possible at all).
+Internet play needs NAT traversal for the spectate port; `PeppyWatch` already
+has the STUN machinery for the netplay socket and it would need the same.
+
+## How spectating works here
+
+1. The player's Dolphin broadcasts as always - `SlippiSpectateServer`, untouched.
+2. The watcher's `SlippiSpectateClient` (new, `SlippiSpectate.cpp`) connects,
+   asks for the stream from cursor 0, and turns the event envelopes back into a
+   `.slp`: ubjson header, every base64 `payload` appended, raw-length field kept
+   current so a parser reading mid-write sees a coherent size.
+3. It writes the comm file pointing at that growing file with `mode: "mirror"`
+   and `isRealTimeMode: true`, which is what tells playback to wait when it runs
+   out of file rather than ending the game, and to fast-forward when behind.
+   That logic is Slippi's.
+4. From there it is exactly the replay path below.
+
+The target comes from `User/Config/peppy-watch.txt` (`host:port`). Each local
+instance needs its own `SlippiSpectatorLocalPort` (or `--slippi-spectator-port`)
+or they fight over 51441.
+
+⚠️ **A watcher must keep dialling.** It is queued behind the match it wants to
+see, so it is up before the broadcaster by definition. The first attempt failed
+for exactly this reason and gave up for good.
 
 ## The recipe
 
