@@ -248,13 +248,18 @@ li r4, 4
 branchl r12, TRK_flush_cache
 
 
-bl PEPPY_PB_MAJOR_LOAD
-mflr r3
-stw r3, 0x4(REG_PB_MAJOR)
+# NOT registering a major-load callback.
+#
+# Slippi's boot code registers one on DebugMelee so the major lands on the right
+# minor. Reproducing that here needs DebugMelee's struct, and the obvious way to
+# get it does not work: Scene_GetMajorSceneStruct ignores its argument and hands
+# back the CURRENT major, so writing the callback at +4 was scribbling on the
+# menu's own struct - the major we were in the middle of leaving. The scene
+# watcher caught the result: major 00 minor 47, which is nothing.
+#
+# So: switch majors and nothing else, and let the watcher say where that lands.
+# If it reaches major 0e cleanly then only the minor is left to solve.
 
-# Ending the major: name the one to go to next AND flag this one, then end the
-# minor. Scene_ProcessMajor only looks at the flag between minors, so without the
-# second half the menu sits there having already been told to leave.
 # Clear the pending minor first. room.c's exit_room does this before naming the
 # next major and it is the only part of that known-good sequence this was
 # missing; a stale pending minor is read by the incoming major's load.
