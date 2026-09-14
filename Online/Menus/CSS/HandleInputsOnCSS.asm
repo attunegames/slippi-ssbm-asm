@@ -86,7 +86,47 @@ branchl r12, HSD_Free
 cmpwi REG_PB_ANSWER, 1
 bne PEPPY_NO_REPLAY_ON_CSS
 
-logf LOG_LEVEL_WARN, "[Peppy] replay queued - leaving the online major for playback"
+logf LOG_LEVEL_WARN, "[Peppy] replay queued - loading it before we go"
+
+################################################################################
+# Load the replay here, with Slippi's own command.
+################################################################################
+# The major's load picks the minor and it picks 1 - playback IN-GAME - not 3,
+# the entry screen. pending_minor does not survive a major change, so asking for
+# 3 does nothing. Minor 3's job is to load the replay before the match starts,
+# and CONST_SlippiCmdCheckForReplay is the command it uses to do it, so do that
+# here instead. RestoreGameInfo then finds a loaded game when we arrive in-game,
+# which is what FetchGameFrame needs - without it every read came back
+# "DMARead: Empty", 3836 of them.
+#
+# This is the one place 0x88 is right rather than 0xCA: we WANT it to load and
+# mark the replay played. SceneThink_Playback, the other thing that polls it,
+# never runs here because we do not land on its minor.
+li r3, 1
+branchl r12, HSD_MemAlloc
+mr REG_TXB_ADDR, r3
+
+li r3, CONST_SlippiCmdCheckForReplay
+stb r3, 0(REG_TXB_ADDR)
+
+mr r3, REG_TXB_ADDR
+li r4, 1
+li r5, CONST_ExiWrite
+branchl r12, FN_EXITransferBuffer
+
+mr r3, REG_TXB_ADDR
+li r4, 1
+li r5, CONST_ExiRead
+branchl r12, FN_EXITransferBuffer
+
+lbz REG_PB_ANSWER, 0(REG_TXB_ADDR)
+mr r3, REG_TXB_ADDR
+branchl r12, HSD_Free
+
+logf LOG_LEVEL_WARN, "[Peppy] replay load says %d", "mr r5, REG_PB_ANSWER"
+
+cmpwi REG_PB_ANSWER, 1
+bne PEPPY_NO_REPLAY_ON_CSS
 
 # Slippi's ScenePrep patch does not survive to here: 0x801b16a8 is in Melee's
 # scene-code region, which is reloaded as scenes come and go, so their gecko
