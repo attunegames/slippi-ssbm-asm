@@ -208,6 +208,10 @@ void GObj_AddGXLink(void *gobj, void *callback, int link, int priority);
 
 #define TEXT_DRAW_EACH_FRAME ((void *)0x803A84BC)
 void SceneThink_ClassicModeSplash(void);
+/* The preload pump on its own. A splash think does two things - advance the
+ * preload and then advance the SCENE - and a borrowed scene only wants the
+ * first. Takes no arguments; it reaches its state through globals. */
+void Preload_Update(void);
 
 /* -------------------------------------------------------------------- pad */
 
