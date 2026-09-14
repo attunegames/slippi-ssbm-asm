@@ -36,39 +36,21 @@ li REG_ZERO, 0 # set to zero just in case :)
 ################################################################################
 # Peppy: a room is the queue, the character select is not
 ################################################################################
-# The character select was where a Rooms player waited, because a room had no
-# screen of its own. It has one now, so being here with nobody to play against
-# means a game just ended - and the room is where the queue, the lobby and the
-# choice to play again live.
+# In Rooms, this screen is never the right one. Everybody leaves.
 #
-# Staying is for the two cases where this screen is the right one: an opponent
-# has been found and is being picked against, and watching somebody else's
-# match, which drives this screen from their inputs.
+# It used to be where a Rooms player waited, because a room had no screen of its
+# own, and the test below was "is a pair being picked against" - stay if so.
+# That stopped being true the moment picks moved to the draft: after a game ends
+# both players are put straight back into matchmaking, a new pair forms, and
+# that test said stay. So the draft happened once per session and every game
+# after it landed here instead.
+#
+# Nothing wants it now. Players pick in the draft, watchers go to the splash,
+# and anybody else belongs in the room. The room is what decides which of those
+# you are, so send everyone there and let it choose.
 lbz r3, OFST_R13_ONLINE_MODE(r13)
 cmpwi r3, ONLINE_MODE_ROOMS
 bne PEPPY_CSS_STAY
-
-# The room's own answer, not the connection state: the connection outlives a
-# game on purpose, so CONNECTION_SUCCESS is still true while sitting here with
-# nothing to play. The room reports the pair while they are picking and stops
-# reporting it once their match is done, which is exactly the question.
-# Somebody who is not in the match has no business on a character select, and
-# that is a different question from whether a match exists. Asking the roster
-# whether the active pair is empty answers it for the two playing and for
-# nobody else - so a watcher whose stream ended sat here while they played on.
-lbz r3, MSRB_ROOM_FLAGS(REG_MSRB_ADDR)
-andi. r3, r3, MSRB_ROOM_FLAG_ONLOOKER
-bne PEPPY_CSS_TO_ROOM
-
-lbz r3, MSRB_ROSTER(REG_MSRB_ADDR)
-cmpwi r3, 0
-bne PEPPY_CSS_STAY
-
-lbz r3, MSRB_ROOM_FLAGS(REG_MSRB_ADDR)
-andi. r3, r3, MSRB_ROOM_FLAG_WATCHABLE
-bne PEPPY_CSS_STAY
-
-PEPPY_CSS_TO_ROOM:
 
 # Minor 6 of this major is the room, and this byte is one-based.
 load r4, 0x80479d30
