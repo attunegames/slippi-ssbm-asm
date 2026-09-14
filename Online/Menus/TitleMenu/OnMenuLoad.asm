@@ -20,6 +20,7 @@
 .set MenuController_WriteToPendingMajor_1to_0xC, 0x801A42F8
 .set Scene_ExitMinor, 0x801A4B60
 .set Scene_GetMajorSceneStruct, 0x801A50AC
+.set Scene_MinorIDToMinorSceneFunctionTable, 0x801A4CE0
 
 b CODE_START
 
@@ -217,6 +218,22 @@ branchl r12, Scene_GetMajorSceneStruct
 mr REG_PB_MAJOR, r3
 
 logf LOG_LEVEL_WARN, "[Peppy] DebugMelee major struct at %x (Slippi hardcodes 803dada8)", "mr r5, REG_PB_MAJOR"
+
+# Dump the struct so we can see where its minor list actually lives. m-ex loads
+# MxScn.dat at boot and rebuilds the scene tables in its own memory, which is
+# why the struct moved at all - and Slippi's other playback patches write to
+# fixed addresses in the ORIGINAL tables (Swap MinorType.asm -> 0x803dda9c,
+# ScenePrep_DebugResult -> 0x801b16a8). If nothing reads those any more then we
+# arrive at a minor that was never configured, which is what the hang looks like.
+logf LOG_LEVEL_WARN, "[Peppy] major +0=%x +4=%x +8=%x +c=%x", "lwz r5, 0x0(REG_PB_MAJOR)", "lwz r6, 0x4(REG_PB_MAJOR)", "lwz r7, 0x8(REG_PB_MAJOR)", "lwz r8, 0xC(REG_PB_MAJOR)"
+
+load r3, 0x803dda9c
+lwz r3, 0(r3)
+logf LOG_LEVEL_WARN, "[Peppy] word at Slippi's 803dda9c = %x (expects 07000000)", "mr r5, r3"
+
+li r3, MINOR_PLAYBACK_ENTRY
+branchl r12, Scene_MinorIDToMinorSceneFunctionTable
+logf LOG_LEVEL_WARN, "[Peppy] minor 3 function table at %x (Slippi patches 801b16a8)", "mr r5, r3"
 
 bl PEPPY_PB_MAJOR_LOAD
 mflr r3
