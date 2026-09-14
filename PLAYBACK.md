@@ -119,6 +119,12 @@ trigger belongs.
   silent log looked identical to the command never being sent. This is the only
   Dolphin change the feature needs.
 
+- **A new EXI command must be registered in `payloadSizes`.** The dispatcher
+  checks that table first and, for anything it does not recognise, logs
+  `Invalid command byte` and returns - so the handler never runs, the read queue
+  stays empty, and the game reads back a zero. A new command that silently
+  answers 0 is this, not a logic bug.
+
 ## Reading the logs
 
 The replay lines live on the `EXPANSIONINTERFACE` channel, which is off by
