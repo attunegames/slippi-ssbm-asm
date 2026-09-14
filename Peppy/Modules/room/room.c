@@ -161,6 +161,7 @@ static const char *const MODE_NAMES[] = {
  * ways out of the scene and read better next to each other, further down. */
 static void peppy_room_go_to_draft(const char *why);
 static void peppy_room_go_to_splash(const char *why);
+static void peppy_room_go_to_css(const char *why);
 static void peppy_room_check_paired(void *msrb);
 static void peppy_room_train(void);
 static void peppy_room_move_pick(void);
@@ -1122,6 +1123,15 @@ static void peppy_room_go_to_splash(const char *why)
     Scene_ExitMinor();
 }
 
+/* Hand the screen to Melee's own character select, which is where Dolphin's
+ * watch setup expects a watcher to be. */
+static void peppy_room_go_to_css(const char *why)
+{
+    peppy_log(why);
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_CSS);
+    Scene_ExitMinor();
+}
+
 /* Matched players go to the draft - stage, then characters - and never see the
  * character select. */
 static void peppy_room_go_to_draft(const char *why)
@@ -1177,7 +1187,19 @@ static void peppy_room_spectate(void)
      * once the game is live. The match block is filled in from the stream, and
      * the splash's init is what copies it into the scene - so that is the
      * screen a watcher wants, and the codeset's room Decide makes that call. */
-    peppy_room_go_to_splash("Peppy: watching the match");
+    /* ⚠️ The CHARACTER SELECT, not the splash - this is how the build that was
+     * confirmed working on 2026-09-10 did it, and the difference matters.
+     *
+     * Dolphin's watch setup runs in prepareOnlineMatchState and is written for
+     * a client sitting on that screen: it is where the netplay client is made,
+     * where a restart is spent, and where the match latch is set. Going
+     * straight to the splash skips all of that, and the watcher ended up
+     * simulating a different match - right clock, wrong damage.
+     *
+     * The character select is not a place a Rooms player belongs, so the CSS's
+     * own handler sends anyone who is not watching back to the room. A watcher
+     * stays, because it has a match to be shown. */
+    peppy_room_go_to_css("Peppy: watching the match");
 }
 
 /* Paired up: the room's job is done and the character select takes over.
