@@ -125,6 +125,15 @@ trigger belongs.
   stays empty, and the game reads back a zero. A new command that silently
   answers 0 is this, not a logic bug.
 
+- **m-ex moves Melee's scene tables.** Slippi's boot code writes the DebugMelee
+  major's load callback to a hardcoded `0x803dada8`, which is right in the
+  playback build - that build has no m-ex in it. Peppy's does. Measured at
+  runtime the struct is at **`0x806ee0e0`**. Writing there blind corrupted
+  memory and Dolphin rejected the resulting DMA inside `EXIDma`
+  (`Unknown Pointer 0x03414c40`). Use `Scene_GetMajorSceneStruct`
+  (`0x801A50AC`), never the constant. Assume any hardcoded scene-table address
+  taken from the playback codeset is wrong here.
+
 ## Reading the logs
 
 The replay lines live on the `EXPANSIONINTERFACE` channel, which is off by

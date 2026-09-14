@@ -225,6 +225,13 @@ stw r3, 0x4(REG_PB_MAJOR)
 # Ending the major: name the one to go to next AND flag this one, then end the
 # minor. Scene_ProcessMajor only looks at the flag between minors, so without the
 # second half the menu sits there having already been told to leave.
+# Clear the pending minor first. room.c's exit_room does this before naming the
+# next major and it is the only part of that known-good sequence this was
+# missing; a stale pending minor is read by the incoming major's load.
+load r4, 0x80479D30
+li r3, 0
+stb r3, 0x5(r4)
+
 li r3, SCENE_MAJOR_DEBUG_MELEE
 branchl r12, MenuController_WriteToPendingMajor_1to_0xC
 branchl r12, Scene_ExitMinor
