@@ -19,6 +19,7 @@
 .set CONST_PeppyCmdReplayWaiting, 0xCA
 .set MenuController_WriteToPendingMajor_1to_0xC, 0x801A42F8
 .set Scene_ExitMinor, 0x801A4B60
+.set Scene_GetMajorSceneStruct, 0x801A50AC
 
 b CODE_START
 
@@ -41,6 +42,7 @@ CODE_START:
 .set REG_TXB_ADDR, 28
 .set REG_PB_ANSWER, 27
 .set REG_PB_DATA, 26
+.set REG_PB_MAJOR, 25
 
 backup
 
@@ -205,10 +207,20 @@ logf LOG_LEVEL_WARN, "[Peppy] Leaving the menu for the playback major"
 # that major's load at the right minor on the way in. We are not using that code,
 # so we register the same callback ourselves. Everything it runs afterwards is
 # Slippi's, untouched.
+# Ask the game where that major's struct is rather than hardcoding it. Slippi's
+# boot code uses a fixed 0x803dada8, which is right in the playback build - but
+# that build has no m-ex in it, and ours does, and m-ex rearranges Melee's scene
+# tables. Writing a function pointer at a stale address is exactly the shape of
+# the crash this hit: an immediate, deterministic bad pointer.
+li r3, SCENE_MAJOR_DEBUG_MELEE
+branchl r12, Scene_GetMajorSceneStruct
+mr REG_PB_MAJOR, r3
+
+logf LOG_LEVEL_WARN, "[Peppy] DebugMelee major struct at %x (Slippi hardcodes 803dada8)", "mr r5, REG_PB_MAJOR"
+
 bl PEPPY_PB_MAJOR_LOAD
 mflr r3
-load r4, ADDR_MajorStruct_DebugMelee
-stw r3, 0x4(r4)
+stw r3, 0x4(REG_PB_MAJOR)
 
 # Ending the major: name the one to go to next AND flag this one, then end the
 # minor. Scene_ProcessMajor only looks at the flag between minors, so without the
