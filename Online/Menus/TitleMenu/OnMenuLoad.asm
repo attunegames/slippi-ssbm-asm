@@ -8,6 +8,13 @@
 .include "Common/Common.s"
 .include "Online/Online.s"
 
+# Peppy: entering Slippi's replay playback from the menu.
+.set ADDR_MajorStruct_DebugMelee, 0x803dada8
+.set SCENE_MAJOR_DEBUG_MELEE, 0xE
+.set MINOR_PLAYBACK_ENTRY, 0x3
+.set MenuController_WriteToPendingMajor_1to_0xC, 0x801A42F8
+.set Scene_ExitMinor, 0x801A4B60
+
 b CODE_START
 
 DATA_USER_TEXT_BLRL:
@@ -90,6 +97,73 @@ branchl r12, FN_EXITransferBuffer
 
 mr r3, REG_TXB_ADDR
 branchl r12, HSD_Free
+
+################################################################################
+# Section 4: Peppy - jump into Slippi's replay playback if one is waiting
+################################################################################
+# Slippi enters playback by hijacking boot (Playback/Core/Scene/Boot). That
+# code is built but left disabled, because it takes the whole build with it -
+# a build that boots into playback can never reach Peppy. We open the same
+# door from here instead, so one build does both.
+#
+# CONST_SlippiCmdCheckForReplay is Dolphin's "is a replay waiting" question:
+# it loads whatever the comm file names and answers 1 when the game is ready.
+# It only answers 1 once per new comm file, so this fires when a replay is
+# actually queued up and is otherwise inert on every other trip through the
+# main menu.
+
+li r3, 1
+branchl r12, HSD_MemAlloc
+mr REG_TXB_ADDR, r3
+
+li r3, CONST_SlippiCmdCheckForReplay
+stb r3, 0(REG_TXB_ADDR)
+
+mr r3, REG_TXB_ADDR
+li r4, 1
+li r5, CONST_ExiWrite
+branchl r12, FN_EXITransferBuffer
+
+mr r3, REG_TXB_ADDR
+li r4, 1
+li r5, CONST_ExiRead
+branchl r12, FN_EXITransferBuffer
+
+lbz r3, 0(REG_TXB_ADDR)
+cmpwi r3, 1
+mr r3, REG_TXB_ADDR
+branchl r12, HSD_Free
+bne PEPPY_NO_REPLAY_WAITING
+
+# The playback scene lives in the DebugMelee major and Slippi's boot code
+# points that major's load at the right minor on the way in. We are not using
+# that code, so we register the same callback ourselves. Everything it runs
+# afterwards is Slippi's, untouched.
+bl PEPPY_PB_MAJOR_LOAD
+mflr r3
+load r4, ADDR_MajorStruct_DebugMelee
+stw r3, 0x4(r4)
+
+# Ending the major: name the one to go to next AND flag this one, then end the
+# minor. Scene_ProcessMajor only looks at the flag between minors, so without
+# the second half the menu sits there having already been told to leave.
+li r3, SCENE_MAJOR_DEBUG_MELEE
+branchl r12, MenuController_WriteToPendingMajor_1to_0xC
+branchl r12, Scene_ExitMinor
+
+b PEPPY_NO_REPLAY_WAITING
+
+PEPPY_PB_MAJOR_LOAD:
+blrl
+# Runs as the DebugMelee major loads. The playback scene is its result-screen
+# minor - Playback/Core/Scene/Change Debug Result Screen MinorType to Debug
+# Menu is what makes that minor the playback one.
+  li r3, MINOR_PLAYBACK_ENTRY
+  load r4, 0x80479D30
+  stb r3, 0x3(r4)
+  blr
+
+PEPPY_NO_REPLAY_WAITING:
 
 restore
 

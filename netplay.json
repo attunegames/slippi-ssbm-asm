@@ -379,6 +379,18 @@
           "sourceFolder": "Playback/Core",
           "isRecursive": false,
           "annotation": "Replay frame fetch + restore. NOT recursive: Sounds/ collides with Online/Core/Sound, Scene/ boots straight to playback, StartMelee/ is merged above"
+        },
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Playback/Core/Scene",
+          "isRecursive": false,
+          "annotation": "The playback scene's per-frame think. NOT recursive: Boot/ hijacks startup and is kept in the disabled option below."
+        },
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Playback/Core/Scene/Change Debug Result Screen MinorType to Debug Menu",
+          "isRecursive": true,
+          "annotation": "Makes the DebugMelee result-screen minor the playback one"
         }
       ]
     },
@@ -392,9 +404,9 @@
       "build": [
         {
           "type": "injectFolder",
-          "sourceFolder": "Playback/Core/Scene",
+          "sourceFolder": "Playback/Core/Scene/Boot",
           "isRecursive": true,
-          "annotation": "Slippi's own playback entry: hijacks boot into the DebugMelee major. TEST ONLY - leave disabled. Enabling it makes the build unable to reach Peppy at all; real entry comes from our menu."
+          "annotation": "Slippi's own playback entry: hijacks boot into the DebugMelee major. TEST ONLY - leave disabled. A build with this on can never reach Peppy; real entry is in Online/Menus/TitleMenu/OnMenuLoad.asm."
         }
       ]
     },
