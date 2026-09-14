@@ -128,15 +128,20 @@ logf LOG_LEVEL_WARN, "[Peppy] replay load says %d", "mr r5, REG_PB_ANSWER"
 cmpwi REG_PB_ANSWER, 1
 bne PEPPY_NO_REPLAY_ON_CSS
 
-# Slippi's ScenePrep patch does not survive to here: 0x801b16a8 is in Melee's
-# scene-code region, which is reloaded as scenes come and go, so their gecko
-# write is long gone. Same address, same value, applied late enough to last.
-load r3, PB_SCENEPREP_SLOT
-load r4, PB_SCENEPREP_DEBUGMENU
-stw r4, 0(r3)
-load r3, PB_SCENEPREP_SLOT
-li r4, 4
-branchl r12, TRK_flush_cache
+# NOT re-applying Slippi's ScenePrep patch.
+#
+# Their gecko code writes 0x801b09c0 at 0x801b16a8, and 0x801b16a8 is the FIRST
+# INSTRUCTION of a function, not a pointer slot - the minor descriptor at
+# 0x803dda90 holds 0x801b16a8 as a pointer TO it. So the write replaces code
+# with a word that decodes as garbage.
+#
+# It cost nothing during a match, because that function is never called from
+# playback in-game. It cost everything the moment a replay ENDED and the scene
+# went to minor 3, whose prep is that function: Melee executed the word, jumped
+# to nothing, and died with "Unknown instruction at PC = 00000008, LR = 0".
+#
+# Re-applying it was a guess from when the handover was failing for an unrelated
+# reason, and the handover works without it.
 
 # Ask for the playback ENTRY minor, not zero.
 #
