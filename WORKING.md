@@ -18,7 +18,9 @@ own folder under `Desktop\` - never over the live test installs.
 * `Desktop\peppy-spectate-good` - the confirmed-working Sept 10 build.
   ⛔ NEVER deploy over this. It is the only thing we can measure against.
 * `Desktop\peppy-spectate-good - Copy` - where rebuilt versions go.
-* Source stays in `C:oot\slippi-ssbm-asm` and `C:oot\peppy-dolphin`,
+* Source stays in `C:
+oot\slippi-ssbm-asm` and `C:
+oot\peppy-dolphin`,
   branched from `works/spectate`.
 
 The plan, in four steps, testing spectate after each - the draft is last on
@@ -111,7 +113,14 @@ delays Charlie's Start past the first pairing.
 | peppy-dolphin    | `a1210d048`  | `peppy-with-spectate` | fix: a second conflict block in the same header went unresolved |
 | slippi-ssbm-asm  | `154fe2f`    | `peppy-with-spectate` | feat: bring the replay-based spectate into the live build |
 
-Tagged `works/spectate-live-build`. Confirmed by a human: Alpha and Bravo
+Tagged `works/spectate-live-build` (the tag sits on the commit that added this
+entry; the code is `154fe2f` / `a1210d048` unchanged). Successful CI builds of
+both, so a restore needs no 20-minute rebuild:
+
+    gh run download 34917871528 --repo attunegames/slippi-ssbm-asm   # codeset + mex-modules
+    gh run download 34918649322 --repo attunegames/peppy-dolphin     # exe + dll
+
+Confirmed by a human: Alpha and Bravo
 played a matchmade game from a room, Charlie pressed Z and watched it live.
 **First game worked and the spectate of that game worked.**
 
