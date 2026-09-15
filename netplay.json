@@ -391,6 +391,12 @@
           "sourceFolder": "Playback/Core/Scene/Change Debug Result Screen MinorType to Debug Menu",
           "isRecursive": true,
           "annotation": "Makes the DebugMelee result-screen minor the playback one"
+        },
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Playback/Core/FastForward",
+          "isRecursive": true,
+          "annotation": "Slippi's own live-mirroring catch-up: skips a frame every 15 when behind"
         }
       ]
     },
