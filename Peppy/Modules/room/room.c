@@ -156,6 +156,8 @@ static const char *const MODE_NAMES[] = {
 #define STR_IN_QUEUE  "In the Queue"
 #define STR_PRACTICE  "Press START to Practice"
 #define STR_SPECTATE  "Press Z to Spectate"
+#define STR_WATCHING  "Loading the match..."
+#define STR_NOWATCH   "No match to watch yet"
 
 /* The refresh runs every frame and is written top-down; these two are the
  * ways out of the scene and read better next to each other, further down. */
@@ -223,6 +225,35 @@ static u8 *peppy_vs_data(void)
     return blk ? blk + VS_DATA_SKIP : 0;
 }
 
+/* External character ids, the order Melee's own tables use. */
+static const char *peppy_char_name(u8 id)
+{
+    static const char *const names[] = {
+        "Falcon",  "DK",      "Fox",     "Mr G&W", "Kirby",  "Bowser",
+        "Link",    "Luigi",   "Mario",   "Marth",  "Mewtwo", "Ness",
+        "Peach",   "Pikachu", "Ice Cl.", "Puff",   "Samus",  "Yoshi",
+        "Zelda",   "Sheik",   "Falco",   "Y Link", "Dr Mario",
+        "Roy",     "Pichu",   "Ganon"
+    };
+
+    return id < (u8)(sizeof(names) / sizeof(names[0])) ? names[id] : "";
+}
+
+/* Only the six a room can be played on - the rest cannot come up here. */
+static const char *peppy_stage_name(u8 id)
+{
+    switch (id)
+    {
+    case 0x02: return "Fountain of Dreams";
+    case 0x03: return "Pokemon Stadium";
+    case 0x08: return "Yoshi's Story";
+    case 0x1C: return "Dream Land";
+    case 0x1F: return "Battlefield";
+    case 0x20: return "Final Destination";
+    default:   return "";
+    }
+}
+
 static int peppy_room_dress_splash(void *msrb)
 {
     const u8 *d = (const u8 *)msrb + MSRB_DRAFT;
@@ -230,13 +261,22 @@ static int peppy_room_dress_splash(void *msrb)
     int i;
 
     if (!vs)
+    {
+        /* The block the splash draws from is reached through r13, and it is not
+         * ours - if it is null here then the room scene never had one and the
+         * band cannot be drawn at all, however good the draft data is. Said out
+         * loud because from the outside this is indistinguishable from the
+         * draft never arriving, and the draft line above says it did. */
+        peppy_log("Peppy: no vs block - cannot draw the band");
         return 0;
+    }
     /* The stage is settled before either character is, and it is most of the
      * picture - so it is worth drawing on its own rather than leaving the band
      * black through the whole character phase. Nothing at all is still nothing
      * to draw. */
     if (d[0] == MSRB_DRAFT_NONE && d[1] == MSRB_DRAFT_NONE && d[3] == MSRB_DRAFT_NONE)
         return 0;
+    peppy_log("Peppy: dressing the band");
 
     if (d[0] != MSRB_DRAFT_NONE)
         *(u16 *)(vs + MATCH_STAGE) = (u16)d[0];
@@ -293,8 +333,27 @@ static int s_spin_wait = -1;    /* blue, alternates - "still waiting on you" */
 static int s_spin_done = -1;    /* green, steady - "that one is done" */
 static int s_next_sym = -1;     /* blue, steady - "and this is available" */
 static int s_spin_frame;
+/* The spectate line, kept so it can answer when Z is pressed. It used to be
+ * made and forgotten, which is why pressing Z did nothing visible. */
+static int s_spectate_line = -1;
+/* Z has been pressed and we are waiting for the stream. Pressing Z before the
+ * broadcast has started used to log a line nobody sees and give up; now it is
+ * remembered and taken the moment there is something to watch. */
+static int s_watch_wanted;
+/* Frames since the last time we asked, so the ask is not per-frame. */
+static int s_watch_poll;
 static int s_p1_line = -1;
 static int s_p2_line = -1;
+/* Who they picked and where, under the names.
+ *
+ * The band was meant to be the versus splash - two characters in front of the
+ * stage - and that is a dead end with the renderer available here; see the note
+ * in the think. But the draft data the splash would have been built from is
+ * correct and arriving (MSRB_DRAFT), so it is written out instead of thrown
+ * away. Names are not models, and they answer the same question. */
+static int s_p1_char_line = -1;
+static int s_p2_char_line = -1;
+static int s_stage_line = -1;
 static int s_state_line = -1;
 static int s_queue_rows[QUEUE_ROWS];
 static int s_lobby_rows[LOBBY_ROWS];
@@ -345,6 +404,19 @@ void peppy_room_set_players(const char *p1, const char *p2)
 static void peppy_room_draft_state(void *msrb)
 {
     const u8 *d = (const u8 *)msrb + MSRB_DRAFT;
+
+    if (s_p1_char_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_p1_char_line, "%s",
+                                   d[1] == MSRB_DRAFT_NONE ? ""
+                                                           : peppy_char_name(d[1]));
+    if (s_p2_char_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_p2_char_line, "%s",
+                                   d[3] == MSRB_DRAFT_NONE ? ""
+                                                           : peppy_char_name(d[3]));
+    if (s_stage_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_stage_line, "%s",
+                                   d[0] == MSRB_DRAFT_NONE ? ""
+                                                           : peppy_stage_name(d[0]));
 
     if (s_state_line < 0)
         return;
@@ -1022,6 +1094,16 @@ static void peppy_room_build(void)
                      "VS", SIZE_HEADING, X_VS, Y_DIVIDER);
     s_p2_line = FG_CreateSubtext(text, COL_WHITE, PEPPY_SUBTEXT_PLAIN, 0,
                                  "", SIZE_HEADING, X_P2, Y_DIVIDER);
+    /* Under each name, the character they are playing, and the stage between
+     * them. This is the band's content: the splash's own artwork cannot be
+     * made to draw here. */
+    s_p1_char_line = FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
+                                      "", SIZE_NAME, X_P1, Y_DIVIDER + 22.0f);
+    s_p2_char_line = FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
+                                      "", SIZE_NAME, X_P2, Y_DIVIDER + 22.0f);
+    s_stage_line = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                                    "", SIZE_NAME, X_P1, Y_DIVIDER + 44.0f);
+
     /* Under the VS, because the two states look identical otherwise: a pair
      * still choosing and a pair mid-game both draw two characters on a stage. */
     s_state_line = FG_CreateSubtext(text, COL_WAIT, PEPPY_SUBTEXT_PLAIN, 0,
@@ -1084,9 +1166,10 @@ static void peppy_room_build(void)
     s_line2 = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
                                "", SIZE_ACTION, COL_LEFT + X_SYMBOL,
                                Y_ACTIONS + ROW_ACTION);
-    FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                     STR_SPECTATE, SIZE_ACTION, COL_LEFT + X_SYMBOL,
-                     Y_ACTIONS + 2.0f * ROW_ACTION);
+    s_spectate_line = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
+                                       STR_SPECTATE, SIZE_ACTION,
+                                       COL_LEFT + X_SYMBOL,
+                                       Y_ACTIONS + 2.0f * ROW_ACTION);
 
     /* The same corner the character select keeps its own BACK in. Twice over,
      * grey and gold, so that highlighting it is a change of colour - see
@@ -1254,11 +1337,64 @@ static void peppy_room_spectate(void)
      * than by the entry screen we never reach. */
     if (!peppy_room_stream_ready())
     {
-        peppy_log("Peppy: nothing to watch yet - the stream has not started");
+        /* Not ready is not no. The stream is fetched by Dolphin in the
+         * background and a game has to arrive whole before it can be played,
+         * so Z pressed a moment too early used to write a line into the log
+         * and do nothing at all - from the seat, a button that does not work.
+         * Remember the ask and say so; the think takes it as soon as there is
+         * something to watch. */
+        peppy_log("Peppy: Z - waiting for the stream");
+        s_watch_wanted = 1;
+        s_watch_poll = 0;
+        if (s_spectate_line >= 0)
+            Text_UpdateSubtextContents(s_text, s_spectate_line, STR_WATCHING);
         return;
     }
 
     peppy_log("Peppy: watching the match");
+    if (s_spectate_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_spectate_line, STR_WATCHING);
+    SCENE_CTRL.pending_minor = 0;
+    MenuController_WriteToPendingMajor_1to_0xC(SCENE_MAJOR_DEBUG_MELEE);
+    Scene_ExitMinor();
+}
+
+/* Z was pressed before the stream was ready. Keep asking.
+ *
+ * Throttled because peppy_room_stream_ready talks to Dolphin, and per-frame EXI
+ * from this screen is what broke matchmaking once before. Half a second is far
+ * faster than a human notices and costs nothing.
+ *
+ * The room being told there is nothing watchable at all - the players finished,
+ * or we walked in after they did - takes the request back rather than leaving a
+ * watcher staring at a line that will never resolve. */
+static void peppy_room_watch_pending(void *msrb)
+{
+    if (!s_watch_wanted)
+        return;
+
+    if (!msrb || !(*(u8 *)((char *)msrb + MSRB_ROOM_FLAGS)
+                   & MSRB_ROOM_FLAG_WATCHABLE))
+    {
+        if (++s_watch_poll < 300)
+            return;
+        peppy_log("Peppy: nothing to watch after all - giving up on Z");
+        s_watch_wanted = 0;
+        s_watch_poll = 0;
+        if (s_spectate_line >= 0)
+            Text_UpdateSubtextContents(s_text, s_spectate_line, STR_NOWATCH);
+        return;
+    }
+
+    if (++s_watch_poll < 30)
+        return;
+    s_watch_poll = 0;
+
+    if (!peppy_room_stream_ready())
+        return;
+
+    peppy_log("Peppy: the stream arrived - watching the match");
+    s_watch_wanted = 0;
     SCENE_CTRL.pending_minor = 0;
     MenuController_WriteToPendingMajor_1to_0xC(SCENE_MAJOR_DEBUG_MELEE);
     Scene_ExitMinor();
@@ -1589,6 +1725,7 @@ void peppy_room_think(void)
 
         if (msrb)
             peppy_room_redress(msrb);
+        peppy_room_watch_pending(msrb);
     }
     /* ⚠️ The borrowed splash cannot be made to draw the two characters. Three
      * ways tried, all dead:
@@ -1769,6 +1906,9 @@ void peppy_room_load(void *scene)
     s_text = 0;
     s_queue_line = -1;
     s_line2 = -1;
+    s_spectate_line = -1;
+    s_watch_wanted = 0;
+    s_watch_poll = 0;
     s_spin_wait = -1;
     s_spin_done = -1;
     s_next_sym = -1;
@@ -1779,6 +1919,9 @@ void peppy_room_load(void *scene)
     s_lobby_head = -1;
     s_p1_line = -1;
     s_p2_line = -1;
+    s_p1_char_line = -1;
+    s_p2_char_line = -1;
+    s_stage_line = -1;
     s_state_line = -1;
     s_queued = 0;
     s_pick_col = PICK_QUEUE;
