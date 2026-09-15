@@ -749,13 +749,36 @@ beq CSSSceneDecide_Adv_IsRanked
 cmpwi r3, ONLINE_MODE_UNRANKED
 beq CSSSceneDecide_Adv_IsUnranked
 cmpwi r3, ONLINE_MODE_ROOMS
-beq CSSSceneDecide_Adv_IsUnranked
+beq CSSSceneDecide_Adv_IsRoom
 cmpwi r3, ONLINE_MODE_PARTY
 beq CSSSceneDecide_Adv_IsUnranked
 cmpwi r3, ONLINE_MODE_DIRECT
 beq CSSSceneDecide_Adv_IsDirect
 cmpwi r3, ONLINE_MODE_TEAMS
 beq CSSSceneDecide_Adv_IsDirect
+
+################################################################################
+# Rooms Mode Logic
+################################################################################
+# In Rooms this screen is never on the way to a match. Two people who have been
+# paired go room -> draft -> game and never see it; anybody who ends up here has
+# finished a game, and belongs back in the room.
+#
+# Rooms used to share the unranked answer, which is "load the splash and start
+# playing". That is what kept overruling the room: the input handler on this
+# screen asks for the room and ends the minor, and then this runs and writes the
+# splash over the top of the request. Melee started a match, it ended at once
+# because there was nothing to connect to, and it came straight back here.
+#
+# The log is unambiguous once both sides are asked - "character select - off to
+# the room", then minor 04 fifty milliseconds later, every time round.
+CSSSceneDecide_Adv_IsRoom:
+# Minor 6 is the room and this byte is one-based. No SplashSceneInit: nothing is
+# starting.
+load r4, 0x80479d30
+li r3, 7
+stb r3, 0x5(r4)
+b CSSSceneDecide_Exit
 
 ################################################################################
 # Unranked Mode Logic
