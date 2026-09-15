@@ -1,23 +1,36 @@
-# Slippi replay playback and spectating, inside Peppy's own window
+# Spectating a live match, inside Peppy's own window
 
-**Status: WORKING, on one machine.** Measured 2026-09-14 on `peppy-rebuild`:
+**Status: WORKING.** Confirmed 2026-09-14 by a human: Alpha and Bravo played a
+real matchmade game and Charlie watched it live in its own Peppy window. No
+second window, no playback build, and nothing in Slippi's replay mechanics
+changed - their files are moved or guarded, never rewritten, and the one merged
+file is generated from them.
 
-- **Replay playback** - Alpha plays a `.slp` in the Peppy window at 60 FPS.
-- **Spectating** - Bravo watches Alpha's live match in ITS Peppy window. Both
-  windows showed the same match with the watcher 0.35-0.43s behind, and the gap
-  held steady over ten seconds rather than drifting. `live.slp` grew past 1.6MB
-  as it played.
+Known gap: the watcher runs a steady distance behind live and never closes it.
+See "Catching up" below - the fast-forward half is not in the build yet.
 
-No second window anywhere, and nothing in Slippi's replay mechanics changed -
-their files are moved, not edited, and the one merged file is generated from
-them.
+⚠️ **The bug that cost most of a day, and what it taught.**
 
-⚠️ **Not yet real-world.** Both clients are on one machine over 127.0.0.1, the
-broadcaster is found through a config file rather than the queue, and the
-"live match" is itself a replay being played back (playback re-records, so it
-broadcasts too - which is what makes a one-machine test possible at all).
-Internet play needs NAT traversal for the spectate port; `PeppyWatch` already
-has the STUN machinery for the netplay socket and it would need the same.
+`FetchGameFrame` and `RestoreGameFrame` are injected into `SceneThink_VSMode`,
+which runs for ANY VS-mode game. Slippi's playback build never needs a scene
+check there, because the only VS game that build ever runs IS a playback. In a
+build that also plays online, a real match runs the same scene - so every frame
+of a live match the playback code read `playbackDataBuffer` (null, because the
+playback path of `StartMelee` never ran), DMA'd through the garbage it found,
+and asked Dolphin for frames of a replay that did not exist.
+
+That single cause produced both symptoms: matches froze at "NOW LOADING", and
+`EXIDma` died with `Unknown Pointer 0x03414c40` - the same address every time,
+because it came from a fixed offset off null rather than from a heap.
+
+**The lesson: any Slippi playback hook that lives in a shared scene needs a
+scene guard here that it never needed there.** Both now check
+`SCENE_PLAYBACK_IN_GAME` and fall through to their replaced codeline otherwise.
+
+Three "fixes" shipped before this one were aimed at symptoms - a per-frame
+allocation, an EXI buffer whose pointer did not survive a scene change, and a
+patch that overwrote a function's first instruction. All were real bugs. None
+was this one.
 
 ## How spectating works here
 
