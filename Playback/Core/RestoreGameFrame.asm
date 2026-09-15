@@ -14,6 +14,20 @@
 .set PlayerBackup,26
 .set REG_PDB_ADDR,25
 
+# Peppy: only in the playback scene.
+#
+# This is injected into SceneThink_VSMode, which runs for ANY VS-mode game. In
+# Slippi's playback build the only such game IS a playback, so no check was ever
+# needed. In a build that also plays online, a real match runs this same scene -
+# and then this code reads playbackDataBuffer, which is null outside playback,
+# and DMAs through whatever it finds. That froze the match at "NOW LOADING" and
+# crashed EXIDma with Unknown Pointer 0x03414c40.
+#
+# r0 is safe to use: the replaced codeline overwrites it immediately.
+getMinorMajor r0
+cmpwi r0, SCENE_PLAYBACK_IN_GAME
+bne PEPPY_RGF_NOT_PLAYBACK
+
 ################################################################################
 #                   subroutine: readInputs
 # description: reads inputs from Slippi for a given frame and overwrites
@@ -430,3 +444,8 @@ blrl
 Injection_Exit:
   restore             #restore registers and lr
   lbz r0, 0x2219(r31) #execute replaced code line
+  b PEPPY_RGF_DONE
+
+PEPPY_RGF_NOT_PLAYBACK:
+  lbz r0, 0x2219(r31) #execute replaced code line
+PEPPY_RGF_DONE:
