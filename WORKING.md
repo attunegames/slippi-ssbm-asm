@@ -234,3 +234,83 @@ before chasing it in the code.
   `PreventDressRemoval`. They need scene guards before they go back.
 
 See `PLAYBACK.md` for the full recipe.
+
+---
+
+## The room loop - IN PROGRESS, 2026-09-15
+
+The loop this is being built to:
+
+  1. press Start to queue into the room
+  2. two get matched, into the draft
+  3. they play
+  4. the game ends and both are put back into the ROOM
+  5. the room matches the next two, from the front of the queue
+
+and for a spectator: ask to watch, watch, and on the match ending go back to the
+room. ⛔ Not auto-queueing anyone yet. Get everybody into the room reliably
+first; pressing Start for them is a later, smaller job, and doing it early is
+what caused the worst bug below.
+
+### Two pieces that are each fine alone and deadlock together
+
+⚠️ **Read this before touching either.**
+
+* **The auto-requeue** - finishing a game put the player straight back into
+  matchmaking. Written when the room had no screen and the character select was
+  where a Rooms player waited.
+* **The character-select bounce** - in Rooms, that screen sends you to the room.
+  Added when the room got a screen.
+
+With both, the character select is up for about 300ms, matchmaking restarts
+inside that window, Melee starts a match from a result it still had lying
+around, and the bounce never gets a turn. The signature is unmistakable:
+
+  * the SAME match id reported every ~4.4 seconds
+  * scene going minor 02 -> 00 -> 04 -> 02, and minor 06 never once
+  * DISCONNECTED on screen over a match replaying forever
+
+`rebuild` has the requeue and NOT the bounce, which is why it behaves: you land
+on the character select already queued. That is also why "it worked on rebuild"
+is misleading - rebuild has no room module at all (`Peppy/Modules` does not
+exist on that branch), so there was nothing to return to and no rotation to get
+wrong. What was proven there is entering spectate and catching up to live.
+
+Resolved by dropping the requeue, not the bounce.
+
+### MSRB_ROOM_FLAG_WATCHABLE means "there is a match worth watching"
+
+It does NOT mean "I am watching it". The two were the same while only a queued
+watcher ever had the flag set. Once the spectate stream started for everybody in
+the room - so somebody in the lobby could press Z - the two PLAYERS had it too,
+and the character select's "except a watcher" case kept them there. Any new test
+of this flag needs to say which of the two it means.
+
+### The queue has to be a queue
+
+Pairing picked its two in `joined_at` order - when you walked into the room,
+which never changes - so the first two to arrive were matched, finished, and
+matched again while a third waited all night. Invisible while a finished pair
+kept playing each other anyway. `migrate-peppy-dolphin-20.sql` orders by
+`searching_at` instead, and the queue list and the position counter with it, or
+the screen shows one order and the room plays another.
+
+### Still open: a spectator's return crashes
+
+The transition works - `major 0e` -> `major 08 minor 06` fires the moment the
+broadcaster finishes. What fails is the module. Melee asks Dolphin for
+PeppyRoom.dat and is answered:
+
+  Getting file size for: PeppyRoom.dat -> 19900
+
+and then never asks for the contents - no `Writing file contents`, which the
+working path has. So the region keeps what was in it and the scene machinery
+runs off the end into zeros: `Unknown instruction 00000000 at PC = 80bf5460`,
+the same address every time, with `File_Load` and `File_WaitForFileToLoad` in
+the trace.
+
+Between those two requests is one branch, on the length read back from the EXI
+buffer. `TransferFile.asm` now logs `Peppy: replacing a file, %d bytes` on the
+replacement side; the line appears for other files, so its absence for
+PeppyRoom.dat says the branch went the other way and the file quietly fell back
+to the disc, where it does not exist.
