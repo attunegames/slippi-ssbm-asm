@@ -254,7 +254,10 @@ static const char *peppy_stage_name(u8 id)
     }
 }
 
-static int peppy_room_dress_splash(void *msrb)
+/* Kept, unused. Filling this block is how a real match tells the splash what to
+ * draw, and it is correct - what is missing is a renderer, not the data. Here
+ * for whoever tries the picture again. */
+__attribute__((unused)) static int peppy_room_dress_splash(void *msrb)
 {
     const u8 *d = (const u8 *)msrb + MSRB_DRAFT;
     u8 *vs = peppy_vs_data();
@@ -311,7 +314,6 @@ static void *peppy_room_msrb(void)
  * module and a second MxScn entry for one column of text. */
 static int s_browsing;
 /* Whether the borrowed splash was given a match to draw. */
-static int s_dressed;
 /* The six draft bytes the backdrop was last built from. */
 static u8 s_dressed_from[6];
 /* The scene this load was handed, kept so the backdrop can be built again. */
@@ -605,7 +607,9 @@ static void peppy_room_viewport(void *gobj, int top_half)
  *
  * Left standing because the hard part - finding the text's GObj, reading its
  * render link, matching it to a camera - is what that will need. */
-static void peppy_room_split(void)
+/* Kept, unused - see the room build. It halves the screen so a borrowed scene
+ * can have the top, which nothing needs now. */
+__attribute__((unused)) static void peppy_room_split(void)
 {
     char line[100];
     char *p = line;
@@ -1101,8 +1105,11 @@ static void peppy_room_build(void)
                                       "", SIZE_NAME, X_P1, Y_DIVIDER + 22.0f);
     s_p2_char_line = FG_CreateSubtext(text, COL_GOLD, PEPPY_SUBTEXT_PLAIN, 0,
                                       "", SIZE_NAME, X_P2, Y_DIVIDER + 22.0f);
+    /* Centred under the VS, not at X_P1: there it landed on the room code,
+     * which sits at Y_ROOM on the left. */
     s_stage_line = FG_CreateSubtext(text, COL_GRAY, PEPPY_SUBTEXT_PLAIN, 0,
-                                    "", SIZE_NAME, X_P1, Y_DIVIDER + 44.0f);
+                                    "", SIZE_NAME, X_VS - 70.0f,
+                                    Y_DIVIDER + 44.0f);
 
     /* Under the VS, because the two states look identical otherwise: a pair
      * still choosing and a pair mid-game both draw two characters on a stage. */
@@ -1693,14 +1700,15 @@ static void peppy_room_redress(void *msrb)
         peppy_log(line);
     }
 
-    if (!peppy_room_dress_splash(msrb))
-        return;
-
-    /* The bare backdrop first, or the old one stays behind the new one. */
-    peppy_room_clear_borrowed_scene();
-    SceneLoad_ClassicModeSplash(s_scene);
-    peppy_room_split();
-    s_dressed = 1;
+    /* The band is text now, and the text updates itself - there is nothing here
+     * left to rebuild.
+     *
+     * This used to reload the Classic Mode Splash and hope it drew the two
+     * characters. It never did: its models are a preload nothing in this scene
+     * advances, so what actually appeared was that scene's own furniture - a row
+     * of character emblems and NOW LOADING, sat there for the whole match. A
+     * blank half-screen would have been better than a broken one, and the names
+     * are better than both. */
 }
 
 void peppy_room_think(void)
@@ -1865,7 +1873,6 @@ void peppy_room_load(void *scene)
         /* Before the load, because the load is what builds from it. And the
          * signature with it, so the first Think does not immediately decide
          * everything has changed and build it all a second time. */
-        s_dressed = !s_browsing && msrb0 && peppy_room_dress_splash(msrb0);
         if (msrb0)
         {
             int i;
@@ -1900,8 +1907,9 @@ void peppy_room_load(void *scene)
      * above is filled in, the things it would sweep away ARE the two characters
      * and the stage they are playing on, which is the whole point. So it only
      * runs when there is nothing to show. */
-    if (!s_dressed)
-        peppy_room_clear_borrowed_scene();
+    /* Always. The borrowed scene is here for its camera, and nothing else it
+     * brings belongs in a room - see peppy_room_redress. */
+    peppy_room_clear_borrowed_scene();
 
     s_text = 0;
     s_queue_line = -1;
@@ -1991,11 +1999,9 @@ void peppy_room_load(void *scene)
         peppy_room_set_queued(msrb ? peppy_room_self_queued(msrb) : 0);
     }
     peppy_room_start_searching();
-    /* Split only when there is something in the other half. With nothing to
-     * show, the room is better off with the whole screen than with half of it
-     * and a blank band. */
-    if (s_dressed)
-        peppy_room_split();
+    /* No split. It existed to keep the top half for the borrowed splash, and the
+     * splash is gone - half a screen with nothing in it is worse than a whole
+     * one. The band draws as text at the top either way. */
     peppy_log("Peppy: room scene built");
 }
 
