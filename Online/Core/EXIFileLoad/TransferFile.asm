@@ -66,8 +66,7 @@ TransferFile_HAS_REPLACEMENT:
 # zeros. If this line is missing for PeppyRoom.dat while Dolphin logged a size
 # for it, the branch above went the other way - Melee read back nothing from a
 # request Dolphin answered.
-  mr r3, REG_FileLength
-  logf LOG_LEVEL_NOTICE, "Peppy: replacing a file, %d bytes", r3
+  logf LOG_LEVEL_NOTICE, "Peppy: replacing a file, %d bytes", "mr r5, REG_FileLength"
   stw	REG_FileLength, 0(r28) # Parent function normally does this
 # request file data
   li r3, CONST_SlippiCmdFileLoad        # store file length request ID
