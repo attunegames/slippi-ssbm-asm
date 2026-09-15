@@ -8,6 +8,14 @@
 .include "Common/Common.s"
 .include "Online/Online.s"
 
+# Peppy: entering Slippi's replay playback from the menu.
+# Slippi's Change Debug Result Screen MinorType to Debug Menu, the half that does
+# not survive to the menu. Same address and value as their gecko code.
+# A peek at whether a replay is queued. Deliberately NOT
+# CONST_SlippiCmdCheckForReplay (0x88): that one loads the game and marks it
+# played, and the playback scene polls 0x88 itself in a loop - asking it here
+# would leave that loop waiting forever on a replay already loaded behind it.
+
 b CODE_START
 
 DATA_USER_TEXT_BLRL:
@@ -90,6 +98,22 @@ branchl r12, FN_EXITransferBuffer
 
 mr r3, REG_TXB_ADDR
 branchl r12, HSD_Free
+
+################################################################################
+# Section 4: Peppy - the playback handover used to live here
+################################################################################
+# It cannot work from the main menu. Melee's main menu decides its own next
+# major, so the request was overridden every time: the write landed (pending
+# 0e, exit flag 1) and the game still came up on major 18. Forcing the byte from
+# Dolphin did not help either - the game overwrote it with 18 itself, which says
+# the destination is not read from there at all. And Scene_ExitMinor destroys
+# the scheduling GObj in the same frame, so nothing survived to say it twice.
+#
+# It now lives in Online/Menus/CSS/HandleInputsOnCSS.asm, inside the online
+# major, where the same pair is already known to work - it is how
+# peppy_room_exit_room leaves that major. That is also where the trigger
+# belongs: spectating starts because you are queued.
+
 
 restore
 

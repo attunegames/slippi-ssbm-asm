@@ -194,7 +194,7 @@ branchl r12, OSRestoreInterrupts
 
 # Here we have a rollback, we are going to loop back to the start of the
 # updateFunction loop
-bl FN_ExecCameraTasks
+bl FN_ExecCameraTasks_ONLINE
 
 # Loop back to start of updateFunction loop
 restore
@@ -204,7 +204,7 @@ addi r26, r26, 1
 branch r12, 0x801a4de4 # Continue rollback, branch to the start of game engine loop
 
 # Functions section
-FunctionBody_ExecCameraTasks
+FunctionBody_ExecCameraTasks _ONLINE
 
 # Terminate code
 RESTORE_AND_EXIT:

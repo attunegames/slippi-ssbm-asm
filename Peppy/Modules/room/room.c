@@ -1115,7 +1115,11 @@ static void peppy_room_build(void)
  * The splash is minor 4 of this major. Its init has to run first, and that
  * lives in the codeset, so PeppyRoomSceneDecide makes the call when it sees
  * this minor asked for. */
-static void peppy_room_go_to_splash(const char *why)
+/* Kept, unused. The splash was where a watcher went when the watcher simulated
+ * the match from relayed pads; it now plays the players' stream instead. The
+ * reasoning in here is still the best record of why a watcher cannot be sent to
+ * the draft or the character select, so it stays. */
+__attribute__((unused)) static void peppy_room_go_to_splash(const char *why)
 {
     peppy_log(why);
     SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_SPLASH);
@@ -1159,6 +1163,30 @@ static void peppy_room_start_searching(void)
     for (i = 2; i < PEPPY_FIND_OPPONENT_SIZE; i++)
         peppy_exi_buf[i] = 0;   /* opponent code, Direct mode only */
     FN_EXITransferBuffer(peppy_exi_buf, PEPPY_FIND_OPPONENT_SIZE, CONST_ExiWrite);
+}
+
+/* Is there a live stream ready to watch?
+ *
+ * Dolphin's spectate client turns the broadcaster's event stream back into a
+ * .slp on disk and points the comm file at it in mirror mode. Once that file
+ * has a parseable game in it, this answers yes and the replay is loaded.
+ *
+ * Asked in two steps on purpose. 0xCA only peeks; 0x88 actually loads and marks
+ * the replay played, so it is asked once, at the moment we are about to leave.
+ * A stream that has arrived but has not delivered a whole game yet answers 0 to
+ * the second, and we simply stay in the room and ask again later. */
+static int peppy_room_stream_ready(void)
+{
+    peppy_exi_buf[0] = PEPPY_CMD_REPLAY_WAITING;
+    FN_EXITransferBuffer(peppy_exi_buf, 1, CONST_ExiWrite);
+    FN_EXITransferBuffer(peppy_exi_buf, 1, CONST_ExiRead);
+    if (peppy_exi_buf[0] != 1)
+        return 0;
+
+    peppy_exi_buf[0] = SLIPPI_CMD_CHECK_FOR_REPLAY;
+    FN_EXITransferBuffer(peppy_exi_buf, 1, CONST_ExiWrite);
+    FN_EXITransferBuffer(peppy_exi_buf, 1, CONST_ExiRead);
+    return peppy_exi_buf[0] == 1;
 }
 
 static void peppy_room_spectate(void)
@@ -1209,7 +1237,31 @@ static void peppy_room_spectate(void)
      * The character select is not a place a Rooms player belongs, so the CSS's
      * own handler sends anyone who is not watching back to the room. A watcher
      * stays, because it has a match to be shown. */
-    peppy_room_go_to_splash("Peppy: watching the match");
+    /* Hand over to Slippi's replay playback.
+     *
+     * This replaces going to the splash with a pad relay, which never stopped
+     * diverging - right clock, wrong damage - and was the unsolved problem this
+     * whole path used to carry. Nothing simulates anything now: the watcher
+     * plays the stream the players are broadcasting, using Slippi's own replay
+     * code, and their fast-forward closes the gap to live.
+     *
+     * The pair below is the one peppy_room_exit_room uses to leave this major,
+     * and the only one that works: Scene_ProcessMajor checks the flag between
+     * minors, so naming the next major without ending this one leaves the loop
+     * spinning in a scene already told to go. The major's Load picks the minor
+     * and picks playback in-game - pending_minor does not survive a major
+     * change, which is why the replay has to be loaded BEFORE we leave rather
+     * than by the entry screen we never reach. */
+    if (!peppy_room_stream_ready())
+    {
+        peppy_log("Peppy: nothing to watch yet - the stream has not started");
+        return;
+    }
+
+    peppy_log("Peppy: watching the match");
+    SCENE_CTRL.pending_minor = 0;
+    MenuController_WriteToPendingMajor_1to_0xC(SCENE_MAJOR_DEBUG_MELEE);
+    Scene_ExitMinor();
 }
 
 /* Paired up: the room's job is done and the character select takes over.

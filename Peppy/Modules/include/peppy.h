@@ -91,6 +91,18 @@ typedef struct SceneController {
 #define MINOR_SSS           0x09
 #define MINOR_PEPPY_ROOM    0x51    /* ours; Slippi's added scene is 0x50 */
 
+/* Peppy: does Dolphin have a stream or replay waiting for us?
+ *
+ * 0xCA is a peek - it does not consume the answer. 0x88 is Slippi's own load,
+ * and the one place it is right to use: it loads the game and marks it played,
+ * which is exactly what we want before handing over. Asking 0x88 anywhere else
+ * strands SceneThink_Playback's own poll on a replay already loaded. */
+#define PEPPY_CMD_REPLAY_WAITING      0xCA
+#define SLIPPI_CMD_CHECK_FOR_REPLAY   0x88
+
+/* The major Slippi's replay playback lives in. */
+#define SCENE_MAJOR_DEBUG_MELEE       0x0E
+
 /* Melee's scene functions, as named by m-ex's symbol database. */
 void SceneThink_CSS(void);
 void SceneLoad_CSS(void);
@@ -256,6 +268,7 @@ static inline u32 peppy_pad_pressed(void)
 
 /* ------------------------------------------------------------------- EXI */
 
+#define CONST_ExiRead  0
 #define CONST_ExiWrite 1
 
 void FN_EXITransferBuffer(void *buf, int len, int mode);
