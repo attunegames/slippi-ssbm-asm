@@ -1,5 +1,16 @@
-.macro FunctionBody_ExecCameraTasks
-FN_ExecCameraTasks:
+.ifndef PEPPY_FUNCTION_MACROS_DEFINED
+.set PEPPY_FUNCTION_MACROS_DEFINED, 1
+
+# Peppy: takes a suffix.
+#
+# This macro emits a function and its loop labels. Exactly two files invoke it -
+# Online/Core/LoopEngineForRollback.asm and Playback/Core/FastForward/
+# FastForward.asm - and upstream they are never in the same codeset, so the
+# names could be fixed. Peppy builds both, and each injection needs its own copy
+# of the function, so each passes its own suffix. The guard above is for the
+# definition itself, which gecko can pull into one assembly unit twice.
+.macro FunctionBody_ExecCameraTasks suffix
+FN_ExecCameraTasks\suffix:
 backup
 
 # try to execute update camera functions
@@ -26,33 +37,34 @@ branchl r12,0x80030a50 # Camera_LoadCameraEntity
 lwz r3, 0x28(r3)
 branchl r12, 0x80368458 # HSD_CObjSetCurrent
 
-FNPGX_LoopStart:
+FNPGX_LoopStart\suffix:
 .set REG_FighterGObj, 20
 .set REG_FighterData, 21
 # Get first created fighter gobj
 lwz	r3, -0x3E74 (r13)
 lwz	REG_FighterGObj, 0x0020 (r3)
-b FNPGX_LoopCheck
-FNPGX_Loop:
+b FNPGX_LoopCheck\suffix
+FNPGX_Loop\suffix:
 # get data
 lwz REG_FighterData,0x2C(REG_FighterGObj)
 
 # if not sleep, update camera stuff
 lbz r3,0x221F(REG_FighterData)
 rlwinm. r0,r3,0,0x10
-bne FNPGX_Loop_NoOffscreen
+bne FNPGX_Loop_NoOffscreen\suffix
 mr  r3,REG_FighterGObj
 branchl r12, 0x80086a8c # Player_SetOffscreenBool
-FNPGX_Loop_NoOffscreen:
+FNPGX_Loop_NoOffscreen\suffix:
 
-FNPGX_LoopNext:
+FNPGX_LoopNext\suffix:
 # get next gobj
 lwz	REG_FighterGObj, 0x8 (REG_FighterGObj)
-FNPGX_LoopCheck:
+FNPGX_LoopCheck\suffix:
 # if gobj exists, process it
 cmpwi REG_FighterGObj,0
-bne FNPGX_Loop
+bne FNPGX_Loop\suffix
 
 restore
 blr
 .endm
+.endif

@@ -60,13 +60,13 @@ FastForward:
   branchl r12,Audio_AdjustMusicSFXVolume
 
 SkipMute:
-  bl FN_ExecCameraTasks
+  bl FN_ExecCameraTasks_PLAYBACK
 
 # do a stupid cmp operation so that the blt at 801a5020 will branch
   cmpwi r3, 0xFF
   b Exit
 
 # Functions section
-FunctionBody_ExecCameraTasks # Adds FN_ExecCameraTasks
+FunctionBody_ExecCameraTasks _PLAYBACK # Adds FN_ExecCameraTasks_PLAYBACK
 
 Exit:
