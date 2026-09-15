@@ -20,6 +20,10 @@
 .set CMD_GET_GAME_INFO, 0x75
 .set CMD_GET_FRAME, 0x76
 .set CMD_IS_REPLAY_READY, 0x88
+# Peppy: "should this watcher go back to the room?" Answered by Dolphin, which
+# is the only side that knows whether we are still spectating - whether the
+# stream has a live game, and whether the room has paired us to play next.
+.set CMD_PEPPY_LEAVE_PLAYBACK, 0xCB
 .set CMD_IS_STOCK_STEAL,0x89
 .set CMD_GET_GECKO_CODES,0x8A
 

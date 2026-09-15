@@ -203,7 +203,58 @@ blrl
   #Wait For Replay to be Ready
     lbz r3,0x0(REG_BufferPointer)
     cmpwi r3,0x1
-    bne PlaybackThink_Loop
+    beq PlaybackThink_ExitLoop
+
+  ##############################################
+  ## Peppy: nothing to watch - back to the room ##
+  ##############################################
+  # This screen is where a watcher sits between games, and in Slippi's own
+  # playback build waiting here forever is correct: the build exists to play
+  # replays and there is nowhere else to be. Here there is. A spectator is
+  # somebody in a ROOM, queued behind the match they are watching, and when
+  # that match is over they are wanted back - possibly as the next player.
+  #
+  # Without this the major never changes. Melee sat on "Waiting for game", the
+  # scene stayed 0e, Peppy saw a client that was no longer in online mode and
+  # dropped it from the room, and the queue could never rotate. Spectating was
+  # a one-way door.
+  PeppyAskToLeave:
+    li r3,CMD_PEPPY_LEAVE_PLAYBACK
+    stb r3,0x0(REG_BufferPointer)
+    mr r3,REG_BufferPointer
+    li  r4,0x1                #Length
+    li  r5,CONST_ExiWrite
+    branchl r12,FN_EXITransferBuffer
+    mr r3,REG_BufferPointer
+    li  r4,0x1                #Length
+    li  r5,CONST_ExiRead
+    branchl r12,FN_EXITransferBuffer
+    lbz r3,0x0(REG_BufferPointer)
+    cmpwi r3,0x1
+    bne PlaybackThink_Loop    # still watching - keep waiting
+
+  PeppyLeavePlayback:
+  # Take the text down first. The heaps reset on the way out but this GObj's
+  # think does not, and a struct left pointing into a reset heap is drawn over
+  # whatever lands there next.
+    mr  r3,REG_Text
+    branchl r12, Text_RemoveText
+
+  # The same pair the room uses to leave its own major, and the only one that
+  # works: Scene_ProcessMajor checks the flag between minors, so naming the
+  # next major without ending this one leaves the loop spinning in a scene
+  # already told to go.
+  #
+  # No minor is named. The online major's Load picks it, and it picks the room
+  # whenever the online mode is Rooms - which is how the room is entered from
+  # the menu too, so there is one path in and it is already proven.
+    load r4,0x80479D30
+    li r3,0
+    stb r3,0x5(r4)            #pending minor
+    li r3,8                   #the online major
+    branchl r12,MenuController_WriteToPendingMajor_1to_0xC
+    branchl r12,Scene_ExitMinor
+    b PlaybackThink_Exit
 
   ###############
   ## Exit Loop ##
