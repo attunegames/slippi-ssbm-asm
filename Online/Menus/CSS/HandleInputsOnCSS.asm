@@ -52,12 +52,19 @@ lbz r3, OFST_R13_ONLINE_MODE(r13)
 cmpwi r3, ONLINE_MODE_ROOMS
 bne PEPPY_CSS_STAY
 
-# Except a watcher. Dolphin's watch setup is written for a client sitting on
-# this screen - it is where the netplay client is made and where a restart is
-# spent - and that is how the build confirmed working on 2026-09-10 did it.
-lbz r3, MSRB_ROOM_FLAGS(REG_MSRB_ADDR)
-andi. r3, r3, MSRB_ROOM_FLAG_WATCHABLE
-bne PEPPY_CSS_STAY
+# No exception for a watcher any more, and removing it is what unstuck the
+# rotation.
+#
+# It was here for the pad-relay watcher, which was made and restarted from this
+# screen. That is gone: a watcher now leaves the ROOM for Melee's replay player
+# and never comes near the character select.
+#
+# What it actually tested was WATCHABLE, which means "there is a match worth
+# watching" - not "I am watching it". Those were the same thing while only a
+# queued watcher ever had the flag. Once the spectate stream started for
+# everyone in the room, the two PLAYERS had it set as well, so at the end of
+# their game this sent them back to the character select instead of the room,
+# Melee started another match, and it went round forever.
 
 # Minor 6 of this major is the room, and this byte is one-based.
 load r4, 0x80479d30
