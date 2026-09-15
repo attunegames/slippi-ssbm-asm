@@ -6,8 +6,10 @@ second window, no playback build, and nothing in Slippi's replay mechanics
 changed - their files are moved or guarded, never rewritten, and the one merged
 file is generated from them.
 
-Known gap: the watcher runs a steady distance behind live and never closes it.
-See "Catching up" below - the fast-forward half is not in the build yet.
+Catch-up works too: joining shows a brief pause - hard fast-forward at 4x CPU
+burning through the history you are sent on connecting - and then live gameplay.
+That is Slippi's own mechanism, `Playback/Core/FastForward`, included rather
+than reimplemented.
 
 ⚠️ **The bug that cost most of a day, and what it taught.**
 
