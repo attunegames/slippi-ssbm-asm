@@ -144,6 +144,10 @@ PEPPY_PATH_ONLINE:
 logf LOG_LEVEL_WARN, "[Peppy] StartMelee: online path"
 '''
 
+EXIT_LOG = """
+logf LOG_LEVEL_WARN, "[Peppy] StartMelee: online path finished"
+"""
+
 EPILOGUE = '''
 
 ################################################################################
