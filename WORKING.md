@@ -203,8 +203,18 @@ Alpha 51441, Bravo 51442, Charlie 51443.
   Symmetric NAT will still fail, the same limitation netplay has. The backend
   needs no migration - `migrate-peppy-dolphin-18` already takes
   `p_watch_external` and returns the punch list.
-* The watch target's port is assumed to be the default 51441 - the backend does
-  not send a `spectate_port`.
+* ~~The watch target's port is assumed to be the default 51441~~ - FIXED after
+  this tag in `666cd3442`, ⚠️ UNTESTED. The watcher used to take the
+  broadcaster's NETPLAY address, drop the port and assume 51441. Wrong twice:
+  the port is configurable and must differ when several clients share a machine
+  (so watching Bravo dialled Alpha, and it only ever looked right because the
+  watched player happened to hold the default), and across the internet what
+  matters is the port the NAT mapped, not the one that was bound. The
+  broadcaster now STUNs its own spectate socket - once, right after
+  `enet_host_create`, BEFORE the service loop starts reading it - and publishes
+  `host:port`. **Needs `migrate-peppy-dolphin-19.sql` run by hand.** Without it
+  the room returns no address and spectating does not start; nothing else is
+  affected.
 
 **⛔ The LAN path is GONE as of `516337f81`** - this build is for people playing
 each other over the internet, and the shortcut was not free: a watcher on
