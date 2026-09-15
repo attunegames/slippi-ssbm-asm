@@ -27,6 +27,20 @@
 #That causes problems when mirroring because we haven't gotten a game
 #end message yet so the game will have to hang temporarily before GAME can be
 #shown
+# Peppy: only in the playback scene.
+#
+# This is injected into SceneThink_VSMode, which runs for ANY VS-mode game. In
+# Slippi's playback build the only such game IS a playback, so no check was ever
+# needed. In a build that also plays online, a real match runs this same scene -
+# and then this code reads playbackDataBuffer, which is null outside playback,
+# and DMAs through whatever it finds. That froze the match at "NOW LOADING" and
+# crashed EXIDma with Unknown Pointer 0x03414c40.
+#
+# r0 is safe to use: the replaced codeline overwrites it immediately.
+getMinorMajor r0
+cmpwi r0, SCENE_PLAYBACK_IN_GAME
+bne Exit
+
   lbz	r0, 0x0008 (r31)
   cmpwi r0,0x0
   bne Exit # r0 is 2 on successful game end
