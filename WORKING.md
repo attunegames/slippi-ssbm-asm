@@ -187,9 +187,22 @@ Alpha 51441, Bravo 51442, Charlie 51443.
 
 ### Known gaps at this tag
 
-* **No NAT traversal on the spectate port.** `PeppyWatch` did STUN
-  hole-punching for the netplay socket; nothing does it for the spectate port.
-  LAN and loopback only.
+* **No NAT traversal on the spectate port** AT THIS TAG. LAN and loopback only.
+  A NAT hole belongs to ONE socket, and the stream does not travel on the
+  netplay socket - so the mapping the game already has does nothing for the
+  spectate server's own socket, and the watcher's connection reaches the
+  broadcaster's router as an unsolicited packet it is built to drop.
+
+  Addressed AFTER this tag in peppy-dolphin `78e47cb4f`, ⚠️ **UNTESTED off-LAN**:
+  the watcher STUNs its own client socket and publishes `p_watch_external`, the
+  broadcaster knocks at it once a second from the SPECTATE server's socket
+  rather than from netplay, and both `lan` and `external` are dialled in turn
+  instead of taking `lan` whenever it is present (which sent a watcher on
+  another network to the broadcaster's `192.168.x.x`). Both halves of the punch
+  already existed for the old pad-relay watcher; only the socket was wrong.
+  Symmetric NAT will still fail, the same limitation netplay has. The backend
+  needs no migration - `migrate-peppy-dolphin-18` already takes
+  `p_watch_external` and returns the punch list.
 * The watch target's port is assumed to be the default 51441 - the backend does
   not send a `spectate_port`.
 * Four playback polish files are out of the build, in `Playback/Core/Extras/`:
