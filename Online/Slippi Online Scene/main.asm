@@ -161,6 +161,7 @@ load r4, 0x80479d30
 li r3, 6            # minor 6 = the Peppy room, not 0 (the character select)
 stb r3, 0x5(r4)
 stb r3, 0x3(r4)
+logf LOG_LEVEL_NOTICE, "Peppy: online major load - picking the room"
 PEPPY_MAJOR_NOT_ROOMS:
 
 # Set the proper 1p port for CSS
@@ -385,6 +386,13 @@ bl PeppyRoomSceneDecide     #SceneDecide
 # needs a prep and a decide. The decide will pick the next scene once the
 # queue can match two people.
 PeppyRoomScenePrep:
+# Says nothing but that it ran. Coming back from spectating, the scene arrived
+# at this minor with PeppyRoom.dat never reloaded - the table's think, load and
+# leave still pointed into the freed module, and Melee executed the zeros left
+# behind. Which step stops short decides where the fix goes.
+backup
+logf LOG_LEVEL_NOTICE, "Peppy: room scene prep"
+restore
 blr
 
 # The room asks to leave the online major by writing a minor nothing else uses
