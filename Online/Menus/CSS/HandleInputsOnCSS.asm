@@ -67,6 +67,11 @@ bne PEPPY_CSS_STAY
 # Melee started another match, and it went round forever.
 
 # Minor 6 of this major is the room, and this byte is one-based.
+#
+# Said out loud because from the outside "the room was never asked for" and "the
+# room was asked for and something overruled it" look identical: Melee spends
+# about 200ms here and then goes to the splash and into a match either way.
+logf LOG_LEVEL_NOTICE, "Peppy: character select - off to the room"
 load r4, 0x80479d30
 li r3, 7
 stb r3, 0x5(r4)
