@@ -57,6 +57,17 @@ GetFileLength_CHECK_STATUS:
 ###################
 
 TransferFile_HAS_REPLACEMENT:
+# Only replaced files reach here - ours, and nothing Melee ships - so this is a
+# handful of lines a session rather than one per file loaded.
+#
+# Coming back into the room after spectating, Dolphin answers the length request
+# with 19900 for PeppyRoom.dat and is then never asked for the contents, so the
+# module region keeps whatever was in it and the scene machinery runs into
+# zeros. If this line is missing for PeppyRoom.dat while Dolphin logged a size
+# for it, the branch above went the other way - Melee read back nothing from a
+# request Dolphin answered.
+  mr r3, REG_FileLength
+  logf LOG_LEVEL_NOTICE, "Peppy: replacing a file, %d bytes", r3
   stw	REG_FileLength, 0(r28) # Parent function normally does this
 # request file data
   li r3, CONST_SlippiCmdFileLoad        # store file length request ID
