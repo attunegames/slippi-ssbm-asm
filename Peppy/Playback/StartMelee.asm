@@ -906,6 +906,7 @@ blr
 
 
 GECKO_EXIT:
+logf LOG_LEVEL_WARN, "[Peppy] StartMelee: online path finished"
 b PEPPY_END
 
 
