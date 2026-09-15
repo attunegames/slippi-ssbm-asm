@@ -1,0 +1,239 @@
+# Spectating a live match, inside Peppy's own window
+
+**Status: WORKING.** Confirmed 2026-09-14 by a human: Alpha and Bravo played a
+real matchmade game and Charlie watched it live in its own Peppy window. No
+second window, no playback build, and nothing in Slippi's replay mechanics
+changed - their files are moved or guarded, never rewritten, and the one merged
+file is generated from them.
+
+Catch-up works too: joining shows a brief pause - hard fast-forward at 4x CPU
+burning through the history you are sent on connecting - and then live gameplay.
+That is Slippi's own mechanism, `Playback/Core/FastForward`, included rather
+than reimplemented.
+
+⚠️ **The bug that cost most of a day, and what it taught.**
+
+`FetchGameFrame` and `RestoreGameFrame` are injected into `SceneThink_VSMode`,
+which runs for ANY VS-mode game. Slippi's playback build never needs a scene
+check there, because the only VS game that build ever runs IS a playback. In a
+build that also plays online, a real match runs the same scene - so every frame
+of a live match the playback code read `playbackDataBuffer` (null, because the
+playback path of `StartMelee` never ran), DMA'd through the garbage it found,
+and asked Dolphin for frames of a replay that did not exist.
+
+That single cause produced both symptoms: matches froze at "NOW LOADING", and
+`EXIDma` died with `Unknown Pointer 0x03414c40` - the same address every time,
+because it came from a fixed offset off null rather than from a heap.
+
+**The lesson: any Slippi playback hook that lives in a shared scene needs a
+scene guard here that it never needed there.** Both now check
+`SCENE_PLAYBACK_IN_GAME` and fall through to their replaced codeline otherwise.
+
+Three "fixes" shipped before this one were aimed at symptoms - a per-frame
+allocation, an EXI buffer whose pointer did not survive a scene change, and a
+patch that overwrote a function's first instruction. All were real bugs. None
+was this one.
+
+## How spectating works here
+
+1. The player's Dolphin broadcasts as always - `SlippiSpectateServer`, untouched.
+2. The watcher's `SlippiSpectateClient` (new, `SlippiSpectate.cpp`) connects,
+   asks for the stream from cursor 0, and turns the event envelopes back into a
+   `.slp`: ubjson header, every base64 `payload` appended, raw-length field kept
+   current so a parser reading mid-write sees a coherent size.
+3. It writes the comm file pointing at that growing file with `mode: "mirror"`
+   and `isRealTimeMode: true`, which is what tells playback to wait when it runs
+   out of file rather than ending the game, and to fast-forward when behind.
+   That logic is Slippi's.
+4. From there it is exactly the replay path below.
+
+The target comes from `User/Config/peppy-watch.txt` (`host:port`). Each local
+instance needs its own `SlippiSpectatorLocalPort` (or `--slippi-spectator-port`)
+or they fight over 51441.
+
+⚠️ **A watcher must keep dialling.** It is queued behind the match it wants to
+see, so it is up before the broadcaster by definition. The first attempt failed
+for exactly this reason and gave up for good.
+
+## The recipe
+
+Codeset `playback-in-session`, Dolphin `playback-in-session`. A replay is queued
+by writing `<build>/Slippi/playback.txt` (see the end of this file). Then:
+
+1. `Online/Menus/CSS/HandleInputsOnCSS.asm`, inside the ONLINE major, asks
+   Dolphin `CONST_PeppyCmdReplayWaiting` (0xCA) - a peek that does not consume.
+2. On a yes it re-applies Slippi's ScenePrep patch, loads the replay with
+   `CONST_SlippiCmdCheckForReplay` (0x88), then
+   `MenuController_WriteToPendingMajor_1to_0xC(0x0E)` + `Scene_ExitMinor`.
+3. The major's load puts us on minor 1, playback in-game. `RestoreGameInfo`
+   finds the loaded game, `FetchGameFrame` streams frames, the match plays.
+
+⚠️ **It has to happen from inside Peppy's own major.** From Melee's main menu the
+same code cannot work - that menu decides its own next major and overrides the
+request every time (measured: the write lands, pending-major 0e and exit flag 1,
+and the game still comes up on major 18). Forcing the byte from Dolphin does not
+help either; the game overwrites it with 18 itself, so the destination is not
+read from there at all.
+
+⚠️ **The replay must be loaded BEFORE the handover.** The major's load picks minor
+1, not minor 3, and `pending_minor` does not survive a major change - so the
+entry screen that would normally load the replay never runs. Loading it from the
+scene we are leaving is what makes `RestoreGameInfo` find a game to start.
+
+## The thing worth knowing first
+
+Slippi's replay playback already runs inside Melee. It is not the emulator
+replaying state - the game drives it. `Playback/Core/FetchGameFrame.asm` is
+injected into `SceneThink_VSMode` and each frame writes `CMD_GET_FRAME` (0x76)
+to the EXI buffer and asks Dolphin for that frame's inputs;
+`Playback/Core/RestoreGameFrame.asm` writes them in. It is a normal VS match
+re-simulated from recorded inputs. Dolphin only parses the file and hands over
+bytes.
+
+So a `.slp` is not a savestate. It is a list of controller inputs plus the match
+settings and the RNG seed. Savestates only come into it for *seeking backwards*,
+which is why the playback build wants `CPUThread = False`. Forward-only playback
+does not need either.
+
+A live spectate is the same code reading a file that has not finished being
+written. `SlippiSpectateServer` keeps `m_event_buffer` - every event since the
+match began - and each viewer has a cursor into it, so someone joining a match
+in progress is sent the whole history from frame 1 and fast-forwards to live.
+There is no "join live" path.
+
+## Why it needed a second window, and why it no longer does
+
+Two builds, not two mechanisms:
+
+- **The codeset.** `playback.json` and `netplay.json` produce different GCTs.
+  Peppy ships the netplay one, which injected nothing from `Playback/`, so
+  nothing in the game ever asked Dolphin for a frame.
+- **`IS_PLAYBACK` on Dolphin.** Almost a red herring. `prepareGameInfo`,
+  `prepareFrameData`, `prepareIsFileReady` and mirror mode are **not** gated, and
+  `g_replayComm` / `g_playbackStatus` are constructed unconditionally
+  (`EXI_DeviceSlippi.cpp:171`). Of the 31 files mentioning `IS_PLAYBACK` the
+  functional gates are a window title for OBS, `[NO_GAME]` stdout for the
+  Launcher, the replay save directory, and a gecko denylist for old replays.
+
+## The two collisions
+
+Playback and online want the same instruction in exactly two places.
+
+| address | playback | online | what we did |
+|---|---|---|---|
+| `0x8016e748` | `RestoreGameInfo.asm` (allocates the PDB) | `InitOnlinePlay.asm` (allocates the ODB) | merged |
+| `0x801a5014` | `HandleFrameSoundLog.asm` | `LoopEngineForRollback.asm` | avoided |
+
+The merge is `Peppy/Playback/StartMelee.asm`, generated by
+`Peppy/Playback/merge-startmelee.py`. It runs the replaced instruction once,
+then dispatches on the scene. That is safe because both originals already gate
+on their own scene and the two are mutually exclusive:
+`SCENE_ONLINE_IN_GAME` is `0x0208`, `SCENE_PLAYBACK_IN_GAME` is `0x010E`. Both
+bodies are copied verbatim; the only lines dropped are the ones the wrapper
+owns (the replaced `branchl`, the `backup`, the online scene check, the trailing
+`restore`). The originals are moved, not edited - `Online/Superseded/` and
+`Playback/Core/StartMelee/`.
+
+`0x801a5014` is sidestepped by leaving `Playback/Core/Sounds` out of the build.
+Its five files are the **only** users of `PDB_LATEST_FRAME` and
+`PDB_SFXDB_START`, so the cost is sound dedup during replay fast-forward and
+nothing else.
+
+Checked before merging, all clean: no label defined in both files, no `.set`
+name defined in both, the 13 symbols `Online.s` and `Playback.s` share all
+evaluate the same (`ROLLBACK_MAX_FRAME_COUNT` and `SOUND_STORAGE_FRAME_COUNT`
+are both 7), and `playbackDataBuffer` (-0x5040) and `frameIndex` (-0x49ac) miss
+every r13 slot `Online/` and `Peppy/` use.
+
+## Also left out
+
+`Playback/Core/FastForward` - it and `Online/Core/LoopEngineForRollback.asm` are
+the only two files that include `Common/FastForward/FunctionMacros.s`, and the
+assembler rejects the second definition of `FunctionBody_ExecCameraTasks` and
+the `FN_ExecCameraTasks` / `FNPGX_*` labels it emits. Both injections need their
+own copy, so the fix is to give the macro a name suffix. Only matters for
+catching up to a live stream.
+
+## Entry
+
+Slippi enters playback by hijacking boot (`Playback/Core/Scene/Boot`). That is
+why their replays need their own window: a build that boots into playback can
+never reach anything else. **It also does not work here** - something in the
+netplay codeset sets the major after `0x801a45a0`, and the build comes up on
+Peppy's menu regardless. Patching the `li r0, 0x2D` eight bytes later was a
+guess and it was wrong. The file is kept in a disabled Optional group.
+
+Ours is at the end of `SceneLoad_MainMenu`
+(`Online/Menus/TitleMenu/OnMenuLoad.asm`): ask Dolphin whether a replay is
+waiting, and on a yes register the DebugMelee major's load callback - the one
+piece of the boot code that is genuinely needed, since it picks the playback
+minor - then end the major with `MenuController_WriteToPendingMajor_1to_0xC`
+followed by `Scene_ExitMinor`. The flag alone does nothing while a minor is
+still thinking.
+
+⚠️ **This is a testing convenience, not the design.** On 2026-09-10 a queued
+player was attached to a live match automatically - `SlippiMatchmaking.cpp`, in
+the `state == "waiting"` branch of the ticker: if the tick returns a `watch`
+target it sets `s_watching` and spawns `PeppyWatch`, with no button involved,
+and `PeppyWatchStop()` runs on being paired. That branch is where the real
+trigger belongs.
+
+## Two traps, both hit
+
+- **`CMD_IS_FILE_READY` (0x88) is not a question, it is a transaction.** It calls
+  `loadGame()` and records the replay as played. `SceneThink_Playback` polls that
+  same command in a loop waiting to start, so anything else that asks it first
+  leaves that loop told "no" forever with a replay already loaded behind it.
+  `CMD_PEPPY_REPLAY_WAITING` (0xCA) is the peek: `isNewReplay()` only reads the
+  comm file and compares, so it costs nothing. 0xCA stays clear of 0xC5-0xC9,
+  which the room commands use on the `peppy` branch.
+- **The comm file path was never set.** `Main.cpp` assigns `m_strSlippiInput`
+  only under `IS_PLAYBACK`. Empty path means `SlippiReplayComm` opens nothing,
+  the replay path stays empty, `isNewReplay()` can only answer false - and
+  `prepareIsFileReady` returns early in that case **without logging**, so a
+  silent log looked identical to the command never being sent. This is the only
+  Dolphin change the feature needs.
+
+- **A new EXI command must be registered in `payloadSizes`.** The dispatcher
+  checks that table first and, for anything it does not recognise, logs
+  `Invalid command byte` and returns - so the handler never runs, the read queue
+  stays empty, and the game reads back a zero. A new command that silently
+  answers 0 is this, not a logic bug.
+
+- **m-ex moves Melee's scene tables.** Slippi's boot code writes the DebugMelee
+  major's load callback to a hardcoded `0x803dada8`, which is right in the
+  playback build - that build has no m-ex in it. Peppy's does. Measured at
+  runtime the struct is at **`0x806ee0e0`**. Writing there blind corrupted
+  memory and Dolphin rejected the resulting DMA inside `EXIDma`
+  (`Unknown Pointer 0x03414c40`). Use `Scene_GetMajorSceneStruct`
+  (`0x801A50AC`), never the constant. Assume any hardcoded scene-table address
+  taken from the playback codeset is wrong here.
+
+- **Two different minor numberings.** m-ex keeps ONE global minor-scene list -
+  `u8 minorId; pad[3]; think; load; leave; codeFile` at a 0x14 stride, the format
+  `Peppy/Modules/mxscn.py` documents. Global ids are what `MINOR_CSS 0x08`,
+  Slippi's GameSetup `0x50` and `MINOR_PEPPY_ROOM 0x51` refer to. A major's
+  *local* minor index is a different number: the online major's own minors run
+  0 CSS, 4 splash, 5 GameSetup, 6 room. Slippi's playback scene is DebugMelee's
+  LOCAL minor 3, which is not global scene 3 - global 3 is an in-game scene
+  (verified: global 4 is training in-game, whose think/load/leave match
+  `make_mxscn.py`'s TRAIN_* constants exactly). Reading one as the other sends
+  you to the wrong table.
+
+## Reading the logs
+
+The replay lines live on the `EXPANSIONINTERFACE` channel, which is off by
+default in `User/Config/Logger.ini`. Turn it on or you will be debugging blind.
+
+## Testing it by hand
+
+Write `<build>/Slippi/playback.txt` (or pass `-i <abs path>`, now available in
+this build):
+
+```json
+{ "mode": "normal", "replay": "C:/.../Game.slp", "isRealTimeMode": false,
+  "shouldResync": true, "commandId": "anything-new" }
+```
+
+Forward slashes - backslashes are invalid JSON escapes and the parse fails
+silently back to an empty path.

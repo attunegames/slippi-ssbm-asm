@@ -16,6 +16,7 @@
         "$Required: General Codes",
         "$Required: Slippi Recording",
         "$Required: Slippi Online",
+        "$Required: Slippi Playback",
         "$Recommended: Normal Lag Reduction",
         "$Recommended: Apply Delay to all In-Game Scenes",
         "$Recommended: Lagless FoD",
@@ -38,6 +39,7 @@
         "$Required: General Codes",
         "$Required: Slippi Recording",
         "$Required: Slippi Online",
+        "$Required: Slippi Playback",
         "$Recommended: Normal Lag Reduction",
         "$Recommended: Apply Delay to all In-Game Scenes",
         "$Recommended: Lagless FoD",
@@ -355,6 +357,62 @@
           "sourceFolder": "External/PreventWobbling",
           "isRecursive": false,
           "annotation": "Disable wobbling [UnclePunch]"
+        }
+      ]
+    },
+    {
+      "name": "Required: Slippi Playback",
+      "authors": [
+        "Fizzi",
+        "Nikki",
+        "UnclePunch"
+      ],
+      "build": [
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Peppy/Playback",
+          "isRecursive": true,
+          "annotation": "StartMelee: online/playback dispatch at 0x8016e748"
+        },
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Playback/Core",
+          "isRecursive": false,
+          "annotation": "Replay frame fetch + restore. NOT recursive: Sounds/ collides with Online/Core/Sound, Scene/ boots straight to playback, StartMelee/ is merged above"
+        },
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Playback/Core/Scene",
+          "isRecursive": false,
+          "annotation": "The playback scene's per-frame think. NOT recursive: Boot/ hijacks startup and is kept in the disabled option below."
+        },
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Playback/Core/Scene/Change Debug Result Screen MinorType to Debug Menu",
+          "isRecursive": true,
+          "annotation": "Makes the DebugMelee result-screen minor the playback one"
+        },
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Playback/Core/FastForward",
+          "isRecursive": true,
+          "annotation": "Slippi's own live-mirroring catch-up: skips a frame every 15 when behind"
+        }
+      ]
+    },
+    {
+      "name": "Optional: Boot Straight To Playback",
+      "authors": [
+        "Fizzi",
+        "Nikki",
+        "UnclePunch"
+      ],
+      "build": [
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Playback/Core/Scene/Boot",
+          "isRecursive": true,
+          "annotation": "Slippi's own playback entry: hijacks boot into the DebugMelee major. TEST ONLY - leave disabled. A build with this on can never reach Peppy; real entry is in Online/Menus/TitleMenu/OnMenuLoad.asm."
         }
       ]
     },

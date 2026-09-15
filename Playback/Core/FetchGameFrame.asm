@@ -27,6 +27,24 @@
 #That causes problems when mirroring because we haven't gotten a game
 #end message yet so the game will have to hang temporarily before GAME can be
 #shown
+# Peppy: only in the playback scene.
+#
+# This is injected into SceneThink_VSMode, which runs for ANY VS-mode game. In
+# Slippi's playback build the only such game IS a playback, so no check was ever
+# needed. In a build that also plays online, a real match runs this same scene -
+# and then this code reads playbackDataBuffer, which is null outside playback,
+# and DMAs through whatever it finds. That froze the match at "NOW LOADING" and
+# crashed EXIDma with Unknown Pointer 0x03414c40.
+#
+# r12 is this codeset's scratch register - branchl uses it everywhere - so it is
+# free here. r0 cannot be used: getMinorMajor needs a base register, and r0 in
+# that position means literal zero on PowerPC.
+lis r12, 0x8048
+lwz r12, -0x62D0(r12)
+rlwinm r12, r12, 8, 0xFFFF
+cmpwi r12, SCENE_PLAYBACK_IN_GAME
+bne Exit
+
   lbz	r0, 0x0008 (r31)
   cmpwi r0,0x0
   bne Exit # r0 is 2 on successful game end
