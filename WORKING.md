@@ -205,6 +205,20 @@ Alpha 51441, Bravo 51442, Charlie 51443.
   `p_watch_external` and returns the punch list.
 * The watch target's port is assumed to be the default 51441 - the backend does
   not send a `spectate_port`.
+
+**⛔ The LAN path is GONE as of `516337f81`** - this build is for people playing
+each other over the internet, and the shortcut was not free: a watcher on
+another network dialled the broadcaster's `192.168.x.x`, waited out the whole
+connect timeout, and only then tried the address that works. Nothing publishes
+`p_lan`, the watch target is the external address, and a pairing always takes
+the opponent's external address.
+
+⚠️ **This changes how to test on one machine.** Alpha, Bravo and Charlie now
+reach each other by hairpinning out to the router and back instead of going
+straight over the LAN. Most routers do that; if this one does not, same-machine
+testing stops working and the symptom is a connection that simply never
+establishes. That is a property of the network, not a regression - check it
+before chasing it in the code.
 * Four playback polish files are out of the build, in `Playback/Core/Extras/`:
   `RestoreStockSteal`, `RestoreLRAStart`, `CleanDynamicGeckos`,
   `PreventDressRemoval`. They need scene guards before they go back.
