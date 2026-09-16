@@ -979,6 +979,19 @@ cmpwi r3, ONLINE_MODE_RANKED
 beq VSSceneDecide_Ranked
 cmpwi r3, ONLINE_MODE_PARTY
 beq VSSceneDecide_Party
+cmpwi r3, ONLINE_MODE_ROOMS
+beq VSSceneDecide_Rooms
+b VSSceneDecide_GoToNextScene
+
+# In Rooms a finished game goes to the room, and nowhere else.
+#
+# It already ended up there, but by way of the character select: this defaulted
+# to scene 1, that screen loaded, and its own Decide sent it on to the room. The
+# whole round trip takes a couple of hundred milliseconds and you can see it -
+# the character select flashes up between every game. Naming the room here skips
+# a screen that has nothing to do.
+VSSceneDecide_Rooms:
+li REG_NEXT_SCENE, 7 # minor 6, the room; this byte is one-based
 b VSSceneDecide_GoToNextScene
 
 VSSceneDecide_Party:

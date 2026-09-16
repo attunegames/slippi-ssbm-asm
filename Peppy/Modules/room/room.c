@@ -1734,6 +1734,17 @@ void peppy_room_think(void)
         if (msrb)
             peppy_room_redress(msrb);
         peppy_room_watch_pending(msrb);
+
+        /* Catch up with the roster. The queued state is read once, when the
+         * scene loads - and coming back from a game the roster has not been
+         * refreshed yet, so it reads "not queued" and stays that way. Somebody
+         * standing in the queue was being told to press Start to join it.
+         *
+         * Upward only. Leaving the queue is deliberate and there is no way to
+         * do it from this screen, so a roster that has not caught up must never
+         * be able to take somebody out of it - only put them back in. */
+        if (!s_queued && msrb && peppy_room_self_queued(msrb))
+            peppy_room_set_queued(1);
     }
     /* ⚠️ The borrowed splash cannot be made to draw the two characters. Three
      * ways tried, all dead:
