@@ -723,10 +723,13 @@ blr
 ################################################################################
 FN_PeppyLevelTables:
 mflr r11
+# Level 1 asks WHAT you want to do, level 2 asks what KIND. Create is the only
+# one of the three that needs a kind, so asking first would make Join and Public
+# answer a question that does not apply to them.
 cmpwi r3, 1
-beq FN_PeppyLevelTables_ROOMS
-cmpwi r3, 2
 beq FN_PeppyLevelTables_ACTIONS
+cmpwi r3, 2
+beq FN_PeppyLevelTables_ROOMS
 cmpwi r3, 3
 beq FN_PeppyLevelTables_CREATE
 
@@ -889,9 +892,9 @@ bl PEPPY_LABEL_DATA
 mflr r3
 lwz r3, PLD_LEVEL(r3)
 cmpwi r3, 1
-beq FN_OnlineSubmenuThink_ROOMS_DISPATCH
-cmpwi r3, 2
 beq FN_OnlineSubmenuThink_ACTION_DISPATCH
+cmpwi r3, 2
+beq FN_OnlineSubmenuThink_ROOMS_DISPATCH
 cmpwi r3, 3
 beq FN_OnlineSubmenuThink_CREATE_DISPATCH
 
@@ -959,16 +962,17 @@ b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 .set ROOMS_OPT_SINGLES, 0
 
 FN_OnlineSubmenuThink_ROOMS_DISPATCH:
-# Every mode opens the same Create / Join / Public menu. Which one was picked is
-# written down first, because the sound call below is free to trample r0 and
-# because the room that eventually gets made needs to know what it is.
+# Level 2, reached only from Create. Every kind goes on to Private / Public.
+# Which one was picked is written down first, because the sound call below is
+# free to trample r0 and because the room that gets made needs to know what it
+# is - CREATE_DISPATCH reads it back out of PLD_SEL+2.
 bl PEPPY_LABEL_DATA
 mflr r3
-stb r0, PLD_SEL+1(r3)
+stb r0, PLD_SEL+2(r3)
 
 li r3, 1
 branchl r12, SFX_Menu_CommonSound
-li r3, 2
+li r3, 3
 li r4, 0
 li r5, 1
 bl FN_PeppyGoToLevel
@@ -990,13 +994,16 @@ beq FN_OnlineSubmenuThink_BROWSE
 cmpwi r0, ACTION_OPT_CREATE
 bne FN_OnlineSubmenuThink_NOT_BUILT
 
+# Level 1 now, so Create goes on to ask which KIND of room - the list Rooms used
+# to open with. Join and Public never get here, which is the point of asking in
+# this order: neither of them has a kind to choose.
 bl PEPPY_LABEL_DATA
 mflr r3
-stb r0, PLD_SEL+2(r3)
+stb r0, PLD_SEL+1(r3)
 
 li r3, 1
 branchl r12, SFX_Menu_CommonSound
-li r3, 3
+li r3, 2
 li r4, 0
 li r5, 1
 bl FN_PeppyGoToLevel
@@ -1016,7 +1023,7 @@ FN_OnlineSubmenuThink_CREATE_DISPATCH:
 # would leave one sitting in the table with nobody able to reach it.
 bl PEPPY_LABEL_DATA
 mflr r3
-lbz r5, PLD_SEL+1(r3)
+lbz r5, PLD_SEL+2(r3)
 cmpwi r5, ROOMS_OPT_SINGLES
 bne FN_OnlineSubmenuThink_NOT_BUILT
 
@@ -1049,13 +1056,14 @@ b FN_OnlineSubmenuThink_HANDLE_SINGLES
 # fetching the list when this says so, and the screen reads it out of the match
 # state buffer like everything else.
 FN_OnlineSubmenuThink_BROWSE:
-bl PEPPY_LABEL_DATA
-mflr r3
-lbz r5, PLD_SEL+1(r3)
-cmpwi r5, ROOMS_OPT_SINGLES
-bne FN_OnlineSubmenuThink_NOT_BUILT
-
+# Every kind of room, not one. Public is reached from level 1 now, before a kind
+# has been chosen - so there is no mode to filter by and the browser shows the
+# lot, with each room saying which kind it is.
+#
+# 0xFF is the same "no mode of its own" sentinel Dolphin already uses for a room
+# that did not come from these menus (see PeppyRoomModeIndex).
 lwz r3, OFST_R13_SB_ADDR(r13)
+li r5, 0xFF
 li r4, CONST_PeppyCmdListRooms
 stb r4, 0x0(r3)
 stb r5, 0x1(r3)
@@ -1695,11 +1703,13 @@ blrl
 .long PDD_S_BROWSE
 .long PDD_S_PRIVATE
 .long PDD_S_PUBLIC
-# Per level, from level 1: where its strings start and how many rows it has
-.long PDD_LIST1
-.long 5
+# Per level, from level 1: where its strings start and how many rows it has.
+# LIST2 first, because level 1 is Create / Join / Public and level 2 is the kind
+# of room. The strings themselves stay in the order they are declared above.
 .long PDD_LIST2
 .long 3
+.long PDD_LIST1
+.long 5
 .long PDD_LIST3
 .long 2
 
