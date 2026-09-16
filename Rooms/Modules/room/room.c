@@ -61,9 +61,16 @@ static void room_log(const char *msg)
  * moving everything twice. */
 static const u32 COL_WHITE = 0xFFFFFFFF;
 
+/* Position is in canvas units running roughly 0..640 across and 0..480 down,
+ * with the origin near the TOP-LEFT - not the centre-origin the character
+ * select uses.
+ *
+ * ⚠️ SIZE IS NOT IN THOSE UNITS. It is a scale factor, and the useful range is
+ * about 0.45 to 0.55. Reading it as a point size and passing 18 drew a single
+ * letter across the whole screen. */
 #define ROOM_TEXT_X  40.0f
 #define ROOM_TEXT_Y  40.0f
-#define ROOM_TEXT_SZ 18.0f
+#define ROOM_TEXT_SZ 0.55f
 
 static void *s_text;
 static int   s_line = -1;
