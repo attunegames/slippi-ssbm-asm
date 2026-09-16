@@ -277,10 +277,25 @@ blrl
   # which is how the room leaves its own major. The scene reaches minor 06 every
   # time with this; what it does not do is run the room's load, which is the
   # thing still being measured.
+  # Out to the MENU, the way the room's own BACK goes.
+  #
+  # Straight back to the online major does not work and it is measured: the
+  # scene reaches major 08 minor 06 every time, PeppyRoom.dat transfers in full,
+  # and then neither its load nor its think runs - m-ex never binds the module
+  # to the scene, so the room has no code at all. Black, or a crash for anything
+  # that calls a pointer that was never rebound.
+  #
+  # The menu is the one route that is known to bind it - it is how every room is
+  # entered, and Charlie did it repeatedly tonight in the same sessions that
+  # failed this way. peppy_room_exit_room already leaves that major exactly like
+  # this and lands with the cursor on Rooms.
+  #
+  # ⛔ No LEAVE_ROOM sent, unlike that path: a watcher is still in the room and
+  # still in the queue, and only the screen is being changed.
     load r4,0x80479D30
     li r3,0
     stb r3,0x5(r4)            #pending minor
-    li r3,8                   #the online major
+    li r3,1                   #the main menu major
     branchl r12,MenuController_WriteToPendingMajor_1to_0xC
     branchl r12,Scene_ExitMinor
     b PlaybackThink_Exit
