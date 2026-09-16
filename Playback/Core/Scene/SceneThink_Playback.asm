@@ -240,6 +240,21 @@ blrl
     mr  r3,REG_Text
     branchl r12, Text_RemoveText
 
+  # And give the EXI buffer back.
+  #
+  # This think allocates one on the way in and has never freed it - which does
+  # not matter in a playback build, where this scene runs until the program
+  # ends. Here it is a detour, and the room has to be rebuilt afterwards.
+  #
+  # Measured tonight: coming back, PeppyRoom.dat transfers in full and then
+  # NEITHER its load nor its think runs - m-ex never binds the module to the
+  # scene. The file arriving and the module being attached are separate steps,
+  # and only the first one happens. An allocation that cannot be satisfied is
+  # the likeliest reason for the second to fail quietly, so this is the memory
+  # we are known to be holding that we have no further use for.
+    mr  r3,REG_BufferPointer
+    branchl r12, HSD_Free
+
   # Exactly what the menu does to open a room, and nothing else.
   #
   # See FN_OnlineSubmenuThink_GO_TO_ROOM: it asks for the major with
