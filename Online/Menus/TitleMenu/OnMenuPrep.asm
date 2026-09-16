@@ -1631,11 +1631,19 @@ blrl
 .set PDD_SCALE, PDD_Z+4
 .set PDD_COLOR, PDD_SCALE+4
 .set PDD_EMPTY, PDD_COLOR+4
+# ⚠️ Each step below is the BYTE LENGTH of the string before it, including its
+# null - they are hand-computed, and the assembler will not catch a wrong one.
+# Edit a description and you must re-count: everything after it reads from the
+# wrong offset and simply loses its text, which is what changing "Play IronMan"
+# to "Play Ironmans" did to Crew Battles, Tournaments, Create, Join, Public,
+# Private and Public in one go. The final step to PDD_LIST1 also absorbs the
+# `.align 2` padding, so it moves when a length changes even though no string
+# of its own did.
 .set PDD_S_ROOMS, PDD_EMPTY+1
 .set PDD_S_SINGLES, PDD_S_ROOMS+23
 .set PDD_S_DOUBLES, PDD_S_SINGLES+13
 .set PDD_S_IRONMAN, PDD_S_DOUBLES+13
-.set PDD_S_CREW, PDD_S_IRONMAN+13
+.set PDD_S_CREW, PDD_S_IRONMAN+14
 # Offsets are spelled out rather than taken from the location counter, and they
 # have to account for the .align before the tables - the strings end at
 # PDD_S_PUBLIC+16, which is already a multiple of four.
@@ -1645,7 +1653,10 @@ blrl
 .set PDD_S_BROWSE, PDD_S_JOIN+18
 .set PDD_S_PRIVATE, PDD_S_BROWSE+20
 .set PDD_S_PUBLIC, PDD_S_PRIVATE+23
-.set PDD_LIST1, PDD_S_PUBLIC+19
+# +18, not +16: the strings end at 226 and `.align 2` on PowerPC is FOUR bytes,
+# so two are padded before the table of pointers starts. Change a string's
+# length and this step changes with it - see the audit note above PDD_S_ROOMS.
+.set PDD_LIST1, PDD_S_PUBLIC+18
 .set PDD_LIST2, PDD_LIST1+20
 .set PDD_LIST3, PDD_LIST2+12
 .set PDD_LEVELS, PDD_LIST3+8
