@@ -240,20 +240,25 @@ blrl
     mr  r3,REG_Text
     branchl r12, Text_RemoveText
 
-  # The same pair the room uses to leave its own major, and the only one that
-  # works: Scene_ProcessMajor checks the flag between minors, so naming the
-  # next major without ending this one leaves the loop spinning in a scene
-  # already told to go.
+  # Exactly what the menu does to open a room, and nothing else.
   #
-  # No minor is named. The online major's Load picks it, and it picks the room
-  # whenever the online mode is Rooms - which is how the room is entered from
-  # the menu too, so there is one path in and it is already proven.
+  # See FN_OnlineSubmenuThink_GO_TO_ROOM: it asks for the major with
+  # Event_StoreSceneNumber and then names minor 6. That is the one route into
+  # this room that is known to build it - every time somebody creates or joins a
+  # room, this is the path.
+  #
+  # The return had been asking a DIFFERENT way: pending-major plus
+  # Scene_ExitMinor, which is how the room LEAVES its major. It gets there - the
+  # scene log shows minor 06 every time - but the room arrives unbuilt, so
+  # getting there and being set up are not the same thing.
+  #
+  # Note minor 6, not 7. The other route writes this byte one-based; the menu
+  # writes it plain, and the menu is the one that works.
+    li r3,8
+    branchl r12,Event_StoreSceneNumber
     load r4,0x80479D30
-    li r3,0
-    stb r3,0x5(r4)            #pending minor
-    li r3,8                   #the online major
-    branchl r12,MenuController_WriteToPendingMajor_1to_0xC
-    branchl r12,Scene_ExitMinor
+    li r3,6                   #minor 6, the room - as the menu writes it
+    stb r3,0x5(r4)
     b PlaybackThink_Exit
 
   ###############
