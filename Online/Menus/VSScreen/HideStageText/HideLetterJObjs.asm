@@ -36,52 +36,25 @@ backup
 #
 # Null-checked, unlike the loop below: 9 to 13 are known to be there and the
 # top of this range is a guess at where the children run out.
-# Two ranges and two mechanisms, and the difference between them is the whole
-# reason the emblem survived two attempts.
+# The room hides the small vs plate lettering the same way the stage letters go.
 #
-# The invisible flag alone is not enough here. The loop below this one drops
-# ANIMATIONS instead, and its comment says why: the letters animate in and are
-# never drawn otherwise. The emblem is the same kind of thing - it sweeps on -
-# and the tree is handed to JOBJ_AnimAll every frame four instructions above
-# this hook, so an animation that drives visibility simply puts back whatever
-# the flag said. Dropping the animation is what actually sticks.
+# It does NOT sweep animations across the tree any more. That did remove the red
+# emblem - the mechanism is right, an animation driving visibility just puts the
+# invisible flag back - but JObj_RemoveAnimAll is RECURSIVE, and the indices
+# here are positions in the whole tree rather than direct children. Clearing one
+# early index cleared an ancestor of the joints the fighters hang from, and they
+# drifted out to the edges of the screen, zoomed and half off it. Skipping 4 and
+# 5, the joints themselves, changed nothing at all - which is the proof that
+# what was cleared was above them.
 #
-# So: drop animations across the whole tree, which cannot touch anything static
-# because there is no animation on it to drop - that is what keeps the backdrop,
-# which is why the flag is NOT used down at 0 to 8 where hiding it by flag
-# blanked the sky. The flag is kept from 14 up, for anything that is drawn
-# without animating.
-#
-# The range is past the end on purpose; a child that is not there costs a call
-# that returns nothing.
-#
-# WARNING: the out slot is zeroed before every call. JOBJ_GetChild is a VARARGS
-# function - that trailing -1 is a terminator, not an argument - and it does not
-# promise to write the slot when it finds nothing. The loop below gets away
-# without this because 9 to 13 are known to exist; reading a stale stack slot
-# and storing through it would be a store to whatever was there last.
-.set ROOM_ANIM_END, 48
-.set ROOM_FLAG_FIRST, 14
+# Getting that right needs the tree's actual shape, not another range.
+.set ROOM_HIDE_FIRST, 14
+.set ROOM_HIDE_END, 27
 getMinorMajor r12
 cmpwi r12, SCENE_ONLINE_ROOM
 bne SKIP_ROOM_EXTRA
-li REG_IDX, 0
+li REG_IDX, ROOM_HIDE_FIRST
 ROOM_LOOP_START:
-# Leave the two joints the fighters hang from alone.
-#
-# The builder at 0x80186400 fetches children 4 and 5 out of this tree before
-# anything else and keeps them in its state struct; they are where the two
-# characters get attached. Stripping animations across the whole tree took
-# those with it and the fighters drifted out to the edges of the screen, half
-# off it. The emblem did go - the mechanism was right and the range was not.
-#
-# 58 and 59 are held the same way and matter just as much; they are past the
-# end of this range rather than excluded by it.
-cmpwi REG_IDX, 4
-beq ROOM_LOOP_NEXT
-cmpwi REG_IDX, 5
-beq ROOM_LOOP_NEXT
-
 li r3, 0
 stw r3, SPO_CHILD_JOBJ(sp)
 mr r3, REG_JOBJ_ADDR
@@ -90,25 +63,19 @@ mr r5, REG_IDX
 li r6, -1
 branchl r12, JObj_GetJObjChild
 
+# The out slot is zeroed above every call: JOBJ_GetChild is VARARGS - the -1 is
+# a terminator, not an argument - and it does not promise to write the slot when
+# it finds nothing. The loop below gets away without it because 9 to 13 are
+# known to be there.
 lwz r4, SPO_CHILD_JOBJ(sp)
 cmpwi r4, 0
 beq ROOM_LOOP_NEXT
-
-# Static things keep their place; animated ones never arrive.
-mr r3, r4
-branchl r12, JObj_RemoveAnimAll
-
-# ...and above the stage lettering, hide it outright as well.
-cmpwi REG_IDX, ROOM_FLAG_FIRST
-blt ROOM_LOOP_NEXT
-lwz r4, SPO_CHILD_JOBJ(sp)
 lwz r3, 0x14(r4) # Get current flags
 ori r3, r3, 0x10 # Set invisible flag
 stw r3, 0x14(r4)
-
 ROOM_LOOP_NEXT:
 addi REG_IDX, REG_IDX, 1
-cmpwi REG_IDX, ROOM_ANIM_END
+cmpwi REG_IDX, ROOM_HIDE_END
 blt ROOM_LOOP_START
 SKIP_ROOM_EXTRA:
 

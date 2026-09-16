@@ -1496,6 +1496,7 @@ blr
 # else here changes.
 .set ROOM_PROBE_CHAR_L, 1     # Fox
 .set ROOM_PROBE_CHAR_R, 18    # Marth
+.set ROOM_PROBE_STAGE, 0x1F   # Battlefield
 RoomScenePrep:
 backup
 
@@ -1548,6 +1549,16 @@ li r3, ROOM_PROBE_CHAR_R
 stw r3, 0x1C(r4)
 li r3, 0
 stb r3, 0x20(r4)
+
+# And the stage, which was left out of the first version of this on purpose -
+# fewer things in flight while the fighters were the question.
+#
+# NOW LOADING is not decoration. It is the splash saying it is still waiting for
+# files, which it has been, because the room ordered two fighters and nothing
+# else. The splash's own prep asks for the stage here too, out of the stage
+# select data; the room has no match yet, so Battlefield stands in.
+li r3, ROOM_PROBE_STAGE
+stw r3, 0xC(r4)
 
 # Queue the loads. The three calls are the splash prep's, in its order; only
 # the first of them has a name in the symbol file.
