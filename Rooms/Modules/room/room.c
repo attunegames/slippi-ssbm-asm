@@ -85,7 +85,6 @@ static int   s_line = -1;
 static int   s_said_hello;
 static int   s_frames;
 static int   s_probes;
-static int   s_walk = -1;
 
 /* -------------------------------------------------------------- the module */
 
@@ -434,37 +433,19 @@ void room_load(void *scene)
     room_log("[Rooms] room scene built");
 }
 
-/* The splash's own GObj, picked out rather than guessed at.
+/* How to find the splash's own GObj again, kept because finding it cost a
+ * disassembly and nothing in the tree is done with yet.
  *
- * Class 15 holds three of them here. The one built at 0x80186400 - the one
- * carrying VSSplash_Think and the model tree with the emblem in it - is the one
- * registered with render link 0x0b AND callback 0x80391070. The stage display
- * shares the callback but sits on link 0x0c; the third shares the link but uses
- * callback 0x803910b4. Neither pair alone is enough, which is why both are
- * checked. */
-#define ROOM_CLASS_SPLASH 15
-#define ROOM_SPLASH_LINK  0x0B
-#define ROOM_SPLASH_DRAW  ((void *)0x80391070)
-
-static void *room_splash_jobj(void)
-{
-    void **heads = rooms_gobj_heads();
-    void *g;
-
-    if (!heads)
-        return 0;
-
-    for (g = heads[ROOM_CLASS_SPLASH]; g;
-         g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
-    {
-        u8 link = *(const u8 *)((const char *)g + ROOMS_GOBJ_LINK);
-        void *fn = *(void **)((char *)g + ROOMS_GOBJ_DRAWFN);
-
-        if (link == ROOM_SPLASH_LINK && fn == ROOM_SPLASH_DRAW)
-            return *(void **)((char *)g + ROOMS_GOBJ_OBJECT);
-    }
-    return 0;
-}
+ * Class 15 holds three of them. The one carrying VSSplash_Think and the model
+ * tree is on render link 0x0b with callback GXLink_Common (0x80391070). The
+ * stage display shares that callback on link 0x0c, and the fog shares the link
+ * with HSD_SetFog - so neither test alone is enough and both have to match.
+ * Its JObj is at +0x28, as usual.
+ *
+ * Nothing here needs it right now: the sweep runs from the codeset, inside
+ * VSSplash_Think, which already has the JObj in hand. Doing it from here would
+ * be a frame late, and a frame late is too late - see the note on the sweep.
+ */
 
 void room_think(void)
 {
