@@ -522,6 +522,11 @@ add \reg, r3, r4
 .set CONST_ExiRead, 0 # arg value to make an EXI read
 .set CONST_ExiWrite, 1 # arg value to make an EXI write
 
+# Peppy: "should this watcher go back to the room?" Answered by Dolphin, which
+# is the only side that knows. Defined here as well as in Playback.s so the
+# online scene can ask it without including the playback header.
+.set CMD_PEPPY_LEAVE_PLAYBACK, 0xCB
+
 # For Slippi communication
 .set CONST_SlippiCmdGetFrame, 0x76
 .set CONST_SlippiCmdCheckForReplay, 0x88

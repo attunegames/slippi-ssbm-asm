@@ -238,7 +238,7 @@ blrl
     branchl r12,FN_EXITransferBuffer
     lbz r3,0x0(REG_BufferPointer)
     cmpwi r3,0x1
-    bne PlaybackThink_Loop    # still watching - keep waiting
+    b PlaybackThink_Loop      # always: leaving is the match scene's decide now
 
   PeppyLeavePlayback:
   # Take the text down first. The heaps reset on the way out but this GObj's
@@ -253,6 +253,17 @@ blrl
   # splash artwork that was no longer resident: an inline disc read that cannot
   # finish, so the room came back black or crashed into a module that had not
   # finished loading.
+  # ⛔ Nothing leaves from here any more - see PeppyPlaybackDecide.
+  #
+  # Two ways out of this screen were tried and both failed, for the same reason:
+  # this think is a LOOP that renders and waits for retrace itself, so ending a
+  # minor from inside it does not set the next scene up. Straight to the room
+  # left it unbuilt and black. By way of the character select got that far and
+  # then died inside SlippiCSS.dat - "Invalid read from 0x31000204" - because
+  # that module expects an online match and a returning watcher has none, which
+  # is the float-as-a-pointer this codeset already warns about for training.
+  #
+  # Kept, unreachable, because it is the record of both.
   # By way of the character select, not straight to the room.
   #
   # Melee calls the room's load when the room is entered from the character
