@@ -382,7 +382,18 @@ bl PeppyTrainSSSDecide      #SceneDecide
 # DebugMelee can say 2 because in that major there is nothing else to keep.
 .byte 3                     #Amount of persistent heaps
 .align 2
-.long 0x801b13b8            #ScenePrep, DebugMelee's own
+# THIS major's prep for this scene, not DebugMelee's 0x801b13b8.
+#
+# The two are the same scene - common 2 - and the entries are now identical to
+# the real match's above but for the decide: same data pointers, same heap
+# count. The prep was the last thing left different, and it is the difference
+# that matters: a match leaves minor 2 for the room and the room BUILDS, while
+# leaving minor 10 for the room left it unbuilt every time, from the waiting
+# screen and from the match alike.
+#
+# DebugMelee's prep can skip whatever this does, because over there nothing else
+# in the major needed it. Here the room does.
+.long 0x801b1588            #ScenePrep, the same one the real match uses
 bl PeppyPlaybackDecide      #SceneDecide - ours, see below
 .byte 2                     #Common Minor ID (VS Mode)
 .align 2
