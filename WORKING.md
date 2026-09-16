@@ -314,3 +314,82 @@ buffer. `TransferFile.asm` now logs `Peppy: replacing a file, %d bytes` on the
 replacement side; the line appears for other files, so its absence for
 PeppyRoom.dat says the branch went the other way and the file quietly fell back
 to the disc, where it does not exist.
+
+---
+
+## Watching moved under the online major (2026-09-15) - WORKS, room's return does not
+
+Spectating works: the replay plays, accurate, a couple of seconds behind. Room
+creation and a real match both survive the change. What is still broken is the
+room's own screen on the way back - it arrives black.
+
+### The move
+
+A watcher used to leave for the DebugMelee major and come back. Leaving reset
+the heaps, and the room's load then called `SceneLoad_ClassicModeSplash`, which
+reaches `Load_TyDatai_usd` - a disc read, and a disc read only makes progress on
+frames the scene machinery runs, which are not running during a load. So it died
+where it stood: `room scene load` logged, `room scene built` never. Black room,
+or a crash into the part of the module that had not run.
+
+⚠️ That trap is general: **never call another scene's load inline if it might
+have to fetch anything.** The same file already recorded it for the character
+select's portraits; the splash was believed exempt because "it loads nothing",
+which is true only while the data is still resident.
+
+So watching is a minor of the ONLINE major now, the way training already was.
+The numbers were read out of DebugMelee's own table rather than guessed - a
+one-shot dump from `peppy_room_load`, since they are in RAM and not in
+MxScn.dat:
+
+    minor 1  common 2  heaps 2  prep 801b13b8  data 80480530 / 80479d98
+    minor 3  common 7  heaps 2  prep 801b16a8  data 8047c020 / 0
+
+**Common 2 is the same scene an online match is.** One think serves both, which
+is exactly why the playback codes need a scene guard at all. They went in as
+minors 10 (the match) and 11 (the waiting screen), BEFORE the `0xFE` catch-all,
+because the lookup walks upwards and would never reach them after it.
+
+`SCENE_PLAYBACK_IN_GAME` moved `0x010E` -> `0x0A08`. Almost every guard is
+written against that name in `Common.s`, so one edit moves them all; the two
+that are not - `SceneThink_Playback`'s own check and the room's handover - must
+move in the same commit. Splitting them is how a playback hook ends up firing
+during a real match.
+
+### Then: the room must only PEEK at the replay
+
+`0xCA` asks whether a replay is waiting. `0x88` asks and CONSUMES it. The room
+did both, because changing major loses a pending minor so the replay had to be
+loaded before leaving. It does not change major any more, so the waiting screen
+arrives intact and loads the replay itself - and the room taking it first left a
+spectator on "Waiting for game" forever, unable even to close Dolphin, because
+that screen's think is a loop with no exit but a replay.
+
+### ⛔ STILL OPEN: the room does not draw when re-entered from the waiting screen
+
+    25:39  room scene load / room scene built     from the CSS (minor 00) - fine
+    26:39  room scene prep                        from the waiting screen (minor 0b)
+    26:39  Writing file contents: PeppyRoom.dat -> 20200
+    26:39  scene: major 08 minor 06 prev-minor 0b
+           ... and no "room scene load" at all
+
+The module IS fully transferred both times. The difference is which loader did
+it: the working path logs `Peppy: replacing a file, 20200 bytes` from
+`TransferFile.asm`, and the return does not, though Dolphin still writes the
+contents. So something other than that injection served it, and whatever binds
+the module's think/load/leave did not happen.
+
+Next thing to find: which path serves the file on that transition, and why it
+leaves the scene's functions unbound. `GetFileSize.asm` (0x800163fc) and
+`TransferFile.asm` (0x800166b8) are the two known injections; there may be a
+third route through `File_Load` (0x80016BE0).
+
+### Also true after this session
+
+* ⛔ Coming Soon does NOT work as the room's camera, even with the text's own
+  GXLink added to the camera it provides: "lit 1 camera(s) for textlink 0" and a
+  black room on a plain entry. Under the splash the text lands on link 14, so
+  that scene puts it somewhere else entirely. Do not retry the link.
+* Bravo's `SIDevice0` is 6, left over from driving Dolphin by script. It should
+  be 12. A GameCube adapter can only be claimed by one instance at a time, so
+  two installs set to 12 will fight over it.
