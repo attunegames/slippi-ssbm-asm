@@ -480,7 +480,30 @@ rest compiles and is wired together:
 | `PeppyWatchRemotePad` in `prepareOpponentInputs` | **live** - feeds Melee by Slippi's own input path |
 | `s_timeline` - frame store, waits for complete frames | intact |
 | `PeppyWatch(endpoint)` - receives pads over ENet | intact, **never called** |
-| broadcaster side - sending pads to watchers | **gone** |
+| broadcaster side - `PeppyForward` relays every pad packet to `m_spectators` | **live** |
+| `NP_MSG_PEPPY_WATCH` - attaches a watcher and sends the backlog reliably | **live** |
+
+⛔ An earlier note here said the send side was gone. It is not - it is named
+`PeppyForward`/`PeppyRecord` in `SlippiNetplay.cpp`, called on BOTH the send
+path (830-831) and the receive path (1238-1239), so every pad a player sends or
+receives is already relayed to attached watchers.
+
+**The only missing link is the CALLER.** Nothing invokes `PeppyWatch(endpoint)`.
+The Z handler calls `SlippiSpectateClient::Watch(host, sport)` - the replay path
+- at SlippiMatchmaking.cpp:1896. Pointing that at `PeppyWatch` instead is the
+switch.
+
+Delay-based is already how the watcher runs: `PeppyWatchLatestFrame()` returns
+`s_timeline.CompleteHigh()`, the highest CONTIGUOUSLY complete frame, and
+`PeppyWatchRemotePad` clamps to `min(that, frame)`. Melee is never told it may
+simulate past a frame whose inputs are all known - no speculation, no rollback,
+no catch-up. That IS what Fizzi asked for.
+
+⚠️ The wire format is fixed-size and zero-padded
+(`tx.resize(SLIPPI_PAD_FULL_SIZE * ROLLBACK_MAX_FRAMES, 0)`), so the ASM side
+always gets the same block however many real frames are in it. That makes a
+watcher window of 1 safe - but it is belt-and-braces, because the latestFrame
+clamp already prevents speculation.
 
 ⚠️ `ROLLBACK_MAX_FRAMES` is a `#define 7` used in buffer sizing AND in the
 watcher's own pad loop:
