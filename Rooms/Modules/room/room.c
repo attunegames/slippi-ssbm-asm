@@ -84,7 +84,6 @@ static void *s_text;
 static int   s_line = -1;
 static int   s_said_hello;
 static int   s_frames;
-static int   s_probes;
 
 /* -------------------------------------------------------------- the module */
 
@@ -193,79 +192,61 @@ static char *room_put_x(char *p, u32 v)
     return p;
 }
 
-/* Find every camera, rather than the ones that happen to keep their CObj where
- * this expected it.
- *
- * Class 20 holds FIVE GObjs and only two of them have anything at +0x28, which
- * is where GObj_AddObject is supposed to park the object. Those two are banded,
- * hold their viewport perfectly, and the fighters ignore them - so the fighters
- * belong to one of the other three, and the assumption to question is the
- * offset, not the banding.
- *
- * So: for each camera GObj, walk its first few words, and for any that could be
- * a RAM pointer, look at what it points at and ask whether it looks like a
- * CObj. A CObj carries its viewport at +0x0C, and a viewport is four floats
- * describing a rectangle that is the right way round and screen-sized. That is
- * a specific enough shape to recognise without knowing the struct.
- *
- * Self-validating on purpose. If this prints nothing, the guess was wrong and
- * nothing has been broken to find that out. */
-#define ROOM_GOBJ_SCAN_END 0x50
+/* Recorded rather than kept as code: of the five class-20 GObjs, only two carry
+ * anything at +0x28, and both hold whatever viewport is written to them. The
+ * fighters are drawn through a camera no GObj owns, which is why the band had
+ * to be forced from CObj_SetCurrent. The probe that established that walked
+ * each camera GObj's first words looking for something shaped like a CObj -
+ * four floats at +0x0C making a screen-sized rectangle the right way round.
+ */
 
-static int room_ptr_ok(u32 v)
-{
-    return v >= 0x80000000u && v < 0x81800000u && (v & 3u) == 0u;
-}
-
-static int room_looks_like_viewport(const float *vp)
-{
-    return vp[1] - vp[0] >= 16.0f && vp[3] - vp[2] >= 16.0f
-        && vp[0] > -1000.0f && vp[2] > -1000.0f
-        && vp[1] < 2000.0f && vp[3] < 2000.0f;
-}
-
-static void room_probe_cams(void)
+/* Every GObj, and the function that DRAWS it.
+ *
+ * NOW LOADING has now survived the invisible flag, a whole-tree animation
+ * sweep, and being looked for as a SIS text - so it is not in the splash's
+ * model tree and it is not that text. It is drawn by something, though, and
+ * every GObj records what: GObj_AddGXLink parks the callback at +0x1C and the
+ * render link at +0x03.
+ *
+ * So instead of hiding things to see what disappears - which is what the last
+ * several attempts did, and what cost the fighters their placement - print the
+ * callback for every GObj and look the addresses up in the DOL. That names them
+ * outright: GXLink_Common, HSD_SetFog and the rest all have symbols.
+ *
+ * Once, and non-destructive. It changes nothing on screen. */
+static void room_report_gobjs(void)
 {
     void **heads = rooms_gobj_heads();
-    void *g;
-    int idx = 0;
+    int c;
 
     if (!heads)
         return;
 
-    for (g = heads[ROOM_CLASS_CAMERA]; g; g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+    for (c = 0; c < 32; c++)
     {
-        char line[120];
-        char *p = line;
-        int off;
+        void *g;
+        int n = 0;
 
-        p = room_put(p, "[Rooms] g");
-        p = room_put_i(p, idx++);
-        p = room_put(p, " at ");
-        p = room_put_x(p, (u32)g);
-
-        for (off = 0x10; off < ROOM_GOBJ_SCAN_END; off += 4)
+        for (g = heads[c]; g && n < 8;
+             g = *(void **)((char *)g + ROOMS_GOBJ_NEXT), n++)
         {
-            u32 v = *(const u32 *)((const char *)g + off);
-            const float *vp;
+            char line[80];
+            char *p = line;
+            u8 link = *(const u8 *)((const char *)g + ROOMS_GOBJ_LINK);
+            u32 fn  = *(const u32 *)((const char *)g + ROOMS_GOBJ_DRAWFN);
+            u32 obj = *(const u32 *)((const char *)g + ROOMS_GOBJ_OBJECT);
 
-            if (!room_ptr_ok(v))
-                continue;
-            vp = (const float *)(u32)(v + ROOM_COBJ_VIEWPORT);
-            if (!room_looks_like_viewport(vp))
-                continue;
-            if (p - line > 84)
-                break;
-            *p++ = ' '; *p++ = '+';
-            p = room_put_x(p, (u32)off);
-            *p++ = ' ';
-            p = room_put_i(p, (int)vp[0]); *p++ = ',';
-            p = room_put_i(p, (int)vp[1]); *p++ = ',';
-            p = room_put_i(p, (int)vp[2]); *p++ = ',';
-            p = room_put_i(p, (int)vp[3]);
+            p = room_put(p, "[Rooms] c");
+            p = room_put_i(p, c);
+            p = room_put(p, " l");
+            p = room_put_i(p, link);
+            p = room_put(p, " draw ");
+            p = room_put_x(p, fn);
+            p = room_put(p, " obj ");
+            p = room_put_x(p, obj);
+            *p = 0;
+            room_log(line);
         }
-        *p = 0;
-        room_log(line);
     }
 }
 
@@ -471,18 +452,11 @@ void room_think(void)
      * room down after thirty-six seconds every time. */
     /* Once a second, and BEFORE the re-band, so what gets printed is whatever
      * survived the last frame rather than what we just wrote. */
-    if (++s_frames >= 60)
+    if (s_frames < 90 && ++s_frames == 90)
     {
-        s_frames = 0;
         room_report_cams();
         room_report_classes();
-        /* Three times and then quiet: it is five lines a go and the answer
-         * does not change once the fighters are in. */
-        if (s_probes < 3)
-        {
-            s_probes++;
-            room_probe_cams();
-        }
+        room_report_gobjs();
     }
 
     if (s_line >= 0)
