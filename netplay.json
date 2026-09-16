@@ -452,6 +452,12 @@
           "sourceFolder": "Common/GetCommonMinorID",
           "isRecursive": true,
           "annotation": "Static function for obtaining common minor ID"
+        },
+        {
+          "type": "injectFolder",
+          "sourceFolder": "Peppy/Debug/ArchiveInit",
+          "isRecursive": false,
+          "annotation": "DEBUG: does a module's archive get initialised on the way back from a watch"
         }
       ]
     },
