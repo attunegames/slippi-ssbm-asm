@@ -359,58 +359,6 @@ bl PeppyTrainSSSDecide      #SceneDecide
 .align 2
 .long 0x8048e378            #Minor Data 1
 .long 0x8048e378            #Minor Data 2
-#Peppy playback: the match a spectator watches
-# Read out of DebugMelee's own table rather than guessed - minor 1 there is
-# common 2, the SAME scene an online match is, which is why one think serves
-# both and why the playback codes need a scene guard at all. Two persistent
-# heaps, no decide: playback moves itself on with ChangeScreenMinor.
-#
-# It lives here so that watching never leaves this major. Going to DebugMelee
-# and back reset the heaps, and the room's load then asked for splash artwork
-# that was no longer resident - an inline disc read that cannot finish, so the
-# room came back black or not at all.
-.byte 10                    #Minor Scene ID
-# 3, not the 2 DebugMelee declares.
-#
-# The count is how many heaps survive into this scene, and every other minor of
-# this major keeps 3 - the room and all of training. Carrying DebugMelee's 2
-# over freed the heap PeppyRoom.dat lives in, so coming back the module had to
-# be loaded again, while the scene still held function pointers into the copy
-# that had just been cleared. Executing those is "Unknown instruction 00000000"
-# in module space, and landing on them quietly is the black room.
-#
-# DebugMelee can say 2 because in that major there is nothing else to keep.
-.byte 3                     #Amount of persistent heaps
-.align 2
-# THIS major's prep for this scene, not DebugMelee's 0x801b13b8.
-#
-# The two are the same scene - common 2 - and the entries are now identical to
-# the real match's above but for the decide: same data pointers, same heap
-# count. The prep was the last thing left different, and it is the difference
-# that matters: a match leaves minor 2 for the room and the room BUILDS, while
-# leaving minor 10 for the room left it unbuilt every time, from the waiting
-# screen and from the match alike.
-#
-# DebugMelee's prep can skip whatever this does, because over there nothing else
-# in the major needed it. Here the room does.
-.long 0x801b1588            #ScenePrep, the same one the real match uses
-bl PeppyPlaybackDecide      #SceneDecide - ours, see below
-.byte 2                     #Common Minor ID (VS Mode)
-.align 2
-.long 0x80480530            #Minor Data 1
-.long 0x80479d98            #Minor Data 2
-#Peppy playback: the "waiting for game" screen
-# DebugMelee minor 3, common 7. This is where a watcher waits for the stream
-# and where it asks to come back to the room.
-.byte 11                    #Minor Scene ID
-.byte 3                     #Amount of persistent heaps
-.align 2
-.long 0x801b16a8            #ScenePrep, DebugMelee's own
-.long 0                     #SceneDecide - there is none
-.byte 7                     #Common Minor ID
-.align 2
-.long 0x8047c020            #Minor Data 1
-.long 0                     #Minor Data 2
 #Peppy catch-all
 # Melee looks a minor up by id, and when it runs off the end of the table it
 # does not stop - it carries on with a null descriptor and calls whatever
@@ -437,52 +385,6 @@ bl PeppyRoomSceneDecide     #SceneDecide
 # The screen is built by the module; these only exist because every minor
 # needs a prep and a decide. The decide will pick the next scene once the
 # queue can match two people.
-# Leaving a watch, from the scene a watch actually IS.
-#
-# A finished replay goes back to the waiting screen on its own, which is right
-# while the broadcaster is still playing - the next game arrives there. When
-# there is no next game the watcher wants the room, and asking from HERE is the
-# whole point: the waiting screen's think is a loop that renders and waits for
-# retrace itself, and ending a minor from inside it does not set the next scene
-# up. The room arrived unbuilt every time.
-#
-# A match leaves this way too - minor 2 ends and its decide names the room - and
-# that is proven. This is the same thing from the scene that shares its common
-# id.
-#
-# Only touched when Dolphin says the watch is over; otherwise the default stands
-# and the waiting screen gets it, ready for the next game.
-PeppyPlaybackDecide:
-backup
-
-lwz r31, OFST_R13_SB_ADDR(r13)
-cmpwi r31, 0
-beq PeppyPlaybackDecide_EXIT
-
-li r3, CMD_PEPPY_LEAVE_PLAYBACK
-stb r3, 0x0(r31)
-mr r3, r31
-li r4, 0x1
-li r5, CONST_ExiWrite
-branchl r12, FN_EXITransferBuffer
-mr r3, r31
-li r4, 0x1
-li r5, CONST_ExiRead
-branchl r12, FN_EXITransferBuffer
-
-lbz r3, 0x0(r31)
-cmpwi r3, 1
-bne PeppyPlaybackDecide_EXIT
-
-logf LOG_LEVEL_NOTICE, "Peppy: watch over - back to the room"
-load r4, 0x80479d30
-li r3, 7                    # pending minor, one-based: minor 6, the room
-stb r3, 0x5(r4)
-
-PeppyPlaybackDecide_EXIT:
-restore
-blr
-
 PeppyRoomScenePrep:
 # Says nothing but that it ran. Coming back from spectating, the scene arrived
 # at this minor with PeppyRoom.dat never reloaded - the table's think, load and

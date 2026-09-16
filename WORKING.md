@@ -317,7 +317,51 @@ to the disc, where it does not exist.
 
 ---
 
-## Watching moved under the online major (2026-09-15) - WORKS, room's return does not
+## Watching as a MINOR of the online major - TRIED AND REVERTED, 2026-09-15
+
+⛔ Reverted. The code is on the tag `experiment/playback-as-minor`; the branch
+went back to the commit before it. Read this before trying it again - the idea
+is sound and most of the groundwork is done, but it is not free.
+
+**What it fixed:** the crash inside the room's load. Staying in the major means
+the heaps are not reset, so the splash artwork is still resident and that load
+has nothing to fetch.
+
+**What it cost:** the catch-up stopped, silently. `FastForward.asm` tested major
+`0xe` and minor `0x1` as raw numbers rather than through SCENE_PLAYBACK_IN_GAME,
+so the test simply never passed again - the replay still played, still accurate,
+just permanently a couple of seconds behind with no way to close the gap. Any
+future attempt must grep case-insensitively for raw scene numbers; "cmpwi r3,
+0xE" does not match "cmpwi r3, 0xe".
+
+**What it did not fix:** the room still did not draw on the way back, and in a
+worse form. As a major the room's load RUNS and dies somewhere nameable. As a
+minor it is never called at all, from any predecessor, and four attempts did not
+find out why - the character select route (dies in SlippiCSS.dat, "Invalid read
+from 0x31000204", a float read as a pointer, because that module expects an
+online match and a returning watcher has none), the heap count, a decide of its
+own on the match scene, and this major's prep instead of DebugMelee's.
+
+Reverted because it traded a diagnosis for a mystery.
+
+### Worth keeping from it
+
+* The numbers, read out of DebugMelee's table rather than guessed:
+
+      minor 1  common 2  heaps 2  prep 801b13b8  data 80480530 / 80479d98
+      minor 3  common 7  heaps 2  prep 801b16a8  data 8047c020 / 0
+
+* **Playback's match is common minor 2 - the same scene an online match is.**
+  One think serves both, which is exactly why the playback codes need a scene
+  guard at all.
+* The waiting screen cannot be left from: its think is a LOOP that renders and
+  waits for retrace itself, so ending a minor inside it does not set the next
+  scene up.
+* Training does NOT return to the room directly either - it asks for the
+  character select and lets that screen send it on. Nothing has ever entered the
+  room from a sibling minor.
+
+## What the major version still gets wrong
 
 Spectating works: the replay plays, accurate, a couple of seconds behind. Room
 creation and a real match both survive the change. What is still broken is the
