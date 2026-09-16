@@ -67,6 +67,19 @@ TransferFile_HAS_REPLACEMENT:
 # for it, the branch above went the other way - Melee read back nothing from a
 # request Dolphin answered.
   logf LOG_LEVEL_NOTICE, "Peppy: replacing a file, %d bytes", "mr r5, REG_FileLength"
+# And WHERE it is going.
+#
+# m-ex binds a scene's module by loading the file and looking up its
+# "mnFunction" root; if either the load or the lookup comes back empty it
+# branches to its own exit and binds nothing, silently - which is exactly what
+# a watcher's return looks like. The file transfers and neither the room's load
+# nor its think ever runs.
+#
+# This is the destination the parent allocated for the file. Zero or nonsense
+# here means the allocation failed, so File_Load has nothing to return and the
+# lookup was never the problem. A sane address means the file did land and the
+# fault is further along, in the root lookup or the relocation.
+  logf LOG_LEVEL_NOTICE, "Peppy: replacing a file, dest %08x", "mr r5, REG_FileAlloc"
   stw	REG_FileLength, 0(r28) # Parent function normally does this
 # request file data
   li r3, CONST_SlippiCmdFileLoad        # store file length request ID
