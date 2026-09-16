@@ -342,12 +342,6 @@
         },
         {
           "type": "injectFolder",
-          "sourceFolder": "Peppy/Debug/MexBind",
-          "isRecursive": false,
-          "annotation": "DEBUG: which half of m-ex's module binding fails. AFTER m-ex.bin on purpose."
-        },
-        {
-          "type": "injectFolder",
           "sourceFolder": "Common/NanaDeterminism",
           "isRecursive": true,
           "annotation": "Makes Nana inputs deterministic [UnclePunch, metaconstruct, Fizzi]"
