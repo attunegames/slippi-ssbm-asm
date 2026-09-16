@@ -253,8 +253,20 @@ blrl
   # splash artwork that was no longer resident: an inline disc read that cannot
   # finish, so the room came back black or crashed into a module that had not
   # finished loading.
+  # By way of the character select, not straight to the room.
+  #
+  # Melee calls the room's load when the room is entered from the character
+  # select and does NOT when it is entered from here - same prep, same module
+  # reloaded, and then "room scene load" simply never runs. The room arrives
+  # unbuilt: black, or a crash into the part of the module that had not run.
+  # Why the predecessor decides that is not understood.
+  #
+  # The character select is a screen a Rooms player never stays on - its Decide
+  # sends them to the room - so this borrows a transition that is already proven
+  # rather than fighting one that is not. It costs the flash of that screen,
+  # which is the price of a way back that works.
     load r4,0x80479D30
-    li r3,7                   #pending minor, one-based: minor 6, the room
+    li r3,1                   #pending minor, one-based: minor 0, the CSS
     stb r3,0x5(r4)
     branchl r12,Scene_ExitMinor
     b PlaybackThink_Exit
