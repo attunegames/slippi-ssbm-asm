@@ -220,9 +220,15 @@ void GObj_AddGXLink(void *gobj, void *callback, int link, int priority);
 
 #define TEXT_DRAW_EACH_FRAME ((void *)0x803A84BC)
 void SceneThink_ClassicModeSplash(void);
-/* The preload pump on its own. A splash think does two things - advance the
- * preload and then advance the SCENE - and a borrowed scene only wants the
- * first. Takes no arguments; it reaches its state through globals. */
+/* Turns the preload REQUEST TABLE at 0x80432078 - a char id and a costume per
+ * player - into actual file loads. Takes no arguments; it reaches its state
+ * through globals.
+ *
+ * ⚠️ It only moves what has been asked for. Calling it without filling that
+ * table first does nothing at all, and an earlier attempt to finish the room's
+ * characters by pumping it every frame failed for exactly that reason and was
+ * written up as "the preload cannot be advanced from here". The room fills the
+ * table in its ScenePrep and calls this once, which is what the splash does. */
 void Preload_Update(void);
 
 /* -------------------------------------------------------------------- pad */

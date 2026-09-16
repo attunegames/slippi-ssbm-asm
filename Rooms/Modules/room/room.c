@@ -7,10 +7,14 @@
  * Where it is going, so the shape here does not have to be undone later:
  *
  * The room's scene entry is a COPY of the VS splash's (global minor 0x20),
- * not an empty one. That matters. The splash's Load builds two character
- * models in their chosen costumes, and it is the only renderer in the game
- * that does so without a 3D preload the room cannot finish - three attempts
- * at borrowing it the other way are recorded in the old notes, all dead.
+ * not an empty one. That matters: the splash's Load builds two character models
+ * in their chosen costumes, which is exactly the picture a room wants.
+ *
+ * It DOES need a 3D preload - the old notes said it could not be finished from
+ * here and that was wrong. A fighter's model is a file, and a scene requests it
+ * in its ScenePrep; the room's prep now does, the same way the splash's own
+ * does. What made it look impossible was pumping Preload_Update with nothing
+ * ever queued, which pumps an empty queue and changes nothing.
  *
  * So this module exports Think and Load and deliberately NOT Leave: m-ex only
  * overwrites a slot a module actually exports, and the copied entry's own
@@ -91,6 +95,24 @@ static int   s_said_hello;
  * left alone keep drawing full-screen over the top.
  */
 #define ROOM_CLASS_CAMERA 20
+
+/* The band is 640x240 of a 640x480 picture, and there are two different ways to
+ * get one from the other. The first try used the wrong one.
+ *
+ * The VIEWPORT is a mapping, not a window: give it a 240-high rectangle and the
+ * whole 480-high picture is squeezed into it, which is why the first band came
+ * out squashed rather than cropped. The SCISSOR is the window - it throws away
+ * whatever falls outside and touches nothing else.
+ *
+ * So the viewport keeps its full 480 of height and is slid UP by BAND_SHIFT,
+ * and the scissor clips to the top of the screen. The picture is then drawn at
+ * its true proportions and we see a 240-high slice of it.
+ *
+ * BAND_SHIFT is which slice. 0 is the top of the picture, 240 the bottom; 120
+ * takes the middle, which is where two fighters stood on the screen this was
+ * borrowed from. It is one number and it is meant to be tuned against a
+ * screenshot - nothing else depends on it. */
+#define BAND_SHIFT 120.0f
 #define BAND_LEFT    0.0f
 #define BAND_RIGHT 640.0f
 #define BAND_TOP     0.0f
@@ -114,7 +136,8 @@ static void room_band_to_top(void)
 
         if (!cobj)
             continue;
-        CObj_SetViewport(cobj, BAND_LEFT, BAND_RIGHT, BAND_TOP, BAND_BOTTOM);
+        CObj_SetViewport(cobj, BAND_LEFT, BAND_RIGHT,
+                         -BAND_SHIFT, (float)ROOMS_SCREEN_H - BAND_SHIFT);
         CObj_SetScissor(cobj, (int)BAND_LEFT, (int)BAND_RIGHT,
                         (int)BAND_TOP, (int)BAND_BOTTOM);
         n++;
@@ -136,26 +159,20 @@ static void room_band_to_top(void)
     }
 }
 
-/* Where SceneLoad_ClassicModeSplash reads what to build, measured off its own
- * disassembly rather than assumed:
+/* What the splash builds from lives in the minor data, and RoomScenePrep fills
+ * it - see the room's entry in main.asm. It is not done here, for two reasons.
  *
- *     +0x10   character one, external id
- *     +0x11   character two
+ * The first is ordering. A fighter's model is a FILE, read off the disc across
+ * frames, and it has to be requested before anything can draw it. ScenePrep is
+ * where a scene does that, so the request goes in there and the files are on
+ * their way before this load is ever called.
  *
- * If EITHER is 0x1a - 26, "nobody" - it sets the done flag and builds nothing,
- * which is most of the time in a room and would look exactly like a failure.
- * So a real pair goes in before the call. */
-#define SPLASH_CHAR_1 0x10
-#define SPLASH_CHAR_2 0x11
-#define SPLASH_NOBODY 0x1a
-
-/* Hardcoded on purpose, and temporary: this is the first test of whether the
- * splash will build inside the room's scene at all. Fox and Marth because they
- * are unmistakable on screen - two characters here means it worked, and no
- * amount of log reading proves that as well as looking. The real pair comes
- * from the room's state once there is a room tick to carry it. */
-#define PROBE_CHAR_1 0x02
-#define PROBE_CHAR_2 0x09
+ * The second is that the offsets this used to write were wrong. It set +0x10
+ * and +0x11 and called them "character one and two"; they are the first two
+ * RIGHT-hand slots, so both fighters were being put on the same side of a
+ * screen whose side-counts still said one each. The real layout is written out
+ * where it is used, next to the stores that prove it.
+ */
 
 void room_load(void *scene)
 {
@@ -178,10 +195,6 @@ void room_load(void *scene)
      * r3, which works by luck on a fresh entry and not at all otherwise. */
     if (scene)
     {
-        u8 *d = (u8 *)scene;
-
-        d[SPLASH_CHAR_1] = PROBE_CHAR_1;
-        d[SPLASH_CHAR_2] = PROBE_CHAR_2;
         SceneLoad_ClassicModeSplash(scene);
         room_log("[Rooms] splash built");
         room_band_to_top();

@@ -1478,12 +1478,85 @@ blr
 ################################################################################
 # Room: scene prep and decide
 ################################################################################
-# Both are deliberately empty while the pipeline is being proved. The room
-# itself is the m-ex module on common minor 0x51 - everything on screen comes
-# from there, and a prep that does nothing is one fewer thing between "the
-# module did not bind" and "the module bound and drew nothing".
+# Ask for the two fighters' files, and set up the struct the splash builds from.
+#
+# This is why the room sat on NOW LOADING. A fighter's model is a file that
+# comes off the disc across frames, and a scene has to REQUEST it - the request
+# table is at 0x80432078, a char id and a costume per player, and Preload_Update
+# turns whatever is in it into actual loads. An empty prep asks for nothing, so
+# the splash waits on files nobody ordered and says so, for ever.
+#
+# The old branch pumped Preload_Update every frame and recorded that it "changes
+# nothing". That was true and the conclusion was wrong: it was pumping an empty
+# queue. The missing half was never the pump, it was the order.
+#
+# All of this is SplashScenePrep's own preload block a few hundred lines up,
+# with the characters hardcoded instead of read out of the match - there is no
+# match yet. When there is, these two come from the room's state and nothing
+# else here changes.
+.set ROOM_PROBE_CHAR_L, 1     # Fox
+.set ROOM_PROBE_CHAR_R, 18    # Marth
 RoomScenePrep:
 backup
+
+# The splash reads a struct it does not initialise, so the template goes in
+# first - +0x08 through +0x0A are fields whose meaning is not known here, and
+# leaving them as whatever the last scene left behind is how a builder ends up
+# reading a costume of 0xEE.
+load  r3,0x80490888
+bl  SplashSceneData
+mflr  r4
+li  r5,0x10
+branchl r12,memcpy
+
+load  r4,0x80490888
+
+# No special stage rules, and not a teams match.
+li r3, 0
+stb r3,-0x1(r4)             # match event mode
+stb r3,-0x5(r4)             # match pvp type
+
+# One character a side. The layout is the splash prep's, counted off its own
+# stores: counts at +3 and +4, then THREE left char ids at +5 and three right
+# at +8, with their costumes at +0xB and +0xE.
+#
+# Worth knowing, because the room had this wrong: +0x10 and +0x11 of the minor
+# data - which is r4+8 and r4+9 - are the first two RIGHT slots, not "character
+# one and character two". Writing a pair there put both fighters on the same
+# side of a screen that had been told only one of them was there.
+li r3, 1
+stb r3, 0x3(r4)             # left count
+stb r3, 0x4(r4)             # right count
+
+li r3, ROOM_PROBE_CHAR_L
+stb r3, 0x5(r4)             # left slot 0
+li r3, 0
+stb r3, 0xB(r4)             # ...its costume
+
+li r3, ROOM_PROBE_CHAR_R
+stb r3, 0x8(r4)             # right slot 0
+li r3, 0
+stb r3, 0xE(r4)             # ...its costume
+
+# Order the files.
+load r4, 0x80432078
+li r3, ROOM_PROBE_CHAR_L
+stw r3, 0x14(r4)
+li r3, 0
+stb r3, 0x18(r4)
+li r3, ROOM_PROBE_CHAR_R
+stw r3, 0x1C(r4)
+li r3, 0
+stb r3, 0x20(r4)
+
+# Queue the loads. The three calls are the splash prep's, in its order; only
+# the first of them has a name in the symbol file.
+branchl r12,0x80018254      # Preload_Update
+li  r3,199
+branchl r12,0x80018c2c
+li  r3,4
+branchl r12,0x80017700
+
 restore
 blr
 
