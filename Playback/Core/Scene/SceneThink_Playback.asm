@@ -254,11 +254,20 @@ blrl
   #
   # Note minor 6, not 7. The other route writes this byte one-based; the menu
   # writes it plain, and the menu is the one that works.
-    li r3,8
-    branchl r12,Event_StoreSceneNumber
+  # ⛔ NOT Event_StoreSceneNumber. Copied from the menu and it does not travel:
+  # from here it moved the MINOR, landing on major 0e minor 08 and never leaving
+  # the playback major at all. It works in the menu and only there.
+  #
+  # Back to the pair that at least arrives - pending major plus ending the minor,
+  # which is how the room leaves its own major. The scene reaches minor 06 every
+  # time with this; what it does not do is run the room's load, which is the
+  # thing still being measured.
     load r4,0x80479D30
-    li r3,6                   #minor 6, the room - as the menu writes it
-    stb r3,0x5(r4)
+    li r3,0
+    stb r3,0x5(r4)            #pending minor
+    li r3,8                   #the online major
+    branchl r12,MenuController_WriteToPendingMajor_1to_0xC
+    branchl r12,Scene_ExitMinor
     b PlaybackThink_Exit
 
   ###############

@@ -1713,6 +1713,27 @@ static void peppy_room_redress(void *msrb)
 
 void peppy_room_think(void)
 {
+    /* Does the THINK run when the load did not?
+     *
+     * Both are bound by m-ex from the same module. If this appears and "room
+     * scene load" did not, the module is loaded and bound and the scene
+     * machinery simply skipped the load - the fault is in the transition. If
+     * neither appears, the module is not bound at all and the fault is in the
+     * loading. Those need opposite fixes and every guess between them has been
+     * wrong, so it gets measured.
+     *
+     * Once per entry: s_told is a module static and the module is loaded fresh
+     * each time. */
+    {
+        static int s_told;
+
+        if (!s_told)
+        {
+            s_told = 1;
+            peppy_log("Peppy: room think is running");
+        }
+    }
+
     /* The roster changes while people come and go, so it is read every frame
      * rather than once at load. */
     if (s_browsing)
