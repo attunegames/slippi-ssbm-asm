@@ -383,7 +383,7 @@ bl PeppyTrainSSSDecide      #SceneDecide
 .byte 3                     #Amount of persistent heaps
 .align 2
 .long 0x801b13b8            #ScenePrep, DebugMelee's own
-.long 0                     #SceneDecide - there is none
+bl PeppyPlaybackDecide      #SceneDecide - ours, see below
 .byte 2                     #Common Minor ID (VS Mode)
 .align 2
 .long 0x80480530            #Minor Data 1
@@ -426,6 +426,52 @@ bl PeppyRoomSceneDecide     #SceneDecide
 # The screen is built by the module; these only exist because every minor
 # needs a prep and a decide. The decide will pick the next scene once the
 # queue can match two people.
+# Leaving a watch, from the scene a watch actually IS.
+#
+# A finished replay goes back to the waiting screen on its own, which is right
+# while the broadcaster is still playing - the next game arrives there. When
+# there is no next game the watcher wants the room, and asking from HERE is the
+# whole point: the waiting screen's think is a loop that renders and waits for
+# retrace itself, and ending a minor from inside it does not set the next scene
+# up. The room arrived unbuilt every time.
+#
+# A match leaves this way too - minor 2 ends and its decide names the room - and
+# that is proven. This is the same thing from the scene that shares its common
+# id.
+#
+# Only touched when Dolphin says the watch is over; otherwise the default stands
+# and the waiting screen gets it, ready for the next game.
+PeppyPlaybackDecide:
+backup
+
+lwz r31, OFST_R13_SB_ADDR(r13)
+cmpwi r31, 0
+beq PeppyPlaybackDecide_EXIT
+
+li r3, CMD_PEPPY_LEAVE_PLAYBACK
+stb r3, 0x0(r31)
+mr r3, r31
+li r4, 0x1
+li r5, CONST_ExiWrite
+branchl r12, FN_EXITransferBuffer
+mr r3, r31
+li r4, 0x1
+li r5, CONST_ExiRead
+branchl r12, FN_EXITransferBuffer
+
+lbz r3, 0x0(r31)
+cmpwi r3, 1
+bne PeppyPlaybackDecide_EXIT
+
+logf LOG_LEVEL_NOTICE, "Peppy: watch over - back to the room"
+load r4, 0x80479d30
+li r3, 7                    # pending minor, one-based: minor 6, the room
+stb r3, 0x5(r4)
+
+PeppyPlaybackDecide_EXIT:
+restore
+blr
+
 PeppyRoomScenePrep:
 # Says nothing but that it ran. Coming back from spectating, the scene arrived
 # at this minor with PeppyRoom.dat never reloaded - the table's think, load and
