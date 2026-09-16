@@ -67,6 +67,21 @@ cmpwi r12, SCENE_ONLINE_ROOM
 bne SKIP_ROOM_EXTRA
 li REG_IDX, 0
 ROOM_LOOP_START:
+# Leave the two joints the fighters hang from alone.
+#
+# The builder at 0x80186400 fetches children 4 and 5 out of this tree before
+# anything else and keeps them in its state struct; they are where the two
+# characters get attached. Stripping animations across the whole tree took
+# those with it and the fighters drifted out to the edges of the screen, half
+# off it. The emblem did go - the mechanism was right and the range was not.
+#
+# 58 and 59 are held the same way and matter just as much; they are past the
+# end of this range rather than excluded by it.
+cmpwi REG_IDX, 4
+beq ROOM_LOOP_NEXT
+cmpwi REG_IDX, 5
+beq ROOM_LOOP_NEXT
+
 li r3, 0
 stw r3, SPO_CHILD_JOBJ(sp)
 mr r3, REG_JOBJ_ADDR
