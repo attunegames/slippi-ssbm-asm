@@ -1856,6 +1856,50 @@ __attribute__((unused)) static void peppy_dump_match_struct(void)
  * hangs off it: GetMinorSceneData1 is nothing but *(scene + 0x10), and
  * StartMelee reads the stage out of it. Throwing that argument away is what
  * made every attempt at training walk off into a stage that does not exist. */
+/* Make the camera we were given cover the text.
+ *
+ * A borrowed scene brings a camera - the one thing the room actually needs from
+ * one - but its render pass covers its own artwork's GXLink, not the one a text
+ * object lands on, so the text is simply never drawn. That is the whole of
+ * "Coming Soon gives a camera but no text". Rather than hunt for a scene whose
+ * links happen to match ours, add ours to its.
+ */
+static void peppy_room_camera_covers_text(void)
+{
+    void **heads = peppy_gobj_heads();
+    void *text_gobj = peppy_find_text_gobj();
+    void *g;
+    u8 link;
+    u32 text_bit;
+    int lit = 0;
+
+    if (!text_gobj)
+    {
+        peppy_log("Peppy: no text gobj to light");
+        return;
+    }
+
+    link = *(u8 *)((char *)text_gobj + PEPPY_GOBJ_LINK);
+    text_bit = 1u << (link & 31);
+
+    for (g = heads[PEPPY_CLASS_CAMERA]; g;
+         g = *(void **)((char *)g + PEPPY_GOBJ_NEXT))
+    {
+        *(u32 *)((char *)g + PEPPY_GOBJ_LINKS0) |= text_bit;
+        lit++;
+    }
+
+    {
+        char line[48];
+        char *o = put(line, "Peppy: lit ");
+        o = put_u8(o, (u8)lit);
+        o = put(o, " camera(s) for textlink ");
+        o = put_u8(o, link);
+        *o = 0;
+        peppy_log(line);
+    }
+}
+
 void peppy_room_load(void *scene)
 {
     /* First thing, before anything can go wrong quietly.
@@ -1921,7 +1965,23 @@ void peppy_room_load(void *scene)
      *
      * Tried twice: with that scene's own minor data, and with the scene pointer
      * this load is handed. Same both times, so it is not the argument. */
-    SceneLoad_ClassicModeSplash(scene);
+    /* ⛔ NOT SceneLoad_ClassicModeSplash. It is what broke the way back from
+     * spectating.
+     *
+     * That load reaches Load_TyDatai_usd, and a disc read is spread across
+     * frames that only the scene machinery runs - the same trap this file
+     * already records for the character select's portraits. Coming from the
+     * menu it never showed, because the trophy data is already resident and
+     * nothing has to be fetched. Coming back from the playback major the heaps
+     * have been reset, it does have to be fetched, and the load dies where it
+     * stands: the module is fully written, "room scene load" is logged, and
+     * "room scene built" never is. Black screen, or a crash into the part of
+     * the module that never ran.
+     *
+     * Coming Soon loads nothing and gives a camera, which is all a room wants
+     * from a borrowed scene. The text it could not draw is dealt with below. */
+    (void)scene;
+    SceneLoad_ComingSoon();
     /* The sweep is what kept the borrowed scene's own artwork off the screen -
      * the 1-P Mode furniture that has no business in a room. But once the block
      * above is filled in, the things it would sweep away ARE the two characters
@@ -2019,6 +2079,8 @@ void peppy_room_load(void *scene)
         peppy_room_set_queued(msrb ? peppy_room_self_queued(msrb) : 0);
     }
     peppy_room_start_searching();
+    /* After the build, because the text object it lights has to exist first. */
+    peppy_room_camera_covers_text();
     /* No split. It existed to keep the top half for the borrowed splash, and the
      * splash is gone - half a screen with nothing in it is worse than a whole
      * one. The band draws as text at the top either way. */
