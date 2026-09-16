@@ -78,6 +78,64 @@ static int   s_said_hello;
 
 /* -------------------------------------------------------------- the module */
 
+/* Pull the splash up into a band across the top.
+ *
+ * The splash fills the screen because it is normally the whole screen. Here it
+ * is the top of a room, with the queue and lobby underneath - so its camera
+ * gets a viewport rather than its objects getting moved. One call per camera
+ * instead of repositioning everything the builder made, and the framing stays
+ * correct because the camera still sees the same scene.
+ *
+ * Cameras are GObj class 20 and park their CObj at +0x28. There is more than
+ * one - the old room counted five - so every one of them is banded, or the ones
+ * left alone keep drawing full-screen over the top.
+ */
+#define ROOM_CLASS_CAMERA 20
+#define BAND_LEFT    0.0f
+#define BAND_RIGHT 640.0f
+#define BAND_TOP     0.0f
+#define BAND_BOTTOM 240.0f
+
+static void room_band_to_top(void)
+{
+    void **heads = rooms_gobj_heads();
+    void *g;
+    int n = 0;
+
+    if (!heads)
+    {
+        room_log("[Rooms] no gobj heads - cannot band the camera");
+        return;
+    }
+
+    for (g = heads[ROOM_CLASS_CAMERA]; g; g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+    {
+        void *cobj = *(void **)((char *)g + ROOMS_GOBJ_OBJECT);
+
+        if (!cobj)
+            continue;
+        CObj_SetViewport(cobj, BAND_LEFT, BAND_RIGHT, BAND_TOP, BAND_BOTTOM);
+        CObj_SetScissor(cobj, (int)BAND_LEFT, (int)BAND_RIGHT,
+                        (int)BAND_TOP, (int)BAND_BOTTOM);
+        n++;
+    }
+
+    /* Counted rather than assumed: "the band did not move" and "there was no
+     * camera to move" look identical on screen. */
+    {
+        char line[48];
+        int i = 0;
+        const char *pre = "[Rooms] banded ";
+
+        while (pre[i]) { line[i] = pre[i]; i++; }
+        line[i++] = (char)('0' + (n % 10));
+        line[i++] = ' ';
+        line[i++] = 'c'; line[i++] = 'a'; line[i++] = 'm';
+        line[i] = 0;
+        room_log(line);
+    }
+}
+
 /* Where SceneLoad_ClassicModeSplash reads what to build, measured off its own
  * disassembly rather than assumed:
  *
@@ -126,6 +184,7 @@ void room_load(void *scene)
         d[SPLASH_CHAR_2] = PROBE_CHAR_2;
         SceneLoad_ClassicModeSplash(scene);
         room_log("[Rooms] splash built");
+        room_band_to_top();
     }
     else
     {
