@@ -57,6 +57,29 @@ stw r0, 0x14(r3)
 lis r0, 0x43BC      #  376.0  bottom, so the height is still 480
 stw r0, 0x18(r3)
 
+# ...and cut off what raising it brought into view.
+#
+# The fighters' models carry on well below the name plate. Melee never has to
+# care, because down there they are off the bottom of the screen - but lifting
+# the picture by 104 lifted that too, and their legs reappeared as a strip along
+# the bottom with black in between.
+#
+# The plate itself is opaque and covers them from about row 265 to 429, so the
+# clip goes just inside its lower edge. Trimming a few rows too many costs
+# nothing: the plate is black and so is the screen behind it, which is also why
+# the seam does not show. Clipping too LITTLE is the mistake that shows.
+#
+# This is the room's floor now - the queue and the lobby go on the plate, above
+# this line, or they get clipped along with the legs.
+li r0, 0
+sth r0, 0x1C(r3)    # left
+li r0, 640
+sth r0, 0x1E(r3)    # right
+li r0, 0
+sth r0, 0x20(r3)    # top
+li r0, 416
+sth r0, 0x22(r3)    # bottom
+
 EXIT:
 # Run replaced code line
 or. r31, r3, r3
