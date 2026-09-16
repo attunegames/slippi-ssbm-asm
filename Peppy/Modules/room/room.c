@@ -1858,6 +1858,15 @@ __attribute__((unused)) static void peppy_dump_match_struct(void)
  * made every attempt at training walk off into a stage that does not exist. */
 void peppy_room_load(void *scene)
 {
+    /* First thing, before anything can go wrong quietly.
+     *
+     * Coming back from spectating, the module is loaded and the scene reaches
+     * minor 6 - and then nothing is drawn. "room scene built" at the end of
+     * this function never appears, and the two possible reasons need opposite
+     * fixes: either this was never called, or it was called and gave up part
+     * way through. */
+    peppy_log("Peppy: room scene load");
+
     s_scene = scene;
     /* A fresh buffer for a fresh entry. One per visit to the room, which is
      * what Slippi's own scenes cost too - the ruinous version was one per
