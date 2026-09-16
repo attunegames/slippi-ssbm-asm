@@ -1127,7 +1127,7 @@ branchl r12, Event_StoreSceneNumber
 b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 
 FN_OnlineSubmenuThink_GO_TO_ROOM:
-# A room opens on Rooms's own screen - the queue and what you can do from it -
+# A room opens on its own screen - the queue and what you can do from it -
 # not on the character select. The character select comes later, once two
 # people are matched, which is what the room's SceneDecide will hand off to.
 stb r3, OFST_R13_ONLINE_MODE(r13)

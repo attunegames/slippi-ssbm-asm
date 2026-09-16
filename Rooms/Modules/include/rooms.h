@@ -1,7 +1,7 @@
 #ifndef ROOMS_H
 #define ROOMS_H
 
-/* Shared declarations for Rooms's m-ex code modules.
+/* Shared declarations for the Rooms m-ex code modules.
  *
  * Nothing here is defined by us -- every symbol resolves through
  * melee_symbols.ld (Melee's own functions, lifted from m-ex's MxDb.dat) or
@@ -172,7 +172,7 @@ void CSS_LoadFunction(void *scene);
  * while its own descriptor still names the splash's. */
 #define CSS_MINOR_DATA      0x80497758
 
-/* Better base than the splash: the main menu is the blue grid Rooms's own
+/* Better base than the splash: the main menu is the blue grid the room's own
  * menus already sit on, it is a real scene so text renders, it carries none of
  * the splash's stage and item loading, and Melee ships a function for taking
  * its widgets away - which leaves the background and nothing else. */
@@ -343,7 +343,7 @@ int FG_CreateSubtext(void *text, const void *color, int mode,
 
 #define ROOMS_SUBTEXT_PLAIN 0    /* 1 = outlined, 2 = premade text */
 
-/* Rooms's own CSS code builds the text struct in CSS_LoadFunction and parks it
+/* Slippi's CSS code builds the text struct in CSS_LoadFunction and parks it
  * in the CSS data table, so a module that runs after SceneLoad_CSS can just
  * borrow it rather than making a second one. */
 #define CSSDT_BUF_ADDR        0x80005614
