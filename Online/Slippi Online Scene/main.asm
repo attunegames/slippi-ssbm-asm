@@ -391,7 +391,24 @@ PeppyRoomScenePrep:
 # leave still pointed into the freed module, and Melee executed the zeros left
 # behind. Which step stops short decides where the fix goes.
 backup
-logf LOG_LEVEL_NOTICE, "Peppy: room scene prep"
+
+# Throw away the preload cache before the module is asked for.
+#
+# Preload_AllocNextPersistentSlot - which is where File_Load gets both the
+# module buffer and its 0x44 archive struct - has a cached branch at 0x80015c54
+# that hands back an already-preloaded slot instead of allocating and reading
+# one. Coming back from a watch the cache still describes the PLAYBACK scene, so
+# the room's file is requested, Dolphin serves all 20396 bytes, and they are
+# never read into anything: 80bf0a20 keeps the playback scene's leftovers
+# byte-for-byte, m-ex reads a DAT with nroots 0, and it binds nothing silently.
+#
+# 0x800174bc is resetGameCache_Prefunction + Preload_Update, verified by
+# disassembling it. Found by reading sadkellz/slippi-ssbm-asm's `lobbies`
+# branch, which does exactly this in its own LobbyScenePrep - their lobby is
+# also minor 6, common 0x51, 3 persistent heaps, arrived at independently.
+branchl r12, 0x800174bc
+
+logf LOG_LEVEL_NOTICE, "Peppy: room scene prep - preload cache dropped"
 restore
 blr
 
