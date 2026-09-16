@@ -24,19 +24,33 @@ are deliberately absent:
 They live in `C:\root\peppy-assets\` on the build machine. Anyone rebuilding
 this needs their own copy extracted from their own ISO.
 
-## ⚠️ We ship the whole file, and Slippi ships a patch
+## Ship a patch, the way Slippi does
 
-Slippi distributes `MnMaAll.usd.diff` - 186KB of VCDIFF - and
-`SlippiGameFileLoader` applies it to the copy in the user's own ISO. We put a
-whole 2.2MB `MnMaAll.usd` in `Sys/GameFiles/`, which the loader prefers over the
-`.diff`, so every build carries Melee's menu archive inside it.
+    python mklabels.py MnMaAll.roomslist.usd
+    python vcdiff_encode.py MnMaAll.orig.usd MnMaAll.roomslist.usd MnMaAll.usd.diff
 
-That wants fixing before any of this is distributed: it is ~12x larger than it
-needs to be, and it is the reason Slippi chose diffs in the first place.
+Put the `.diff` in `Sys/GameFiles/GALE01/` and do NOT leave a whole
+`MnMaAll.usd` beside it - the loader prefers a whole file over its patch, so one
+left there wins and the patch is ignored.
 
-`vcdiff.py` here only DECODES - it was written to read Slippi's patches and
-learn the format. Producing our own needs an encoder, or open-vcdiff / xdelta3
-driven from the build.
+    ours     199826 bytes
+    Slippi   186319 bytes
+    whole   2244266 bytes
+
+This is why Slippi ships patches: `SlippiGameFileLoader` applies them to the
+copy in the user's own ISO, so no Melee data is redistributed. Shipping the
+whole file carries the menu archive with it and is ~11x larger.
+
+Ours comes out slightly bigger than Slippi's because it carries their edits as
+well as ours - it is a patch against the untouched ISO copy, so it replaces
+theirs rather than stacking on it - and because the encoder here is far simpler
+than open-vcdiff.
+
+Both halves are checked rather than assumed. `vcdiff.py` is proven against
+Slippi's own patch: decoding `MnMaAll.usd.diff` over `MnMaAll.orig.usd`
+reproduces `MnMaAll.slippi.usd` byte for byte. `vcdiff_encode.py` decodes every
+delta it writes and refuses to save one that does not come back identical, so a
+broken patch cannot reach a build.
 
 ## The other scripts
 
