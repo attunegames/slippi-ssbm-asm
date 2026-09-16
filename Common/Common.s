@@ -506,6 +506,9 @@ add \reg, r3, r4
 .set Event_StoreSceneNumber,0x80229860
 .set Scene_ExitMinor,0x801a4b60
 .set MenuController_WriteToPendingMajor_1to_0xC,0x801a42f8
+# The room's borrowed backdrop, loaded from its scene prep - see
+# PeppyRoomScenePrep for why it cannot be loaded from the module.
+.set SceneLoad_ClassicModeSplash,0x80186e30
 .set EventMatch_Store,0x801beb74
 .set PadRead,0x8034da00
 

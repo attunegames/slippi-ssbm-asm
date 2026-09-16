@@ -2053,7 +2053,15 @@ void peppy_room_load(void *scene)
      * for textlink 0" and a black room, on a plain entry from the menu. So the
      * link was never what stopped it, and the room goes back to the splash
      * until the way back from spectating is solved somewhere else. */
-    SceneLoad_ClassicModeSplash(scene);
+    /* ⛔ NOT here any more - PeppyRoomScenePrep loads it, before this module
+     * is even in memory.
+     *
+     * This call fetches artwork, and fetching it from inside the module put the
+     * allocation on top of the module: it returned into its own overwritten
+     * body. "Unknown instruction 00000003 at PC = 80bf5860", with the return
+     * address four bytes behind it - it had not jumped anywhere, it fell off
+     * the end of itself. Only on the way back from watching, where the heaps
+     * have been reset and the two want the same ground. */
     /* The sweep is what kept the borrowed scene's own artwork off the screen -
      * the 1-P Mode furniture that has no business in a room. But once the block
      * above is filled in, the things it would sweep away ARE the two characters
