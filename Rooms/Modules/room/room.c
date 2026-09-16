@@ -80,7 +80,29 @@ static const u32 COL_WHITE = 0xFFFFFFFF;
 #define ROOM_TEXT_Y  144.0f
 #define ROOM_TEXT_SZ 0.55f
 
+/* The state line, sitting where NOW LOADING was.
+ *
+ * Deliberately NOT matching the splash's italic outlined lettering. There is no
+ * way to reach that face from here, and a near-miss reads as a failed imitation
+ * where an obvious difference reads as on purpose.
+ *
+ * Placed against a screenshot: NOW LOADING sat around screen row 255, and every
+ * canvas Y here carries the 104 the splash is raised by, so 359. */
+#define ROOM_STATE_X   470.0f
+#define ROOM_STATE_Y   359.0f
+#define ROOM_STATE_SZ  0.85f
+
+/* And the two names, on the plate where DK and Zelda were - which is where the
+ * Slippi usernames go. Placeholders until a room has players in it. */
+#define ROOM_NAME_L_X  100.0f
+#define ROOM_NAME_R_X  430.0f
+#define ROOM_NAME_Y    413.0f
+#define ROOM_NAME_SZ   0.70f
+
 static void *s_text;
+static int   s_state_line = -1;
+static int   s_name_l = -1;
+static int   s_name_r = -1;
 static int   s_line = -1;
 static int   s_said_hello;
 static int   s_frames;
@@ -199,6 +221,95 @@ static char *room_put_x(char *p, u32 v)
  * each camera GObj's first words looking for something shaped like a CObj -
  * four floats at +0x0C making a screen-sized rectangle the right way round.
  */
+
+/* The splash's own text, switched off.
+ *
+ * NOW LOADING is a TEXT canvas, not a model. It survived the invisible flag, a
+ * whole-tree animation sweep and being hunted as a SIS string because none of
+ * those touch text - and the census is what finally said so: three GObjs draw
+ * through Text_GX with nothing at +0x28.
+ *
+ * They are class 20, the same class as the cameras, which is the other thing
+ * that census settled. An earlier probe reported "2 cameras" out of five class
+ * 20 GObjs and I read that as "there are two cameras". Three of them were text.
+ *
+ * Two belong to the splash - the DK/Zelda plate and NOW LOADING - and both go.
+ * The names were placeholders standing where the Slippi usernames belong, so
+ * losing them is the direction of travel rather than a casualty.
+ *
+ * Destroying the GX LINK, not the GObj: it stops drawing and nothing is freed,
+ * so the splash's own Leave still has everything it expects on the way out.
+ */
+#define ROOM_TEXT_GX ((void *)0x803A84BC)
+
+static void *s_our_text_gobj;
+
+static int room_is_text_gobj(void *g)
+{
+    return *(void **)((char *)g + ROOMS_GOBJ_DRAWFN) == ROOM_TEXT_GX;
+}
+
+/* Anything drawing text that is not ours. Called after our own text exists, so
+ * "not ours" is a complete description of the splash's. */
+static void room_silence_splash_text(void)
+{
+    void **heads = rooms_gobj_heads();
+    void *g;
+
+    if (!heads)
+        return;
+
+    for (g = heads[ROOM_CLASS_CAMERA]; g;
+         g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+    {
+        if (g == s_our_text_gobj || !room_is_text_gobj(g))
+            continue;
+        GObj_DestroyGXLink(g);
+    }
+}
+
+/* Which GObj of the text ones is ours: the one that was not there a moment ago.
+ * Called side by side with creating it, so the difference is exactly ours. */
+static void room_note_our_text(void *before[], int n_before)
+{
+    void **heads = rooms_gobj_heads();
+    void *g;
+
+    if (!heads)
+        return;
+
+    for (g = heads[ROOM_CLASS_CAMERA]; g;
+         g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+    {
+        int i, seen = 0;
+
+        if (!room_is_text_gobj(g))
+            continue;
+        for (i = 0; i < n_before; i++)
+            if (before[i] == g)
+                seen = 1;
+        if (!seen)
+        {
+            s_our_text_gobj = g;
+            return;
+        }
+    }
+}
+
+static int room_snapshot_text(void *out[], int max)
+{
+    void **heads = rooms_gobj_heads();
+    void *g;
+    int n = 0;
+
+    if (!heads)
+        return 0;
+    for (g = heads[ROOM_CLASS_CAMERA]; g && n < max;
+         g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+        if (room_is_text_gobj(g))
+            out[n++] = g;
+    return n;
+}
 
 /* Every GObj, and the function that DRAWS it.
  *
@@ -349,8 +460,13 @@ static void room_count_cams(void)
  * where it is used, next to the stores that prove it.
  */
 
+#define ROOM_MAX_TEXT 8
+
 void room_load(void *scene)
 {
+    void *before[ROOM_MAX_TEXT];
+    int n_before;
+
     room_log("[Rooms] room scene load");
 
     /* Build the splash BEFORE anything of ours exists.
@@ -398,6 +514,9 @@ void room_load(void *scene)
         room_log("[Rooms] no minor data - no camera, the room will be black");
     }
 
+    /* Taken BEFORE ours exists, so the one that appears after is ours. */
+    n_before = room_snapshot_text(before, ROOM_MAX_TEXT);
+
     s_text = Text_CreateStruct(0, 0);
     if (!s_text)
     {
@@ -410,6 +529,23 @@ void room_load(void *scene)
 
     s_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0,
                               "Rooms", ROOM_TEXT_SZ, ROOM_TEXT_X, ROOM_TEXT_Y);
+
+    /* Outlined rather than plain: this font has no bold, and an outline is the
+     * nearest thing to one that it does have. */
+    s_state_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_OUTLINE, 0,
+                                    "DRAFTING", ROOM_STATE_SZ,
+                                    ROOM_STATE_X, ROOM_STATE_Y);
+    s_name_l = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0,
+                                "Player 1", ROOM_NAME_SZ,
+                                ROOM_NAME_L_X, ROOM_NAME_Y);
+    s_name_r = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0,
+                                "Player 2", ROOM_NAME_SZ,
+                                ROOM_NAME_R_X, ROOM_NAME_Y);
+
+    /* Ours is whichever text GObj was not there a moment ago; everything else
+     * drawing text belongs to the splash and stops now. */
+    room_note_our_text(before, n_before);
+    room_silence_splash_text();
 
     room_log("[Rooms] room scene built");
 }
@@ -458,6 +594,12 @@ void room_think(void)
         room_report_classes();
         room_report_gobjs();
     }
+
+    /* The splash can bring text up after its load has returned, so keep
+     * sweeping for a few seconds rather than trusting one pass. Destroying a
+     * link that is already gone finds nothing to match. */
+    if (s_frames < 180)
+        room_silence_splash_text();
 
     if (s_line >= 0)
         Text_UpdateSubtextContents(s_text, s_line, "%s", "Rooms");
