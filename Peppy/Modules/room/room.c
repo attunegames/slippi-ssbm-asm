@@ -1903,8 +1903,61 @@ static void peppy_room_camera_covers_text(void)
     }
 }
 
+/* One-shot: what minors does the playback major actually have?
+ *
+ * Moving playback under the online major means registering its scenes there,
+ * and that needs their COMMON minor ids - the numbers m-ex looks functions up
+ * by. Those live in DebugMelee's own minor table, not in MxScn.dat, so they are
+ * read rather than guessed.
+ *
+ * Melee's minor table entry, from the online major's own table in main.asm:
+ *   +0x00 minor id   +0x01 heaps   +0x04 prep   +0x08 decide
+ *   +0x0C common id  +0x10 data1   +0x14 data2      -- 0x18 bytes
+ * The major struct is at 0x803dada8 and holds its table pointer at +0x10.
+ */
+#define DEBUG_MELEE_MAJOR_STRUCT 0x803dada8
+#define MINOR_ENTRY_STRIDE       0x18
+
+static void peppy_dump_playback_minors(void)
+{
+    static int done;
+    const u8 *e = *(const u8 **)((char *)DEBUG_MELEE_MAJOR_STRUCT + 0x10);
+    int i;
+
+    if (done)
+        return;
+    done = 1;
+
+    if (!e)
+    {
+        peppy_log("Peppy: playback major has no minor table");
+        return;
+    }
+
+    for (i = 0; i < 12; i++)
+    {
+        const u8 *ent = e + i * MINOR_ENTRY_STRIDE;
+        char line[64];
+        char *o;
+
+        if ((signed char)ent[0] == -1)
+            break;
+
+        o = put(line, "Peppy: playback minor ");
+        o = put_u8(o, ent[0]);
+        o = put(o, " common ");
+        o = put_u8(o, ent[0x0C]);
+        o = put(o, " think ");
+        o = put_hex(o, *(u32 *)(ent + 0x04));
+        *o = 0;
+        peppy_log(line);
+    }
+}
+
 void peppy_room_load(void *scene)
 {
+    peppy_dump_playback_minors();
+
     /* First thing, before anything can go wrong quietly.
      *
      * Coming back from spectating, the module is loaded and the scene reaches
