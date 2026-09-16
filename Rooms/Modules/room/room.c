@@ -96,27 +96,41 @@ static int   s_said_hello;
  */
 #define ROOM_CLASS_CAMERA 20
 
-/* The band is 640x240 of a 640x480 picture, and there are two different ways to
- * get one from the other. The first try used the wrong one.
+/* Fitting a 4:3 picture into a band half the screen's height. There are only
+ * two honest ways to do it, and they trade against each other.
  *
- * The VIEWPORT is a mapping, not a window: give it a 240-high rectangle and the
- * whole 480-high picture is squeezed into it, which is why the first band came
- * out squashed rather than cropped. The SCISSOR is the window - it throws away
- * whatever falls outside and touches nothing else.
+ * A VIEWPORT is a mapping, not a window: hand it a 640x240 rectangle and the
+ * whole 480-high picture gets squeezed into it. That is the squashing, and it
+ * is what the first attempt did. The SCISSOR is the window - it throws away
+ * what falls outside and changes nothing about how the rest is drawn.
  *
- * So the viewport keeps its full 480 of height and is slid UP by BAND_SHIFT,
- * and the scissor clips to the top of the screen. The picture is then drawn at
- * its true proportions and we see a 240-high slice of it.
+ * So either
  *
- * BAND_SHIFT is which slice. 0 is the top of the picture, 240 the bottom; 120
- * takes the middle, which is where two fighters stood on the screen this was
- * borrowed from. It is one number and it is meant to be tuned against a
- * screenshot - nothing else depends on it. */
-#define BAND_SHIFT 120.0f
-#define BAND_LEFT    0.0f
-#define BAND_RIGHT 640.0f
+ *   SHRINK  keep 4:3 and make it smaller - 320x240, centred. The whole VS
+ *           composition, both fighters entire, correct proportions, with the
+ *           side quarters of the band left over.
+ *   CROP    keep it full size and show a 640x240 slice of it. Fills the width,
+ *           and cuts the fighters off somewhere around the chest.
+ *
+ * Shrink is the default, because the ask was for it to look like the normal VS
+ * screen and this is that screen, just smaller. To crop instead, set the
+ * viewport to (0, 640, -shift, 480 - shift) and leave the scissor alone; shift
+ * picks the slice, 120 being the middle.
+ *
+ * The scissor stays the whole band either way, so nothing can spill out below
+ * it - which is exactly what the fighters did while they were being missed. */
 #define BAND_TOP     0.0f
 #define BAND_BOTTOM 240.0f
+#define BAND_LEFT    0.0f
+#define BAND_RIGHT 640.0f
+
+/* 4:3 on a 240-high band is 320 wide, centred in the 640. */
+#define VIEW_H      (BAND_BOTTOM - BAND_TOP)
+#define VIEW_W      (VIEW_H * 4.0f / 3.0f)
+#define VIEW_LEFT   (((float)ROOMS_SCREEN_W - VIEW_W) / 2.0f)
+#define VIEW_RIGHT  (VIEW_LEFT + VIEW_W)
+
+static int s_banded = -1;
 
 static void room_band_to_top(void)
 {
@@ -136,15 +150,22 @@ static void room_band_to_top(void)
 
         if (!cobj)
             continue;
-        CObj_SetViewport(cobj, BAND_LEFT, BAND_RIGHT,
-                         -BAND_SHIFT, (float)ROOMS_SCREEN_H - BAND_SHIFT);
+        CObj_SetViewport(cobj, VIEW_LEFT, VIEW_RIGHT, BAND_TOP, BAND_BOTTOM);
         CObj_SetScissor(cobj, (int)BAND_LEFT, (int)BAND_RIGHT,
                         (int)BAND_TOP, (int)BAND_BOTTOM);
         n++;
     }
 
     /* Counted rather than assumed: "the band did not move" and "there was no
-     * camera to move" look identical on screen. */
+     * camera to move" look identical on screen.
+     *
+     * Only when the count CHANGES, because this runs every frame now and a log
+     * line per frame drowns out everything else - which is where every answer
+     * on this project has come from so far. The change IS the interesting
+     * event anyway: it is a camera arriving late. */
+    if (n == s_banded)
+        return;
+    s_banded = n;
     {
         char line[48];
         int i = 0;
@@ -232,6 +253,19 @@ void room_think(void)
         s_said_hello = 1;
         room_log("[Rooms] room think is running");
     }
+
+    /* Every frame, and it has to be.
+     *
+     * The fighters' camera does not exist when this scene loads - their models
+     * are still coming off the disc - so a single pass during load was never
+     * going to catch it, and they drew at full size straight down the screen,
+     * well past the bottom of the band. Re-banding catches whatever has turned
+     * up since, on the frame it turns up.
+     *
+     * Cheap, and deliberately so: it walks a short list and stores floats.
+     * That is not FN_LoadMatchState, which allocated on every call and took the
+     * room down after thirty-six seconds every time. */
+    room_band_to_top();
 
     if (s_line >= 0)
         Text_UpdateSubtextContents(s_text, s_line, "%s", "Rooms");
