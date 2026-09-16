@@ -72,6 +72,9 @@
 .set ONLINE_MODE_DIRECT, 2
 .set ONLINE_MODE_TEAMS, 3
 .set ONLINE_MODE_PARTY, 4
+# Peppy: rooms are a mode of their own, so everything that already switches on
+# the online mode keeps working without knowing about them.
+.set ONLINE_MODE_ROOMS, 5
 
 .set OPTION_RANKED_IDX, 0
 .set OPTION_UNRANKED_IDX, 1
@@ -81,8 +84,11 @@
 .set OPTION_LOGIN_IDX, 5
 .set OPTION_LOGOUT_IDX, 6
 .set OPTION_UPDATE_IDX, 7
+# Peppy: the Rooms row. After Update so the rows Slippi ships keep their
+# indices - anything that reads one by number is unaffected.
+.set OPTION_ROOMS_IDX, 8
 
-.set ONLINE_SUBMENU_OPTION_COUNT, 8
+.set ONLINE_SUBMENU_OPTION_COUNT, 9   # 8 upstream, +1 for Rooms
 
 ################################################################################
 # Online Scenes

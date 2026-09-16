@@ -543,6 +543,14 @@ add \reg, r3, r4
 .set CONST_SlippiCmdReportSetCompletion,0xC2
 .set CONST_SlippiCmdReportMatchStatus,0xC4
 .set CONST_SlippiCmdGetRank,0xE3
+
+# Peppy: making, listing and joining its own rooms from inside the menus.
+# 0xC5 up is clear of everything Slippi uses - their ids run to 0xC4 and then
+# resume at 0xD1.
+.set CONST_PeppyCmdCreateRoom,0xC5
+.set CONST_PeppyCmdSetQueued,0xC6
+.set CONST_PeppyCmdListRooms,0xC7
+.set CONST_PeppyCmdJoinRoom,0xC8
 .set CONST_SlippiCmdFetchRank,0xE4
 # For Slippi file loads
 .set CONST_SlippiCmdFileLength, 0xD1
