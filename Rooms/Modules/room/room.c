@@ -73,7 +73,11 @@ static const u32 COL_WHITE = 0xFFFFFFFF;
  * about 0.45 to 0.55. Reading it as a point size and passing 18 drew a single
  * letter across the whole screen. */
 #define ROOM_TEXT_X  40.0f
-#define ROOM_TEXT_Y  40.0f
+/* 40 down the picture, plus the 104 the splash is raised by in
+ * Online/Menus/Room/RaiseSplash.asm - the room's text rides the same
+ * cameras, so without this it goes up off the top of the screen along
+ * with everything else. */
+#define ROOM_TEXT_Y  144.0f
 #define ROOM_TEXT_SZ 0.55f
 
 static void *s_text;
