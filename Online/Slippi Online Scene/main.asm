@@ -386,32 +386,12 @@ bl PeppyRoomSceneDecide     #SceneDecide
 # needs a prep and a decide. The decide will pick the next scene once the
 # queue can match two people.
 PeppyRoomScenePrep:
-# The borrowed backdrop is loaded HERE, not from the module.
-#
-# The room needs the Classic Mode Splash for its camera, and that load fetches
-# artwork. Called from the module it fetched a large file while the module was
-# executing, and the allocation landed on top of the module itself: it returned
-# into its own overwritten body and Melee ran whatever the file had put there -
-# "Unknown instruction 00000003 at PC = 80bf5860", with the return address four
-# bytes behind it, so it had not jumped anywhere. It fell off the end of itself.
-#
-# Coming from the menu it survived, because the heap already had enough in it
-# that the two landed apart. Coming back from watching the heaps have been
-# reset, both want the same ground, and the file wins.
-#
-# A prep is the right place: it runs BEFORE m-ex loads the module - the log says
-# so, every time, "room scene prep" then "replacing a file" then "room scene
-# load" - so there is nothing of ours in memory to land on, and the artwork is
-# already there by the time the module's load wants it.
-#
-# r3 is the scene's own descriptor and every branchl on the way past clobbers
-# it, which is how the character select once ended up prepared with whatever was
-# left in that register. Keep it.
+# Says nothing but that it ran. Coming back from spectating, the scene arrived
+# at this minor with PeppyRoom.dat never reloaded - the table's think, load and
+# leave still pointed into the freed module, and Melee executed the zeros left
+# behind. Which step stops short decides where the fix goes.
 backup
-mr r31, r3
-logf LOG_LEVEL_NOTICE, "Peppy: room scene prep - loading the backdrop"
-mr r3, r31
-branchl r12, SceneLoad_ClassicModeSplash
+logf LOG_LEVEL_NOTICE, "Peppy: room scene prep"
 restore
 blr
 
