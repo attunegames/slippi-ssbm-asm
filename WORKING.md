@@ -430,6 +430,72 @@ we own is between those two points - it is in the m-ex runtime.
 Reaching a scene and having it set up are different things, and reading the
 scene log as proof of both is what cost an entire evening.
 
+
+## ⛔ CORRECTION: the module does NOT arrive on a spectator's return
+
+This overturns "Every destination arrives broken - it is the EXIT, not the
+destination" and "the file arrives fine, so it is m-ex's root lookup". Both were
+built on the `dest %08x` line in `TransferFile.asm`, which reports **r27 - where
+Melee MEANT to put the file** - and is logged several calls before the DMA that
+would write it. Identical `dest` on both paths therefore proved nothing.
+
+Measured from Dolphin instead (`PeppyDumpRoomArchive`, reading emulated RAM):
+
+    working entry  31:30:458  prep -> replacing a file 20396 -> dest 80bf0a20
+                   31:30:459  room scene load                     <- binds
+                   31:30:505  DAT at 80bf0a20 filesize 20396 nroots 1   ✅
+                   31:30:658  room think is running
+
+    the return     32:47:790  scene 0e/03  DAT at 80bf0a20 filesize 1250368
+                   32:47:801  prep -> replacing a file 20396 -> dest 80bf0a20
+                   32:47:891  scene 08/06  DAT at 80bf0a20 filesize 1250368   ❌
+                                                            (no room scene load)
+
+The header at the destination is **byte-identical before and after the transfer**
+- still the playback scene's leftovers. The module never lands. m-ex then reads a
+DAT with `nroots 0`, `File_GetSymbol` walks nothing, returns 0, and binds nothing.
+
+### The crash puts an address on it
+
+Hitting spectate from the draft: `IntCPU: Unknown instruction 00000000 at
+PC = 80bf59e0`, reached through
+
+    zz_001668c_ [800166b4]   File_WaitForFileToLoad   <- TransferFile hooks 800166b8
+    zz_0016be0_ [80016c30]   File_Load
+    zz_01a4014_ [801a40c4]   the m-ex binder
+
+`0x80bf59e0` is `80bf0a20 + 0x4FC0` - the buffer plus its aligned size. So a
+bound export points just past the module and the game runs into zeros. The
+silent return, the black screen in the draft and the join-a-room crash are very
+likely one bug, not three.
+
+⚠️ `TransferFile.asm` writes the length to the parent's out-param
+(`stw REG_FileLength, 0(r28)`) BEFORE requesting the contents. If the contents
+exchange does not complete, the parent still believes it has a 20396-byte file
+and hands the garbage buffer to `Archive_InitOnLoad`. An older note in that file
+had already seen this once: *"Dolphin answers the length request ... and is then
+never asked for the contents."*
+
+## The queue rotated the same two players forever - FIXED, migration 22
+
+Three-player test: Alpha and Bravo played, Charlie was queued and waiting, Bravo
+lost, and the room put Alpha and Bravo straight back into the draft.
+
+`pd_result` has always ended with the loser going to the back:
+
+    update pd_members set joined_at = now() where player = v_loser;
+
+Migration 20 changed the ordering to `searching_at` and 21 to
+`coalesce(queued_at, now()) asc, joined_at asc`, which left `joined_at` as
+nothing but a tiebreaker. `queued_at` is written once and deliberately kept
+across ticks - that is what 21 is FOR - so the two who just played still carry
+the timestamps from the first time they pressed Start, which beat anyone who
+queued while they were playing. The same two are picked again, forever.
+
+Migration 22 moves the loser (and a crowned winner) on `queued_at` as well.
+
+⚠️ **A fix to the queue's ordering has to be applied to `pd_result` too.** They
+are two halves of one mechanism and they live in different migrations.
 ### ⛔ Two ways a debug probe took the Rooms row off the online menu
 
 Both cost a deploy and a test cycle. Neither was about "the m-ex region" as
