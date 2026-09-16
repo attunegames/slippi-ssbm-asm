@@ -148,6 +148,28 @@ MajorSceneLoad:
 blrl
 backup
 
+################################################################################
+# Rooms open on their own screen
+################################################################################
+# The menu cannot choose where a major lands. Event_StoreSceneNumber sets the
+# major and flags the minor exit, and then the major TRANSITION picks the first
+# minor itself - so a pending minor written in the menu is overwritten before
+# anything here runs. Writing minor 6 from FN_OnlineSubmenuThink_GO_TO_ROOM
+# alone puts you on the character select every time.
+#
+# This is the first code that runs inside the new major, which makes it the
+# earliest place the choice survives. Both bytes: +0x5 is the pending minor and
+# +0x3 is the current one.
+lbz r3, OFST_R13_ONLINE_MODE(r13)
+cmpwi r3, ONLINE_MODE_ROOMS
+bne ROOMS_MAJOR_NOT_ROOMS
+load r4, 0x80479d30
+li r3, 6            # minor 6 = the room, not 0 (the character select)
+stb r3, 0x5(r4)
+stb r3, 0x3(r4)
+logf LOG_LEVEL_NOTICE, "[Rooms] online major load - picking the room"
+ROOMS_MAJOR_NOT_ROOMS:
+
 # Set the proper 1p port for CSS
 load r4, 0x8045abf0
 lbz r3, -0x5108(r13) # player index
