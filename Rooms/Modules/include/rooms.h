@@ -214,6 +214,30 @@ void CObj_SetScissor(void *cobj, int left, int right, int top, int bottom);
 #define ROOMS_SCREEN_W     640
 #define ROOMS_SCREEN_H     480
 
+/* The splash's model tree, and the two calls that reach into it.
+ *
+ * JOBJ_GetChild is VARARGS: the trailing -1 is a terminator, not an argument,
+ * and the numbers before it are a PATH. One number is a position in a walk of
+ * the whole tree, NOT an index among the root's direct children - which is why
+ * removing animation at an early number reached an ancestor of the joints the
+ * fighters hang from and threw them to the edges of the screen.
+ *
+ * It does not promise to write the out pointer when it finds nothing, so the
+ * caller zeroes it first.
+ *
+ * JOBJ_RemoveAnimAll is RECURSIVE - the whole subtree - and is the only thing
+ * that hides the emblem. Setting the invisible flag does not: the tree goes
+ * through JOBJ_AnimAll every frame, and an animation driving visibility puts
+ * the flag straight back. */
+void JOBJ_GetChild(void *jobj, void **out, int idx, ...);
+void JOBJ_RemoveAnimAll(void *jobj);
+
+/* JObj: +0x08 next sibling, +0x0C first child, +0x14 flags. Read off
+ * JOBJ_GetChild's own walk rather than assumed. */
+#define ROOMS_JOBJ_NEXT  0x08
+#define ROOMS_JOBJ_CHILD 0x0C
+#define ROOMS_JOBJ_FLAGS 0x14
+
 void GObj_Destroy(void *gobj);
 void GObj_DestroyGXLink(void *gobj);
 void GObj_AddGXLink(void *gobj, void *callback, int link, int priority);
