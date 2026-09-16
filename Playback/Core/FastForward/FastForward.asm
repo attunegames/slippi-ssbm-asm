@@ -13,13 +13,19 @@
 # 801a501c: Engine loop check against the initial queue count, loop end
 # 801a5024: screen render start
 
-# scene controller checks. must be in VS mode (major) and in-game (minor)
+# Only in the playback match, and asked through the constant.
+#
+# This used to test major 0xe and minor 0x1 as raw numbers. Watching moved under
+# the online major and those numbers went stale, so the test never passed and
+# the catch-up silently stopped: the replay still played, perfectly, just always
+# behind the live game and never closing the gap.
+#
+# Both halves in one compare, the way every other playback guard does it, so the
+# next time that scene moves this follows on its own.
   lis r4, 0x8048 # load address to offset from for scene controller
-  lbz r3, -0x62D0(r4)
-  cmpwi r3, 0xe # the major scene for playback match
-  bne- PreviousCodeLine # if not in VS Mode, ignore everything
-  lbz r3, -0x62CD(r4)
-  cmpwi r3, 0x1 # the minor scene for in-game is 0x1
+  lwz r3, -0x62D0(r4)
+  rlwinm r3, r3, 8, 0xFFFF
+  cmpwi r3, SCENE_PLAYBACK_IN_GAME
   bne- PreviousCodeLine
 
 # ensure game is not paused
