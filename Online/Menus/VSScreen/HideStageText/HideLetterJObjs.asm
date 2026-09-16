@@ -36,13 +36,39 @@ backup
 #
 # Null-checked, unlike the loop below: 9 to 13 are known to be there and the
 # top of this range is a guess at where the children run out.
-.set ROOM_HIDE_FIRST, 14
-.set ROOM_HIDE_END, 27
+# Two ranges and two mechanisms, and the difference between them is the whole
+# reason the emblem survived two attempts.
+#
+# The invisible flag alone is not enough here. The loop below this one drops
+# ANIMATIONS instead, and its comment says why: the letters animate in and are
+# never drawn otherwise. The emblem is the same kind of thing - it sweeps on -
+# and the tree is handed to JOBJ_AnimAll every frame four instructions above
+# this hook, so an animation that drives visibility simply puts back whatever
+# the flag said. Dropping the animation is what actually sticks.
+#
+# So: drop animations across the whole tree, which cannot touch anything static
+# because there is no animation on it to drop - that is what keeps the backdrop,
+# which is why the flag is NOT used down at 0 to 8 where hiding it by flag
+# blanked the sky. The flag is kept from 14 up, for anything that is drawn
+# without animating.
+#
+# The range is past the end on purpose; a child that is not there costs a call
+# that returns nothing.
+#
+# WARNING: the out slot is zeroed before every call. JOBJ_GetChild is a VARARGS
+# function - that trailing -1 is a terminator, not an argument - and it does not
+# promise to write the slot when it finds nothing. The loop below gets away
+# without this because 9 to 13 are known to exist; reading a stale stack slot
+# and storing through it would be a store to whatever was there last.
+.set ROOM_ANIM_END, 48
+.set ROOM_FLAG_FIRST, 14
 getMinorMajor r12
 cmpwi r12, SCENE_ONLINE_ROOM
 bne SKIP_ROOM_EXTRA
-li REG_IDX, ROOM_HIDE_FIRST
+li REG_IDX, 0
 ROOM_LOOP_START:
+li r3, 0
+stw r3, SPO_CHILD_JOBJ(sp)
 mr r3, REG_JOBJ_ADDR
 addi r4, sp, SPO_CHILD_JOBJ
 mr r5, REG_IDX
@@ -52,12 +78,22 @@ branchl r12, JObj_GetJObjChild
 lwz r4, SPO_CHILD_JOBJ(sp)
 cmpwi r4, 0
 beq ROOM_LOOP_NEXT
+
+# Static things keep their place; animated ones never arrive.
+mr r3, r4
+branchl r12, JObj_RemoveAnimAll
+
+# ...and above the stage lettering, hide it outright as well.
+cmpwi REG_IDX, ROOM_FLAG_FIRST
+blt ROOM_LOOP_NEXT
+lwz r4, SPO_CHILD_JOBJ(sp)
 lwz r3, 0x14(r4) # Get current flags
 ori r3, r3, 0x10 # Set invisible flag
 stw r3, 0x14(r4)
+
 ROOM_LOOP_NEXT:
 addi REG_IDX, REG_IDX, 1
-cmpwi REG_IDX, ROOM_HIDE_END
+cmpwi REG_IDX, ROOM_ANIM_END
 blt ROOM_LOOP_START
 SKIP_ROOM_EXTRA:
 
