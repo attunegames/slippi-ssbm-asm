@@ -1,0 +1,5 @@
+# Melee game data - never commit. See README.md.
+*.usd
+*.usd.bak
+*.dat
+__pycache__/
