@@ -463,6 +463,29 @@ by reasoning from `Archive_InitDat = 0x80016a54` in the symbol map.
 `Archive_InitDat` ends with `blr` at `0x80016aec`, so `0x80016af0` is simply the
 next function - a different one entirely. `scratchpad/ppcdis.py <addr>` prints it.
 
+
+**4. `File_GetSymbol` itself cannot be hooked either.** A third probe, on
+`0x80380358`, with CR saved by hand and the log filtered to the `"mnFu"` name so
+it fired a handful of times - still took the Rooms row off the menu. The filter
+and the CR were not the problem.
+
+⛔ **Stop probing this bug from the codeset.** Every hook that answers it has to
+sit on the path the whole game uses to resolve archive symbols, and that path
+will not tolerate a `backup`/`restore` pair on every call. Three attempts, three
+broken menus, three test cycles.
+
+✅ **Read it from Dolphin instead.** `PeppySceneWatch()` already polls emulated
+RAM from its own thread and logs on change; it injects nothing into the game and
+cannot break a menu. `Memory::Read_U32` works on any address. The archive struct
+is findable without knowing the heap layout, because `Archive_InitOnLoad` stores
+its data base at `+0x20` - so the struct describing our module is the one with
+`0x80bf0a20` at that offset.
+
+**Restoring is instant, and does not need a rebuild.** Keep the known-good
+`GALE01r2.ini` on disk (`scratchpad/_verify/pre/`, md5 `cdcbc7ae...`) and copy it
+over the three installs. That turns a broken menu into a 5-second fix instead of
+a build-and-deploy cycle.
+
 **Reverting is verifiable, so verify it.** The reverted codeset built to an
 `GALE01r2.ini` byte-identical to the last build before the probe
 (`cdcbc7ae...`), which is proof the menu is back, not a hope.
