@@ -240,7 +240,8 @@ static char *room_put_x(char *p, u32 v)
  * Destroying the GX LINK, not the GObj: it stops drawing and nothing is freed,
  * so the splash's own Leave still has everything it expects on the way out.
  */
-#define ROOM_TEXT_GX ((void *)0x803A84BC)
+#define ROOM_TEXT_GX  ((void *)0x803A84BC)
+#define ROOM_MAX_TEXT 8
 
 static void *s_our_text_gobj;
 
@@ -253,19 +254,30 @@ static int room_is_text_gobj(void *g)
  * "not ours" is a complete description of the splash's. */
 static void room_silence_splash_text(void)
 {
+    void *hit[ROOM_MAX_TEXT];
     void **heads = rooms_gobj_heads();
     void *g;
+    int n = 0;
+    int i;
 
     if (!heads)
         return;
 
-    for (g = heads[ROOM_CLASS_CAMERA]; g;
+    /* Collected first, destroyed after.
+     *
+     * ⚠️ GObj_DestroyGXLink relinks the list this loop is walking, so calling it
+     * inside the walk means reading a next pointer that has already moved. The
+     * first version did exactly that and the room hung on its opening frame. */
+    for (g = heads[ROOM_CLASS_CAMERA]; g && n < ROOM_MAX_TEXT;
          g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
     {
         if (g == s_our_text_gobj || !room_is_text_gobj(g))
             continue;
-        GObj_DestroyGXLink(g);
+        hit[n++] = g;
     }
+
+    for (i = 0; i < n; i++)
+        GObj_DestroyGXLink(hit[i]);
 }
 
 /* Which GObj of the text ones is ours: the one that was not there a moment ago.
@@ -460,8 +472,6 @@ static void room_count_cams(void)
  * where it is used, next to the stores that prove it.
  */
 
-#define ROOM_MAX_TEXT 8
-
 void room_load(void *scene)
 {
     void *before[ROOM_MAX_TEXT];
@@ -588,18 +598,17 @@ void room_think(void)
      * room down after thirty-six seconds every time. */
     /* Once a second, and BEFORE the re-band, so what gets printed is whatever
      * survived the last frame rather than what we just wrote. */
-    if (s_frames < 90 && ++s_frames == 90)
+    /* ⚠️ Counts on past 90 rather than stopping at it. Written as
+     * "s_frames < 90 && ++s_frames == 90" the counter sticks at 90 for ever,
+     * and anything else testing it - a "only for the first few seconds" guard,
+     * say - never expires. That is what turned a one-off into a call every
+     * frame, and the room hung. */
+    if (++s_frames == 90)
     {
         room_report_cams();
         room_report_classes();
         room_report_gobjs();
     }
-
-    /* The splash can bring text up after its load has returned, so keep
-     * sweeping for a few seconds rather than trusting one pass. Destroying a
-     * link that is already gone finds nothing to match. */
-    if (s_frames < 180)
-        room_silence_splash_text();
 
     if (s_line >= 0)
         Text_UpdateSubtextContents(s_text, s_line, "%s", "Rooms");
