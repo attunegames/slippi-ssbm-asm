@@ -14,7 +14,12 @@
 # Ensure that this is an online VS
 getMinorMajor r12
 cmpwi r12, SCENE_ONLINE_VS
-bne EXIT # If not online VS, execute normal code
+beq HIDE_IT
+# The room draws this same screen as a band across its top, and wants it just
+# as bare - so the hack that strips it for online VS runs there too.
+cmpwi r12, SCENE_ONLINE_ROOM
+bne EXIT # If neither, execute normal code
+HIDE_IT:
 
 backup
 

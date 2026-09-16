@@ -98,6 +98,9 @@
 .set SCENE_ONLINE_IN_GAME, 0x0208
 .set SCENE_ONLINE_RESULTS, 0x0308
 .set SCENE_ONLINE_VS, 0x0408
+# The room, minor 6 of this major. Slippi's own VS-screen hacks gate on the
+# scene, and the room borrows that screen, so they have to know about it.
+.set SCENE_ONLINE_ROOM, 0x0608
 
 /*
 -each is 0xC long
