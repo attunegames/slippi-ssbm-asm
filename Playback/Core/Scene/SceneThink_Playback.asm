@@ -295,7 +295,7 @@ blrl
     load r4,0x80479D30
     li r3,0
     stb r3,0x5(r4)            #pending minor
-    li r3,1                   #the main menu major
+    li r3,8                   #the online major - back to the room
     branchl r12,MenuController_WriteToPendingMajor_1to_0xC
     branchl r12,Scene_ExitMinor
     b PlaybackThink_Exit
