@@ -23,6 +23,44 @@ HIDE_IT:
 
 backup
 
+# The room wants the band bare: backdrop and two fighters, nothing else. The VS
+# emblem and NOW LOADING sit ABOVE the stage lettering in this tree, not below
+# it - hiding 0 to 8 cost the backdrop and left both of them untouched, and
+# disassembling the think settled where they really are. It only ever reaches
+# for children 0x12 and 0x13, which are the loading digits, so everything the
+# room still wants gone is from 14 up.
+#
+# The flag rather than the animations: dropping an anim works for the letters
+# because they animate IN and are never drawn otherwise, but something already
+# on screen and sitting still stays on screen. The emblem is one of those.
+#
+# Null-checked, unlike the loop below: 9 to 13 are known to be there and the
+# top of this range is a guess at where the children run out.
+.set ROOM_HIDE_FIRST, 14
+.set ROOM_HIDE_END, 27
+getMinorMajor r12
+cmpwi r12, SCENE_ONLINE_ROOM
+bne SKIP_ROOM_EXTRA
+li REG_IDX, ROOM_HIDE_FIRST
+ROOM_LOOP_START:
+mr r3, REG_JOBJ_ADDR
+addi r4, sp, SPO_CHILD_JOBJ
+mr r5, REG_IDX
+li r6, -1
+branchl r12, JObj_GetJObjChild
+
+lwz r4, SPO_CHILD_JOBJ(sp)
+cmpwi r4, 0
+beq ROOM_LOOP_NEXT
+lwz r3, 0x14(r4) # Get current flags
+ori r3, r3, 0x10 # Set invisible flag
+stw r3, 0x14(r4)
+ROOM_LOOP_NEXT:
+addi REG_IDX, REG_IDX, 1
+cmpwi REG_IDX, ROOM_HIDE_END
+blt ROOM_LOOP_START
+SKIP_ROOM_EXTRA:
+
 li REG_IDX, 9
 
 # Loop through 27 JOBJs and set them to invisible
