@@ -1943,12 +1943,26 @@ static void peppy_dump_playback_minors(void)
         if ((signed char)ent[0] == -1)
             break;
 
-        o = put(line, "Peppy: playback minor ");
+        o = put(line, "Peppy: pb minor ");
         o = put_u8(o, ent[0]);
         o = put(o, " common ");
         o = put_u8(o, ent[0x0C]);
-        o = put(o, " think ");
+        o = put(o, " heaps ");
+        o = put_u8(o, ent[1]);
+        *o = 0;
+        peppy_log(line);
+
+        o = put(line, "Peppy:   prep ");
         o = put_hex(o, *(u32 *)(ent + 0x04));
+        o = put(o, " decide ");
+        o = put_hex(o, *(u32 *)(ent + 0x08));
+        *o = 0;
+        peppy_log(line);
+
+        o = put(line, "Peppy:   data1 ");
+        o = put_hex(o, *(u32 *)(ent + 0x10));
+        o = put(o, " data2 ");
+        o = put_hex(o, *(u32 *)(ent + 0x14));
         *o = 0;
         peppy_log(line);
     }
