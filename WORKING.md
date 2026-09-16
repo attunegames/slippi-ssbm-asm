@@ -361,6 +361,51 @@ Reverted because it traded a diagnosis for a mystery.
   character select and lets that screen send it on. Nothing has ever entered the
   room from a sibling minor.
 
+## ⛔ THE SPECTATOR'S RETURN - measured, not solved (2026-09-15)
+
+**The one fact that matters, and it is measured rather than inferred:**
+
+    working entry:  prep -> room scene load -> room scene built -> room think is running
+    the return:     prep -> replacing a file, 20396 bytes -> (nothing)
+
+Coming back from a watch, PeppyRoom.dat transfers IN FULL and then **neither its
+load nor its think runs**. Both are bound by m-ex out of that module, so the file
+arriving and the module being attached to the scene are separate steps and only
+the first one happens. The room has no code at all: a black screen, and a crash
+for anything that calls a pointer that was never rebound.
+
+That is why the crash lands inside module space on an address holding data -
+nothing of ours was ever put there.
+
+### What this ELIMINATES - do not re-try these
+
+The scene arrives at `major 08 minor 06` correctly on every single attempt. It
+is not the transition. Specifically ruled out, each by a test:
+
+* which predecessor you come from - the character select, the match, the waiting
+  screen; all reach the room, none bind the module
+* the pending-minor convention (one-based 7 vs plain 6)
+* `Event_StoreSceneNumber` - it is what the MENU uses, and it does not travel:
+  called from the playback screen it moves the MINOR, landing on major 0e minor
+  08 and never leaving that major
+* moving playback under the online major - see the section above; also cost the
+  catch-up
+* the persistent-heap count
+* freeing the playback think's EXI buffer on the way out (it does leak, and
+  fixing that changed nothing here)
+* loading the room's backdrop from the scene prep - ⛔ this BREAKS room creation
+  outright, a prep cannot call another scene's load
+
+### Where to look next
+
+What m-ex does between transferring the file and attaching think/load/leave to
+the scene. That step is the one that does not happen, and nothing in the codeset
+we own is between those two points - it is in the m-ex runtime.
+
+⚠️ Do not accept "the scene reached minor 06" as evidence that the entry worked.
+Reaching a scene and having it set up are different things, and reading the
+scene log as proof of both is what cost an entire evening.
+
 ## What the major version still gets wrong
 
 Spectating works: the replay plays, accurate, a couple of seconds behind. Room
