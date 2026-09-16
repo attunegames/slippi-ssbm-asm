@@ -430,6 +430,43 @@ we own is between those two points - it is in the m-ex runtime.
 Reaching a scene and having it set up are different things, and reading the
 scene log as proof of both is what cost an entire evening.
 
+### ⛔ Two ways a debug probe took the Rooms row off the online menu
+
+Both cost a deploy and a test cycle. Neither was about "the m-ex region" as
+such, which was the wrong lesson drawn the first time.
+
+**1. The m-ex binder's addresses are fictional.** The binder is a gecko C2 at
+`0x801a40c8`. Only that address is real - the 43-line body lives in the
+codehandler's own block. Disassembling it based at `0x801a40c8` is a reading
+convenience. A C2 injected at `0x801a4118` to watch the `beq` therefore did not
+hook the binder at all; it hooked whatever real game code sits at
+`0x801a4118`, which is menu code. ⛔ The binder cannot be hooked with a C2.
+Hook the game functions it calls instead - they are ordinary code:
+
+    0x80016be0   File_Load          (loads the module file)
+    0x80380358   File_GetSymbol     (the "mnFunction" root lookup)
+
+**2. `logf` clobbers CR1 and the volatile FPRs.** `backupall` covers r3-r31 and
+nothing else, and `logf` does `crset 6` on its way into sprintf. A probe was put
+at `0x80016af0` believing it to be `Archive_InitPostLoad`. Disassembly says it
+is not: it is a **varargs** archive symbol lookup, whose prologue reads `cr1` to
+decide whether to spill `f1`-`f8`, then walks `va_arg` calling `File_GetSymbol`.
+A `logf` immediately in front of it flipped that decision for every archive
+symbol lookup in the game, so menu artwork lost its symbols.
+
+    ⛔ Never place a logf immediately before a varargs prologue.
+    If CR must survive, save it by hand: `mfcr r20` ... `mtcr r20`
+    inside a `backup`/`restore` pair (r20-r31 are the ones backup covers).
+
+**3. Verify an injection address by disassembling it.** `0x80016af0` was reached
+by reasoning from `Archive_InitDat = 0x80016a54` in the symbol map.
+`Archive_InitDat` ends with `blr` at `0x80016aec`, so `0x80016af0` is simply the
+next function - a different one entirely. `scratchpad/ppcdis.py <addr>` prints it.
+
+**Reverting is verifiable, so verify it.** The reverted codeset built to an
+`GALE01r2.ini` byte-identical to the last build before the probe
+(`cdcbc7ae...`), which is proof the menu is back, not a hope.
+
 ## What the major version still gets wrong
 
 Spectating works: the replay plays, accurate, a couple of seconds behind. Room
