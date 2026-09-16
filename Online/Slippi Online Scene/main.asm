@@ -1453,12 +1453,6 @@ GamePrepSceneDecide_RestoreAndExit:
 restore
 blr
 
-Injection_Exit:
-#Exit Scene
-  restore
-  li  r3,ExitSceneID
-  stb r3,0x0(r30)
-
 ################################################################################
 # Room: scene prep and decide
 ################################################################################
@@ -1475,3 +1469,9 @@ RoomSceneDecide:
 backup
 restore
 blr
+
+Injection_Exit:
+#Exit Scene
+  restore
+  li  r3,ExitSceneID
+  stb r3,0x0(r30)
