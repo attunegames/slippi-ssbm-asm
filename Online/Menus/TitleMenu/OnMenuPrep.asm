@@ -1665,7 +1665,7 @@ blrl
 .string "Public & Private Rooms"
 .string "Play Singles"
 .string "Play Doubles"
-.string "Play IronMan"
+.string "Play Ironmans"
 .string "Play Crew Battle"
 .string "Join a Tournament"
 .string "Create a Room"
