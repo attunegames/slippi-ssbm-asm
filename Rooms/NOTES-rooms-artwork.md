@@ -107,8 +107,8 @@ All four levels are menu 8 redrawn in place, not separate menus:
 `PLD_LEVEL` is the depth and `PLD_SEL` holds the option picked at each level, one
 byte each. B unwinds a level and puts the cursor back on the row that opened the
 one being left; the deeper levels read the same record to know which mode the
-room is for. `FN_PeppyGoToLevel` is the only way levels change, and
-`FN_PeppyLevelTables` maps a level to its option and description tables.
+room is for. `FN_RoomsGoToLevel` is the only way levels change, and
+`FN_RoomsLevelTables` maps a level to its option and description tables.
 
 Descriptions: level 0's Rooms line goes through the premade-text hook because it
 needs an ampersand, which the drawn-text path has no glyph for. Every level below

@@ -61,12 +61,12 @@
 backup
 
 ################################################################################
-# Section 0: Peppy - forget last visit's Rooms label
+# Section 0: Rooms - forget last visit's Rooms label
 ################################################################################
 # The label's text object dies with the scene, so the stored pointer is stale
 # every time the main menu is loaded afresh. Clearing it here is what makes the
 # lazy creation in the submenu think safe.
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r3
 li r4, 0
 stw r4, PLD_TEXT_PTR(r3)
@@ -74,20 +74,20 @@ stw r4, PLD_LEVEL(r3)
 li r5, PLD_SETTLE_FRAMES
 stw r5, PLD_SETTLE(r3)
 
-bl PEPPY_DESC_DATA
+bl ROOMS_DESC_DATA
 mflr r3
 stw r4, PDD_TEXT(r3)
 
-bl PEPPY_ROWS_DATA
+bl ROOMS_ROWS_DATA
 mflr r3
 li r5, 0
-PEPPY_SCENE_PREP_CLEAR_ROWS:
+ROOMS_SCENE_PREP_CLEAR_ROWS:
 mulli r6, r5, 4
 addi r7, r3, PRW_STRUCTS
 stwx r4, r7, r6
 addi r5, r5, 1
 cmpwi r5, PRW_ROW_COUNT
-blt PEPPY_SCENE_PREP_CLEAR_ROWS
+blt ROOMS_SCENE_PREP_CLEAR_ROWS
 
 ################################################################################
 # Section 1: Overwrite handler function pointer for going back to menu from
@@ -164,7 +164,7 @@ FN_OnReturnFromOnline:
 blrl
 
 # Coming back from a match - the menu animates in, so hold the labels
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r3
 li r4, PLD_SETTLE_FRAMES
 stw r4, PLD_SETTLE(r3)
@@ -199,7 +199,7 @@ lbz r3, OFST_R13_ONLINE_MODE(r13)
 cmpwi r3, ONLINE_MODE_ROOMS
 bne FN_OnReturnFromOnline_SET_SELECTED_INDEX
 li r3, OPTION_ROOMS_IDX
-bl FN_PeppyAskForRoomsList
+bl FN_RoomsAskForRoomsList
 b FN_OnReturnFromOnline_SET_SELECTED_INDEX
 
 FN_OnReturnFromOnline_GET_FIRST_UNLOCKED:
@@ -214,7 +214,7 @@ stb r3, 0x1(r31)
 branch r12, 0x801b136c
 
 ################################################################################
-# Routine: PeppyAskForRoomsList
+# Routine: RoomsAskForRoomsList
 # ------------------------------------------------------------------------------
 # Leaves a note that the online submenu should open on the Rooms list rather
 # than the mode list. Backing out of a room lands here, and the screen a room
@@ -225,10 +225,10 @@ branch r12, 0x801b136c
 # carried through untouched, because the caller is in the middle of working out
 # which option to select.
 ################################################################################
-FN_PeppyAskForRoomsList:
+FN_RoomsAskForRoomsList:
 mflr r11
 mr r10, r3
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r9
 li r8, 2                    # level 1, one-based
 stw r8, PLD_ENTER(r9)
@@ -247,7 +247,7 @@ FN_SwitchToOnlineMenu:
 backup
 
 # Entering online play - the menu animates in, so hold the labels
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r3
 li r4, PLD_SETTLE_FRAMES
 stw r4, PLD_SETTLE(r3)
@@ -305,7 +305,7 @@ restore
 blr
 
 ################################################################################
-# Routine: PeppyDescription
+# Routine: RoomsDescription
 # ------------------------------------------------------------------------------
 # The line under the rows, for rows that are ours. Melee draws nothing for them;
 # this draws the text, so it is sized and placed by us and waits out the menu
@@ -316,35 +316,35 @@ blr
 .set REG_PD_STR, 29
 .set REG_PD_SUB, 28
 
-FN_PeppyDescription:
+FN_RoomsDescription:
 backup
 
-bl PEPPY_DESC_DATA
+bl ROOMS_DESC_DATA
 mflr REG_PD_DATA
 
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r3
 lwz r0, PLD_SETTLE(r3)
 cmpwi r0, 0
-bne FN_PeppyDescription_TEARDOWN
+bne FN_RoomsDescription_TEARDOWN
 lwz r4, PLD_LEVEL(r3)
 
 lis r3, 0x804A
 addi r3, r3, 0x4F0
 lbz r0, 0x0(r3)
 cmpwi r0, 0x8
-bne FN_PeppyDescription_TEARDOWN
+bne FN_RoomsDescription_TEARDOWN
 lhz r5, 0x2(r3)
 
 # Level 0 is the mode list, whose Rooms line is NOT drawn here - it needs an
 # ampersand and the drawn-text path has no glyph for one, so it goes through the
 # premade-text hook instead. See LoadPremadeTextDataFromDolphin.
 cmpwi r4, 1
-blt FN_PeppyDescription_NONE
+blt FN_RoomsDescription_NONE
 cmpwi r4, 3
-bgt FN_PeppyDescription_NONE
+bgt FN_RoomsDescription_NONE
 
-FN_PeppyDescription_LIST:
+FN_RoomsDescription_LIST:
 # Each level from 1 up has an entry in PDD_LEVELS: where its strings start and
 # how many rows it has.
 subi r6, r4, 1
@@ -354,19 +354,19 @@ add r7, r7, r6
 lwz r8, 0x0(r7)
 lwz r9, 0x4(r7)
 cmpw r5, r9
-bge FN_PeppyDescription_NONE
+bge FN_RoomsDescription_NONE
 mulli r6, r5, 4
 add r7, REG_PD_DATA, r8
 lwzx REG_PD_STR, r7, r6
-b FN_PeppyDescription_HAVE
+b FN_RoomsDescription_HAVE
 
-FN_PeppyDescription_NONE:
+FN_RoomsDescription_NONE:
 li REG_PD_STR, PDD_EMPTY
 
-FN_PeppyDescription_HAVE:
+FN_RoomsDescription_HAVE:
 lwz REG_PD_TEXT, PDD_TEXT(REG_PD_DATA)
 cmpwi REG_PD_TEXT, 0
-bne FN_PeppyDescription_SET
+bne FN_RoomsDescription_SET
 
 li r3, 0
 li r4, 0
@@ -403,28 +403,28 @@ mr r4, REG_PD_SUB
 addi r5, REG_PD_DATA, PDD_COLOR
 branchl r12, Text_ChangeTextColor
 
-FN_PeppyDescription_SET:
+FN_RoomsDescription_SET:
 lwz REG_PD_SUB, PDD_SUBTEXT(REG_PD_DATA)
 mr r3, REG_PD_TEXT
 mr r4, REG_PD_SUB
 add r5, REG_PD_DATA, REG_PD_STR
 branchl r12, Text_UpdateSubtextContents
-b FN_PeppyDescription_EXIT
+b FN_RoomsDescription_EXIT
 
-FN_PeppyDescription_TEARDOWN:
+FN_RoomsDescription_TEARDOWN:
 lwz r3, PDD_TEXT(REG_PD_DATA)
 cmpwi r3, 0
-beq FN_PeppyDescription_EXIT
+beq FN_RoomsDescription_EXIT
 branchl r12, Text_RemoveText
 li r3, 0
 stw r3, PDD_TEXT(REG_PD_DATA)
 
-FN_PeppyDescription_EXIT:
+FN_RoomsDescription_EXIT:
 restore
 blr
 
 ################################################################################
-# Routine: PeppyRoomsLabels
+# Routine: RoomsLabels
 # ------------------------------------------------------------------------------
 # Names the five rows of the Rooms list, the same way the Rooms row itself is
 # named: the artwork word is buried under a copy of itself in the plate's
@@ -444,41 +444,41 @@ blr
 .set REG_PRL_WORD, 24
 .set REG_PRL_TMP, 23
 
-FN_PeppyRoomsLabels:
+FN_RoomsLabels:
 backup
 
-bl PEPPY_ROWS_DATA
+bl ROOMS_ROWS_DATA
 mflr REG_PRL_DATA
 
 # The rows have real artwork now, so there is nothing to draw or to cover.
 # Teardown still runs, to release anything built before the artwork landed.
-b FN_PeppyRoomsLabels_TEARDOWN
+b FN_RoomsLabels_TEARDOWN
 
 # Only while the Rooms list is the thing on screen
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r3
 lwz r0, PLD_SETTLE(r3)
 cmpwi r0, 0
-bne FN_PeppyRoomsLabels_TEARDOWN
+bne FN_RoomsLabels_TEARDOWN
 lwz r0, PLD_LEVEL(r3)
 cmpwi r0, 1
-bne FN_PeppyRoomsLabels_TEARDOWN
+bne FN_RoomsLabels_TEARDOWN
 lis r3, 0x804A
 addi r3, r3, 0x4F0
 lbz r0, 0x0(r3)
 cmpwi r0, 0x8
-bne FN_PeppyRoomsLabels_TEARDOWN
+bne FN_RoomsLabels_TEARDOWN
 
 lwz r0, PRW_STRUCTS(REG_PRL_DATA)
 cmpwi r0, 0
-bne FN_PeppyRoomsLabels_PAINT
+bne FN_RoomsLabels_PAINT
 
 ################################################################################
 # Build them
 ################################################################################
 li REG_PRL_I, 0
 
-FN_PeppyRoomsLabels_BUILD:
+FN_RoomsLabels_BUILD:
 mulli r3, REG_PRL_I, 24
 addi REG_PRL_ROW, REG_PRL_DATA, PRW_ROWS
 add REG_PRL_ROW, REG_PRL_ROW, r3
@@ -506,7 +506,7 @@ stfs f1, 0x28(REG_PRL_TEXT)
 # The cover, seven offset copies of the word underneath
 li REG_PRL_COVER, 0
 
-FN_PeppyRoomsLabels_COVER:
+FN_RoomsLabels_COVER:
 mulli r3, REG_PRL_COVER, 8
 addi r4, REG_PRL_DATA, PRW_COVERS
 add r4, r4, r3
@@ -528,7 +528,7 @@ mr r4, REG_PRL_TMP
 branchl r12, Text_UpdateSubtextSize
 addi REG_PRL_COVER, REG_PRL_COVER, 1
 cmpwi REG_PRL_COVER, PRW_COVER_COUNT
-blt FN_PeppyRoomsLabels_COVER
+blt FN_RoomsLabels_COVER
 
 # And the word itself, on top. Same height as the cover, so the cover has
 # nowhere to show above or below it; the width is per row, because a word wide
@@ -548,87 +548,87 @@ branchl r12, Text_UpdateSubtextSize
 
 addi REG_PRL_I, REG_PRL_I, 1
 cmpwi REG_PRL_I, PRW_ROW_COUNT
-blt FN_PeppyRoomsLabels_BUILD
+blt FN_RoomsLabels_BUILD
 
 ################################################################################
 # Colour them, every frame, so each row follows its own selected state
 ################################################################################
-FN_PeppyRoomsLabels_PAINT:
+FN_RoomsLabels_PAINT:
 lis r3, 0x804A
 addi r3, r3, 0x4F0
 lhz REG_PRL_SELECTED, 0x2(r3)
 
 li REG_PRL_I, 0
 
-FN_PeppyRoomsLabels_PAINT_ROW:
+FN_RoomsLabels_PAINT_ROW:
 mulli r4, REG_PRL_I, 4
 addi r5, REG_PRL_DATA, PRW_STRUCTS
 lwzx REG_PRL_TEXT, r5, r4
 cmpwi REG_PRL_TEXT, 0
-beq FN_PeppyRoomsLabels_PAINT_NEXT
+beq FN_RoomsLabels_PAINT_NEXT
 
 cmpw REG_PRL_I, REG_PRL_SELECTED
-beq FN_PeppyRoomsLabels_PAINT_PICKED
+beq FN_RoomsLabels_PAINT_PICKED
 addi REG_PRL_PLATE, REG_PRL_DATA, PRW_COL_PLATE_IDLE
 addi REG_PRL_WORD, REG_PRL_DATA, PRW_COL_WORD_IDLE
-b FN_PeppyRoomsLabels_PAINT_DO
+b FN_RoomsLabels_PAINT_DO
 
-FN_PeppyRoomsLabels_PAINT_PICKED:
+FN_RoomsLabels_PAINT_PICKED:
 addi REG_PRL_PLATE, REG_PRL_DATA, PRW_COL_PLATE_PICKED
 addi REG_PRL_WORD, REG_PRL_DATA, PRW_COL_WORD_PICKED
 
-FN_PeppyRoomsLabels_PAINT_DO:
+FN_RoomsLabels_PAINT_DO:
 li REG_PRL_COVER, 0
 
-FN_PeppyRoomsLabels_PAINT_COVER:
+FN_RoomsLabels_PAINT_COVER:
 mr r3, REG_PRL_TEXT
 mr r4, REG_PRL_COVER
 mr r5, REG_PRL_PLATE
 branchl r12, Text_ChangeTextColor
 addi REG_PRL_COVER, REG_PRL_COVER, 1
 cmpwi REG_PRL_COVER, PRW_COVER_COUNT
-blt FN_PeppyRoomsLabels_PAINT_COVER
+blt FN_RoomsLabels_PAINT_COVER
 
 mr r3, REG_PRL_TEXT
 li r4, PRW_COVER_COUNT
 mr r5, REG_PRL_WORD
 branchl r12, Text_ChangeTextColor
 
-FN_PeppyRoomsLabels_PAINT_NEXT:
+FN_RoomsLabels_PAINT_NEXT:
 addi REG_PRL_I, REG_PRL_I, 1
 cmpwi REG_PRL_I, PRW_ROW_COUNT
-blt FN_PeppyRoomsLabels_PAINT_ROW
-b FN_PeppyRoomsLabels_EXIT
+blt FN_RoomsLabels_PAINT_ROW
+b FN_RoomsLabels_EXIT
 
 ################################################################################
 # Take them down
 ################################################################################
-FN_PeppyRoomsLabels_TEARDOWN:
+FN_RoomsLabels_TEARDOWN:
 li REG_PRL_I, 0
 
-FN_PeppyRoomsLabels_TEARDOWN_ROW:
+FN_RoomsLabels_TEARDOWN_ROW:
 mulli r4, REG_PRL_I, 4
 addi r5, REG_PRL_DATA, PRW_STRUCTS
 lwzx r3, r5, r4
 cmpwi r3, 0
-beq FN_PeppyRoomsLabels_TEARDOWN_NEXT
+beq FN_RoomsLabels_TEARDOWN_NEXT
 branchl r12, Text_RemoveText
 li r3, 0
 mulli r4, REG_PRL_I, 4
 addi r5, REG_PRL_DATA, PRW_STRUCTS
 stwx r3, r5, r4
 
-FN_PeppyRoomsLabels_TEARDOWN_NEXT:
+FN_RoomsLabels_TEARDOWN_NEXT:
 addi REG_PRL_I, REG_PRL_I, 1
 cmpwi REG_PRL_I, PRW_ROW_COUNT
-blt FN_PeppyRoomsLabels_TEARDOWN_ROW
+blt FN_RoomsLabels_TEARDOWN_ROW
 
-FN_PeppyRoomsLabels_EXIT:
+FN_RoomsLabels_EXIT:
 restore
 blr
 
 ################################################################################
-# Routine: PeppyEnterSubmenu
+# Routine: RoomsEnterSubmenu
 # ------------------------------------------------------------------------------
 # Installs an option table and rebuilds the online submenu in place. This is how
 # the Rooms list can be a second level without a second menu: Melee is told to
@@ -648,7 +648,7 @@ blr
 .set REG_PES_MENU, 25
 .set REG_PES_TABLE, 24
 
-FN_PeppyEnterSubmenu:
+FN_RoomsEnterSubmenu:
 backup
 
 # Arguments first - the settle write below needs scratch registers, and r0 is a
@@ -659,7 +659,7 @@ mr REG_PES_MENU, r4
 mr REG_PES_TABLE, r3
 
 # The rebuild animates too, so hold the labels through it
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r5
 li r6, PLD_SETTLE_FRAMES
 stw r6, PLD_SETTLE(r5)
@@ -694,7 +694,7 @@ branchl r12, 0x80390228
 load r3, 0x803eb760 # Think function for menu 8, which is ours
 lwz r28, 0x0(r3)
 cmplwi r28, 0
-beq FN_PeppyEnterSubmenu_EXIT
+beq FN_RoomsEnterSubmenu_EXIT
 
 li r3, 0
 li r4, 1
@@ -708,12 +708,12 @@ lbz r0, 0x000D (r3)
 rlwimi r0, r4, 4, 26, 27
 stb r0, 0x000D (r3)
 
-FN_PeppyEnterSubmenu_EXIT:
+FN_RoomsEnterSubmenu_EXIT:
 restore
 blr
 
 ################################################################################
-# Routine: PeppyLevelTables
+# Routine: RoomsLevelTables
 # ------------------------------------------------------------------------------
 # The option table and description table a level is built from.
 #   r3 = level  ->  r3 = options, r4 = descriptions
@@ -721,17 +721,17 @@ blr
 # LR is parked in r11 because reaching a data block here means branching to it,
 # which overwrites LR on the way.
 ################################################################################
-FN_PeppyLevelTables:
+FN_RoomsLevelTables:
 mflr r11
 # Level 1 asks WHAT you want to do, level 2 asks what KIND. Create is the only
 # one of the three that needs a kind, so asking first would make Join and Public
 # answer a question that does not apply to them.
 cmpwi r3, 1
-beq FN_PeppyLevelTables_ACTIONS
+beq FN_RoomsLevelTables_ACTIONS
 cmpwi r3, 2
-beq FN_PeppyLevelTables_ROOMS
+beq FN_RoomsLevelTables_ROOMS
 cmpwi r3, 3
-beq FN_PeppyLevelTables_CREATE
+beq FN_RoomsLevelTables_CREATE
 
 bl Data_OnlineSubmenuOptions
 mflr r3
@@ -740,7 +740,7 @@ mflr r4
 mtlr r11
 blr
 
-FN_PeppyLevelTables_ROOMS:
+FN_RoomsLevelTables_ROOMS:
 bl Data_RoomsSubmenuOptions
 mflr r3
 bl Data_RoomsSubmenuDescriptions
@@ -748,7 +748,7 @@ mflr r4
 mtlr r11
 blr
 
-FN_PeppyLevelTables_ACTIONS:
+FN_RoomsLevelTables_ACTIONS:
 bl Data_RoomActionOptions
 mflr r3
 bl Data_RoomActionDescriptions
@@ -756,7 +756,7 @@ mflr r4
 mtlr r11
 blr
 
-FN_PeppyLevelTables_CREATE:
+FN_RoomsLevelTables_CREATE:
 bl Data_CreateTypeOptions
 mflr r3
 bl Data_CreateTypeDescriptions
@@ -765,7 +765,7 @@ mtlr r11
 blr
 
 ################################################################################
-# Routine: PeppyGoToLevel
+# Routine: RoomsGoToLevel
 # ------------------------------------------------------------------------------
 # Move to a level and draw it.
 #   r3 - level to go to
@@ -776,21 +776,21 @@ blr
 .set REG_PGL_SELECT, 26
 .set REG_PGL_TRANS, 25
 
-FN_PeppyGoToLevel:
+FN_RoomsGoToLevel:
 backup
 mr REG_PGL_LEVEL, r3
 mr REG_PGL_SELECT, r4
 mr REG_PGL_TRANS, r5
 
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r3
 stw REG_PGL_LEVEL, PLD_LEVEL(r3)
 
 mr r3, REG_PGL_LEVEL
-bl FN_PeppyLevelTables
+bl FN_RoomsLevelTables
 mr r5, REG_PGL_SELECT
 mr r6, REG_PGL_TRANS
-bl FN_PeppyEnterSubmenu
+bl FN_RoomsEnterSubmenu
 
 restore
 blr
@@ -816,13 +816,13 @@ backup BKP_DEFAULT_FREE_SPACE_SIZE, NUM_FREG, NUM_GPREG
 mr REG_SM_GOBJ, r3
 
 ################################################################################
-# Peppy: open on the Rooms list, if something asked for that
+# Rooms: open on the Rooms list, if something asked for that
 ################################################################################
 # Backing out of a room leaves a note rather than rebuilding the menu itself -
 # the note is read here because this is the first place with a submenu GObj to
 # rebuild. Pressing A on the Rooms row goes through this same rebuild, so this
 # is the path that is known to work.
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r3
 # Not r0 - it is a literal zero in the base position of subi, not a register,
 # and the assembler says so.
@@ -834,7 +834,7 @@ stw r4, PLD_ENTER(r3)
 subi r3, r6, 1
 li r4, 0                    # cursor on the first mode
 li r5, 3                    # coming back, not going deeper
-bl FN_PeppyGoToLevel
+bl FN_RoomsGoToLevel
 b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 FN_OnlineSubmenuThink_NO_PENDING_LEVEL:
 
@@ -887,8 +887,8 @@ branchl r12, 0x801677E8 # CSS_StoreSinglePlayerPortNumber
 
 lhz r0, 0x0002 (r29) # Load selected option index
 
-# Peppy: on the Rooms list these indices mean Singles, Doubles and so on
-bl PEPPY_LABEL_DATA
+# Rooms: on the Rooms list these indices mean Singles, Doubles and so on
+bl ROOMS_LABEL_DATA
 mflr r3
 lwz r3, PLD_LEVEL(r3)
 cmpwi r3, 1
@@ -914,7 +914,7 @@ cmpwi r0, OPTION_LOGOUT_IDX # Check if Log-out
 beq FN_OnlineSubmenuThink_HANDLE_LOGOUT
 cmpwi r0, OPTION_UPDATE_IDX # Check if update
 beq FN_OnlineSubmenuThink_HANDLE_UPDATE
-cmpwi r0, OPTION_ROOMS_IDX # Check if Peppy rooms
+cmpwi r0, OPTION_ROOMS_IDX # Check if Rooms rooms
 beq FN_OnlineSubmenuThink_HANDLE_ROOMS
 b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 
@@ -937,12 +937,12 @@ FN_OnlineSubmenuThink_HANDLE_TEAMS:
 li r3, ONLINE_MODE_TEAMS
 b FN_OnlineSubmenuThink_GO_TO_CSS
 
-# Peppy: Rooms opens its own list rather than starting a match.
+# Rooms: Rooms opens its own list rather than starting a match.
 FN_OnlineSubmenuThink_HANDLE_ROOMS:
 li r3, 1
 branchl r12, SFX_Menu_CommonSound
 
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r3
 li r4, OPTION_ROOMS_IDX
 stb r4, PLD_SEL(r3)
@@ -950,7 +950,7 @@ stb r4, PLD_SEL(r3)
 li r3, 1
 li r4, 0
 li r5, 1
-bl FN_PeppyGoToLevel
+bl FN_RoomsGoToLevel
 b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 
 ################################################################################
@@ -966,7 +966,7 @@ FN_OnlineSubmenuThink_ROOMS_DISPATCH:
 # Which one was picked is written down first, because the sound call below is
 # free to trample r0 and because the room that gets made needs to know what it
 # is - CREATE_DISPATCH reads it back out of PLD_SEL+2.
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r3
 stb r0, PLD_SEL+2(r3)
 
@@ -975,7 +975,7 @@ branchl r12, SFX_Menu_CommonSound
 li r3, 3
 li r4, 0
 li r5, 1
-bl FN_PeppyGoToLevel
+bl FN_RoomsGoToLevel
 b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 
 ################################################################################
@@ -997,7 +997,7 @@ bne FN_OnlineSubmenuThink_NOT_BUILT
 # Level 1 now, so Create goes on to ask which KIND of room - the list Rooms used
 # to open with. Join and Public never get here, which is the point of asking in
 # this order: neither of them has a kind to choose.
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r3
 stb r0, PLD_SEL+1(r3)
 
@@ -1006,7 +1006,7 @@ branchl r12, SFX_Menu_CommonSound
 li r3, 2
 li r4, 0
 li r5, 1
-bl FN_PeppyGoToLevel
+bl FN_RoomsGoToLevel
 b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 
 ################################################################################
@@ -1021,7 +1021,7 @@ b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 FN_OnlineSubmenuThink_CREATE_DISPATCH:
 # Only Singles has a game to go to yet, so only Singles makes a room. The others
 # would leave one sitting in the table with nobody able to reach it.
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r3
 lbz r5, PLD_SEL+2(r3)
 cmpwi r5, ROOMS_OPT_SINGLES
@@ -1039,7 +1039,7 @@ FN_OnlineSubmenuThink_CREATE_SEND:
 # and holds on to it, so the matchmaking that starts at the character select
 # joins that room rather than whatever peppy.json last said.
 lwz r3, OFST_R13_SB_ADDR(r13)
-li r4, CONST_PeppyCmdCreateRoom
+li r4, CONST_SlippiCmdRoomCreate
 stb r4, 0x0(r3)
 stb r5, 0x1(r3)
 stb r6, 0x2(r3)
@@ -1061,10 +1061,10 @@ FN_OnlineSubmenuThink_BROWSE:
 # lot, with each room saying which kind it is.
 #
 # 0xFF is the same "no mode of its own" sentinel Dolphin already uses for a room
-# that did not come from these menus (see PeppyRoomModeIndex).
+# that did not come from these menus (see RoomsRoomModeIndex).
 lwz r3, OFST_R13_SB_ADDR(r13)
 li r5, 0xFF
-li r4, CONST_PeppyCmdListRooms
+li r4, CONST_SlippiCmdRoomList
 stb r4, 0x0(r3)
 stb r5, 0x1(r3)
 li r4, 2
@@ -1127,7 +1127,7 @@ branchl r12, Event_StoreSceneNumber
 b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 
 FN_OnlineSubmenuThink_GO_TO_ROOM:
-# A room opens on Peppy's own screen - the queue and what you can do from it -
+# A room opens on Rooms's own screen - the queue and what you can do from it -
 # not on the character select. The character select comes later, once two
 # people are matched, which is what the room's SceneDecide will hand off to.
 stb r3, OFST_R13_ONLINE_MODE(r13)
@@ -1163,9 +1163,9 @@ beq- FN_OnlineSubmenuThink_B_PRESS_HANDLER_END
 # B Press Handler
 ################################################################################
 FN_OnlineSubmenuThink_B_PRESS_HANLER:
-# Peppy: on the Rooms list, B goes back to the mode list rather than out of
+# Rooms: on the Rooms list, B goes back to the mode list rather than out of
 # online play, and puts the cursor back on the row that opened it.
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r3
 lwz r0, PLD_LEVEL(r3)
 cmpwi r0, 0
@@ -1176,7 +1176,7 @@ branchl r12, SFX_Menu_CommonSound
 
 # Up one level, cursor back on the row that opened this one. Read again after
 # the sound call rather than holding it across - these are volatile registers.
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr r3
 lwz r4, PLD_LEVEL(r3)
 subi r4, r4, 1
@@ -1185,7 +1185,7 @@ lbzx r5, r5, r4
 mr r3, r4
 mr r4, r5
 li r5, 3
-bl FN_PeppyGoToLevel
+bl FN_RoomsGoToLevel
 b FN_OnlineSubmenuThink_INPUT_HANDLERS_END
 
 FN_OnlineSubmenuThink_B_LEAVE_ONLINE:
@@ -1297,7 +1297,7 @@ FN_OnlineSubmenuThink_INPUT_HANDLERS_END:
 ################################################################################
 
 ################################################################################
-# Peppy: name the Rooms row
+# Rooms: name the Rooms row
 ################################################################################
 # The row labels are pre-rendered images and there are only eight of them, so
 # the ninth row borrows the eighth and reads "Update". Nothing overrides a
@@ -1314,7 +1314,7 @@ FN_OnlineSubmenuThink_INPUT_HANDLERS_END:
 .set REG_PL_WORD_COLOR, 24
 .set REG_PL_MASK_COLOR, 21
 
-bl PEPPY_LABEL_DATA
+bl ROOMS_LABEL_DATA
 mflr REG_PL_DATA
 lwz REG_PL_TEXT, PLD_TEXT_PTR(REG_PL_DATA)
 
@@ -1474,8 +1474,8 @@ mr r5, REG_PL_WORD_COLOR
 branchl r12, Text_ChangeTextColor
 
 FN_OnlineSubmenuThink_LABELS_DONE:
-bl FN_PeppyRoomsLabels
-bl FN_PeppyDescription
+bl FN_RoomsLabels
+bl FN_RoomsDescription
 
 FN_OnlineSubmenuThink_EXIT:
 restore BKP_DEFAULT_FREE_SPACE_SIZE, NUM_FREG, NUM_GPREG
@@ -1496,7 +1496,7 @@ blrl
 .byte 0x09 # Number of options
 .align 2
 
-PEPPY_LABEL_DATA:
+ROOMS_LABEL_DATA:
 blrl
 # Measured off the screen, not guessed. Three calibration marks drawn at known
 # canvas coordinates put the mapping at
@@ -1669,7 +1669,7 @@ blrl
 .set PDD_LIST3, PDD_LIST2+12
 .set PDD_LEVELS, PDD_LIST3+8
 
-PEPPY_DESC_DATA:
+ROOMS_DESC_DATA:
 blrl
 .long 0
 .long 0
@@ -1757,7 +1757,7 @@ blrl
 .set PRW_COVER_SIZE, PRW_ROWS+120
 .set PRW_WORD_DY, PRW_COVER_SIZE+4
 
-PEPPY_ROWS_DATA:
+ROOMS_ROWS_DATA:
 blrl
 # One text struct per row, filled in when they are built
 .long 0
@@ -1891,7 +1891,7 @@ blrl
 .align 2
 
 # The ids do not matter: every description on our levels is blanked out here and
-# drawn by FN_PeppyDescription instead. They only have to be real ids.
+# drawn by FN_RoomsDescription instead. They only have to be real ids.
 Data_RoomActionDescriptions:
 blrl
 .short 0x0645 # Create

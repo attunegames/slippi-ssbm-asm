@@ -37,7 +37,7 @@ Kept because it is the last state where the original order was known good.
 ## Why the artwork is not in git
 
 `MnMaAll.usd` and the files it is built from are Melee's own menu archive.
-`Peppy/Artwork/` has the builder, the notes and the encoder; the `.usd` files
+`Rooms/` has the builder, the notes and the encoder; the `.usd` files
 are gitignored and live in `C:\root\peppy-assets\`. Rebuild with:
 
     python mklabels.py MnMaAll.roomslist.usd
@@ -45,6 +45,6 @@ are gitignored and live in `C:\root\peppy-assets\`. Rebuild with:
 
 ## What is NOT covered
 
-The Dolphin side. `rooms-lan-test` runs the old Peppy Dolphin, which answers the
+The Dolphin side. `rooms-lan-test` runs the old Rooms Dolphin, which answers the
 room EXI commands and points at the OLD Supabase project. Nothing on this branch
 has rebuilt it, so a rewind here does not move it.

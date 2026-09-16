@@ -25,7 +25,7 @@ mr REG_PREMADE_TEXT_PARAM_1, r6
 # the text data struct
 lbz r3, OFST_R13_USE_PREMADE_TEXT(r13)
 cmpwi r3, 0
-beq PEPPY_ROOMS_DESCRIPTION # the game doing its thing - but it may be our row
+beq ROOMS_DESCRIPTION # the game doing its thing - but it may be our row
 
 # Load Premade text id from dolphin
 mr r3, REG_PREMADE_TEXT_ID
@@ -36,7 +36,7 @@ stw REG_STRING_FORMAT_ADDR, 0x5C(r31)
 b EXIT
 
 ################################################################################
-# Peppy: the Rooms row's description
+# Rooms: the Rooms row's description
 ################################################################################
 # Descriptions are premade strings in Melee's .dat, indexed by id, and there is
 # no id for a row Melee has never heard of - so the Rooms row borrows Party's
@@ -51,13 +51,13 @@ b EXIT
 # Narrow on purpose: this function draws every premade string in the game, so it
 # only swaps when the online submenu is up, the Rooms row is the selected one,
 # and the id being asked for is the one that row carries.
-PEPPY_ROOMS_DESCRIPTION:
+ROOMS_DESCRIPTION:
 ################################################################################
-# Peppy: the description line
+# Rooms: the description line
 ################################################################################
 # Two different treatments, for a reason.
 #
-# The Rooms LIST draws its own line (FN_PeppyDescription), because substituting
+# The Rooms LIST draws its own line (FN_RoomsDescription), because substituting
 # one here only renders correctly from the second time it is built: Melee
 # reserves a width from the original string and justifies ours across it, and
 # those lines are much shorter than the ones they replace. So they are blanked.
@@ -72,13 +72,13 @@ lbz r0, 0x0(r3)
 cmpwi r0, 0x8
 bne EXIT
 
-# Nine rows is the mode list; every level Peppy adds below it has fewer. The
+# Nine rows is the mode list; every level Rooms adds below it has fewer. The
 # same menu is redrawn for all of them, so the row count is what tells them
 # apart, and anything that is not the mode list draws its own description.
 load r4, 0x803eb750
 lbz r4, 0xC(r4)
 cmpwi r4, 9
-bne PEPPY_BLANK_IT
+bne ROOMS_BLANK_IT
 
 lhz r0, 0x2(r3)
 cmpwi r0, OPTION_ROOMS_IDX
@@ -91,35 +91,35 @@ bne EXIT
 # parameters can be any value, so each one's length comes from the table below.
 # FIT is dropped: it scales against a box that is still animating when the line
 # is first built.
-bl PEPPY_ROOMS_DESC_DATA
+bl ROOMS_DESC_DATA
 mflr r3
 lwz r4, 0x5C(r31)
 addi r5, r3, PRD_BUFFER
 mr r6, r5
 li r10, 32
 
-PEPPY_DESC_PREFIX:
+ROOMS_DESC_PREFIX:
 cmpwi r10, 0
-beq PEPPY_DESC_WORDS
+beq ROOMS_DESC_WORDS
 lbz r7, 0x0(r4)
 cmpwi r7, 0x20
-bge PEPPY_DESC_WORDS
+bge ROOMS_DESC_WORDS
 cmpwi r7, 0x0
-beq PEPPY_DESC_WORDS
+beq ROOMS_DESC_WORDS
 cmpwi r7, 0x18
-beq PEPPY_DESC_DROP_FIT
+beq ROOMS_DESC_DROP_FIT
 stb r7, 0x0(r5)
 addi r5, r5, 1
 
-PEPPY_DESC_DROP_FIT:
+ROOMS_DESC_DROP_FIT:
 addi r4, r4, 1
 subi r10, r10, 1
 addi r8, r3, PRD_PARAMLEN
 lbzx r9, r8, r7
 cmpwi r9, 0
-beq PEPPY_DESC_PREFIX
+beq ROOMS_DESC_PREFIX
 
-PEPPY_DESC_PARAMS:
+ROOMS_DESC_PARAMS:
 lbz r7, 0x0(r4)
 stb r7, 0x0(r5)
 addi r4, r4, 1
@@ -127,31 +127,31 @@ addi r5, r5, 1
 subi r9, r9, 1
 subi r10, r10, 1
 cmpwi r9, 0
-bne PEPPY_DESC_PARAMS
-b PEPPY_DESC_PREFIX
+bne ROOMS_DESC_PARAMS
+b ROOMS_DESC_PREFIX
 
-PEPPY_DESC_WORDS:
+ROOMS_DESC_WORDS:
 addi r4, r3, PRD_WORDS
 
-PEPPY_DESC_WORDS_LOOP:
+ROOMS_DESC_WORDS_LOOP:
 lbz r7, 0x0(r4)
 stb r7, 0x0(r5)
 addi r4, r4, 1
 addi r5, r5, 1
 cmpwi r7, 0x0
-bne PEPPY_DESC_WORDS_LOOP
+bne ROOMS_DESC_WORDS_LOOP
 
 stw r6, 0x5C(r31)
 b EXIT
 
-PEPPY_BLANK_IT:
-bl PEPPY_ROOMS_DESC_DATA
+ROOMS_BLANK_IT:
+bl ROOMS_DESC_DATA
 mflr r3
 addi r3, r3, PRD_EMPTY
 stw r3, 0x5C(r31)
 b EXIT
 
-PEPPY_ROOMS_DESC_DATA:
+ROOMS_DESC_DATA:
 blrl
 .set PRD_BUFFER, 0
 .space 96, 0
