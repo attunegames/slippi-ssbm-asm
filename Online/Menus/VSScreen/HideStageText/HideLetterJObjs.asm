@@ -48,12 +48,25 @@ backup
 # what was cleared was above them.
 #
 # Getting that right needs the tree's actual shape, not another range.
+# Start at 6, and that number is reasoned rather than tried.
+#
+# These indices are a DEPTH-FIRST walk, so an ancestor always comes before its
+# descendants. The fighters hang from 4 and 5. Sweeping 0 to 47 killed the
+# emblem AND threw the fighters to the edges, and skipping 4 and 5 themselves
+# changed nothing - so what was destroying their placement was an ancestor, and
+# an ancestor of 4 and 5 can only be at 0 to 3. Skipping 0 to 5 protects them.
+#
+# The emblem was already gone in that same sweep, so if it lives anywhere from
+# 6 up this keeps it gone. If it comes back, it is in 0 to 3 and that is four
+# nodes to try one at a time, not another range.
+.set ROOM_ANIM_FIRST, 6
+.set ROOM_ANIM_END, 48
 .set ROOM_HIDE_FIRST, 14
 .set ROOM_HIDE_END, 27
 getMinorMajor r12
 cmpwi r12, SCENE_ONLINE_ROOM
 bne SKIP_ROOM_EXTRA
-li REG_IDX, ROOM_HIDE_FIRST
+li REG_IDX, 0
 ROOM_LOOP_START:
 li r3, 0
 stw r3, SPO_CHILD_JOBJ(sp)
@@ -70,12 +83,30 @@ branchl r12, JObj_GetJObjChild
 lwz r4, SPO_CHILD_JOBJ(sp)
 cmpwi r4, 0
 beq ROOM_LOOP_NEXT
+
+# Below the stage lettering, hide it outright.
+cmpwi REG_IDX, ROOM_HIDE_END
+bge ROOM_LOOP_ANIM
+cmpwi REG_IDX, ROOM_HIDE_FIRST
+blt ROOM_LOOP_ANIM
 lwz r3, 0x14(r4) # Get current flags
 ori r3, r3, 0x10 # Set invisible flag
 stw r3, 0x14(r4)
+
+# ...and from 6 up, drop the animation, which is the only thing that takes the
+# emblem off. It has to happen NOW rather than later: this stops an animation,
+# it does not rewind one, so a node whose animation has already played is simply
+# frozen where it got to - which is why stepping through the tree by hand after
+# the fact never removed anything.
+ROOM_LOOP_ANIM:
+cmpwi REG_IDX, ROOM_ANIM_FIRST
+blt ROOM_LOOP_NEXT
+lwz r3, SPO_CHILD_JOBJ(sp)
+branchl r12, JObj_RemoveAnimAll
+
 ROOM_LOOP_NEXT:
 addi REG_IDX, REG_IDX, 1
-cmpwi REG_IDX, ROOM_HIDE_END
+cmpwi REG_IDX, ROOM_ANIM_END
 blt ROOM_LOOP_START
 SKIP_ROOM_EXTRA:
 

@@ -466,48 +466,6 @@ static void *room_splash_jobj(void)
     return 0;
 }
 
-/* Walk the tree a node at a time, on A, and say which node just went.
- *
- * Four builds went into guessing ranges at this tree and the last one moved the
- * fighters to the edges of the screen. The emblem cannot be found by hiding
- * things and looking, because the only thing that hides it - dropping the
- * animation - is recursive and irreversible, so a wide range always takes the
- * fighters' own placement with it.
- *
- * So: press A, one more node loses its animation, and the number goes in the
- * log. When the emblem disappears, the last line names it, and after that this
- * is one constant instead of a range. Leaving the room rebuilds the tree, so a
- * wrong guess costs nothing but going back in.
- *
- * On A rather than the d-pad because A is mapped on every rig here. */
-static void room_walk_step(void)
-{
-    void *jobj = room_splash_jobj();
-    void *child = 0;
-    char line[64];
-    char *p = line;
-
-    if (!jobj)
-    {
-        room_log("[Rooms] no splash jobj - nothing to walk");
-        return;
-    }
-
-    s_walk++;
-    /* Zeroed first: JOBJ_GetChild does not write this when it finds nothing. */
-    JOBJ_GetChild(jobj, &child, s_walk, -1);
-
-    p = room_put(p, "[Rooms] anim off ");
-    p = room_put_i(p, s_walk);
-    if (!child)
-        p = room_put(p, " - no such node");
-    *p = 0;
-    room_log(line);
-
-    if (child)
-        JOBJ_RemoveAnimAll(child);
-}
-
 void room_think(void)
 {
     /* Once, not every frame. A think that logs per frame drowns everything
@@ -545,9 +503,6 @@ void room_think(void)
             room_probe_cams();
         }
     }
-
-    if (rooms_pad_pressed() & PAD_A)
-        room_walk_step();
 
     if (s_line >= 0)
         Text_UpdateSubtextContents(s_text, s_line, "%s", "Rooms");
