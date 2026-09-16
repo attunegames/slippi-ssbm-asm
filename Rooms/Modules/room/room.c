@@ -84,53 +84,31 @@ static int   s_probes;
 
 /* -------------------------------------------------------------- the module */
 
-/* Pull the splash up into a band across the top.
- *
- * The splash fills the screen because it is normally the whole screen. Here it
- * is the top of a room, with the queue and lobby underneath - so its camera
- * gets a viewport rather than its objects getting moved. One call per camera
- * instead of repositioning everything the builder made, and the framing stays
- * correct because the camera still sees the same scene.
- *
- * Cameras are GObj class 20 and park their CObj at +0x28. There is more than
- * one - the old room counted five - so every one of them is banded, or the ones
- * left alone keep drawing full-screen over the top.
- */
+/* Cameras are GObj class 20 and park their CObj at +0x28 - but only some of
+ * them do. Class 20 holds five GObjs here and three carry nothing at +0x28,
+ * measured rather than assumed. Counting them is all this is still for. */
 #define ROOM_CLASS_CAMERA 20
 
-/* Fitting a 4:3 picture into a band half the screen's height. There are only
- * two honest ways to do it, and they trade against each other.
+/* The room does NOT resize the splash, and why is worth keeping.
  *
- * A VIEWPORT is a mapping, not a window: hand it a 640x240 rectangle and the
- * whole 480-high picture gets squeezed into it. That is the squashing, and it
- * is what the first attempt did. The SCISSOR is the window - it throws away
- * what falls outside and changes nothing about how the rest is drawn.
+ * Three rounds went into fitting a 4:3 picture into a band across the top:
+ * squashing it with a 640x240 viewport, then shrinking it to 320x240 to keep
+ * its proportions, then forcing that on every camera from CObj_SetCurrent
+ * because the fighters kept escaping it. All of it solved a problem that was
+ * not there.
  *
- * So either
+ * Melee already frames this screen the way a room wants it - the fighters fill
+ * the width with their heads near the top, and the bottom third is the black
+ * name plate, which against a black background has no visible seam. THAT is the
+ * band, and the space underneath for the queue and the lobby is the splash's
+ * own lower third. Shrinking it only made a correctly framed picture small and
+ * left it floating in the middle of the screen.
  *
- *   SHRINK  keep 4:3 and make it smaller - 320x240, centred. The whole VS
- *           composition, both fighters entire, correct proportions, with the
- *           side quarters of the band left over.
- *   CROP    keep it full size and show a 640x240 slice of it. Fills the width,
- *           and cuts the fighters off somewhere around the chest.
- *
- * Shrink is the default, because the ask was for it to look like the normal VS
- * screen and this is that screen, just smaller. To crop instead, set the
- * viewport to (0, 640, -shift, 480 - shift) and leave the scissor alone; shift
- * picks the slice, 120 being the middle.
- *
- * The scissor stays the whole band either way, so nothing can spill out below
- * it - which is exactly what the fighters did while they were being missed. */
-#define BAND_TOP     0.0f
-#define BAND_BOTTOM 240.0f
-#define BAND_LEFT    0.0f
-#define BAND_RIGHT 640.0f
-
-/* 4:3 on a 240-high band is 320 wide, centred in the 640. */
-#define VIEW_H      (BAND_BOTTOM - BAND_TOP)
-#define VIEW_W      (VIEW_H * 4.0f / 3.0f)
-#define VIEW_LEFT   (((float)ROOMS_SCREEN_W - VIEW_W) / 2.0f)
-#define VIEW_RIGHT  (VIEW_LEFT + VIEW_W)
+ * So the camera is left alone. If a real band is ever wanted, the control point
+ * is CObj_SetCurrent and not anything reachable from here: the cameras a GObj
+ * owns are not all of them, and the fighters are drawn through one that is not.
+ * The commit that added that hook and the one that removed it are the record.
+ */
 
 static int s_banded = -1;
 
@@ -326,7 +304,7 @@ static void room_report_classes(void)
     room_log(line);
 }
 
-static void room_band_to_top(void)
+static void room_count_cams(void)
 {
     void **heads = rooms_gobj_heads();
     void *g;
@@ -344,9 +322,6 @@ static void room_band_to_top(void)
 
         if (!cobj)
             continue;
-        CObj_SetViewport(cobj, VIEW_LEFT, VIEW_RIGHT, BAND_TOP, BAND_BOTTOM);
-        CObj_SetScissor(cobj, (int)BAND_LEFT, (int)BAND_RIGHT,
-                        (int)BAND_TOP, (int)BAND_BOTTOM);
         n++;
     }
 
@@ -412,7 +387,7 @@ void room_load(void *scene)
     {
         SceneLoad_ClassicModeSplash(scene);
         room_log("[Rooms] splash built");
-        room_band_to_top();
+        room_count_cams();
     }
     else
     {
@@ -474,8 +449,6 @@ void room_think(void)
             room_probe_cams();
         }
     }
-
-    room_band_to_top();
 
     if (s_line >= 0)
         Text_UpdateSubtextContents(s_text, s_line, "%s", "Rooms");
