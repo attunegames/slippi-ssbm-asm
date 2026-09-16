@@ -611,7 +611,14 @@ add \reg, r3, r4
 .set SCENE_HOMERUN_IN_GAME, 0x0120
 
 # Playback scene
-.set SCENE_PLAYBACK_IN_GAME, 0x010E
+# Playback lives under the ONLINE major now - minor 10 of major 8 - so that a
+# spectator never leaves it. Leaving reset the heaps, and the room could not be
+# rebuilt on the way back.
+#
+# Almost every playback guard is written against this name, so they all move
+# together. The two that are not - SceneThink_Playback's major check, and the
+# room's handover - are changed with it.
+.set SCENE_PLAYBACK_IN_GAME, 0x0A08
 
 # Menu Flow Data
 .set Menu_FlowData, 0x804a04f0

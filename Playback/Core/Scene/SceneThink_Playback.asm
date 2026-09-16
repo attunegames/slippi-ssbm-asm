@@ -13,10 +13,17 @@
 # Create Per Frame Function #
 #############################
 
-#Check If Major Scene 0xE
+#Only on the waiting screen, which is now minor 11 of the online major.
+#
+# This used to ask for major 0xE, back when watching meant leaving for
+# DebugMelee. It does not any more - a spectator stays in the online major so
+# that the room survives the trip - so the test is the scene, not the major.
   load  r3,0x80479D30   #Scene Controller
-  lbz r3,0x0(r3)        #Major Scene ID
-  cmpwi r3,0xE          #DebugMelee
+  lbz r4,0x0(r3)        #Major Scene ID
+  cmpwi r4,8            #the online major
+  bne Original
+  lbz r4,0x3(r3)        #Minor Scene ID
+  cmpwi r4,11           #the waiting screen
   bne Original
 
 #Create GObj
@@ -240,19 +247,15 @@ blrl
     mr  r3,REG_Text
     branchl r12, Text_RemoveText
 
-  # The same pair the room uses to leave its own major, and the only one that
-  # works: Scene_ProcessMajor checks the flag between minors, so naming the
-  # next major without ending this one leaves the loop spinning in a scene
-  # already told to go.
-  #
-  # No minor is named. The online major's Load picks it, and it picks the room
-  # whenever the online mode is Rooms - which is how the room is entered from
-  # the menu too, so there is one path in and it is already proven.
+  # Just a minor change now. We never left the online major, so there is no
+  # major to come back to - and that is the whole point of moving playback
+  # under it. Leaving reset the heaps, and the room's load then asked for
+  # splash artwork that was no longer resident: an inline disc read that cannot
+  # finish, so the room came back black or crashed into a module that had not
+  # finished loading.
     load r4,0x80479D30
-    li r3,0
-    stb r3,0x5(r4)            #pending minor
-    li r3,8                   #the online major
-    branchl r12,MenuController_WriteToPendingMajor_1to_0xC
+    li r3,7                   #pending minor, one-based: minor 6, the room
+    stb r3,0x5(r4)
     branchl r12,Scene_ExitMinor
     b PlaybackThink_Exit
 
@@ -383,6 +386,13 @@ blrl
     branchl r12, DiscError_ResumeGame
 
   #Change Scene Minor
+  # Name where we are going. Under DebugMelee this relied on that major's own
+  # arrangement of minors; here the match is minor 10 of the online major and
+  # nothing else would pick it. Byte 5 is the pending minor and is ONE-BASED,
+  # which is why the room is written as 7 and the match as 11.
+    load r4,0x80479D30
+    li r3,11
+    stb r3,0x5(r4)
     branchl r12, MenuController_ChangeScreenMinor
 
   b PlaybackThink_Exit

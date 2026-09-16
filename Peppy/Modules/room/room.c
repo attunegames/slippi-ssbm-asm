@@ -1361,8 +1361,7 @@ static void peppy_room_spectate(void)
     peppy_log("Peppy: watching the match");
     if (s_spectate_line >= 0)
         Text_UpdateSubtextContents(s_text, s_spectate_line, STR_WATCHING);
-    SCENE_CTRL.pending_minor = 0;
-    MenuController_WriteToPendingMajor_1to_0xC(SCENE_MAJOR_DEBUG_MELEE);
+    SCENE_CTRL.pending_minor = PEPPY_MINOR_PENDING_WATCH;
     Scene_ExitMinor();
 }
 
@@ -1402,8 +1401,7 @@ static void peppy_room_watch_pending(void *msrb)
 
     peppy_log("Peppy: the stream arrived - watching the match");
     s_watch_wanted = 0;
-    SCENE_CTRL.pending_minor = 0;
-    MenuController_WriteToPendingMajor_1to_0xC(SCENE_MAJOR_DEBUG_MELEE);
+    SCENE_CTRL.pending_minor = PEPPY_MINOR_PENDING_WATCH;
     Scene_ExitMinor();
 }
 
