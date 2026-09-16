@@ -33,12 +33,12 @@ jobs:
       # powerpc-eabi-gcc is already present.
       - name: "Build m-ex modules"
         id: mex
-        if: hashFiles('Peppy/Modules/Makefile') != ''
+        if: hashFiles('Rooms/Modules/Makefile') != ''
         working-directory: ${{ github.workspace }}
         run: |
-          sudo docker run --volume=${PWD}:/work --workdir=/work/Peppy/Modules \
+          sudo docker run --volume=${PWD}:/work --workdir=/work/Rooms/Modules \
             nikhilnarayana/devkitpro-slippi:latest make
-          ls -l Peppy/Modules/out
+          ls -l Rooms/Modules/out
 
       - name: "Upload codeset"
         uses: actions/upload-artifact@v4
@@ -53,4 +53,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mex-modules
-          path: Peppy/Modules/out/*.dat
+          path: Rooms/Modules/out/*.dat

@@ -1,0 +1,4 @@
+out/
+include/slippi_consts.h
+*.elf
+__pycache__/

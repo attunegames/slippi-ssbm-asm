@@ -274,6 +274,25 @@ bl GamePrepSceneDecide    #SceneDecide
 .align 2
 bl GamePrepData           #Minor Data 1
 bl GamePrepData           #Minor Data 2
+#Room
+# The room is a minor of THIS major, so none of Slippi's screens move: the
+# character select keeps SlippiCSS.dat and only appears once two people are
+# matched.
+#
+# Minor Data 1 and 2 are the SPLASH's, deliberately. 0x80490880 is the struct
+# SceneLoad_ClassicModeSplash reads - two characters at +0x10 and +0x11, their
+# costumes, and the stage - and the room calls that builder itself to put two
+# characters across the top of the screen. Pointing somewhere else would mean
+# the builder reading a struct nobody fills.
+.byte 6                     #Minor Scene ID
+.byte 3                     #Amount of persistent heaps
+.align 2
+bl RoomScenePrep            #ScenePrep
+bl RoomSceneDecide          #SceneDecide
+.byte 0x51                  #Common Minor ID (Room)
+.align 2
+.long 0x80490880            #Minor Data 1
+.long 0x804d68d0            #Minor Data 2
 #End
 .byte -1
 .align 2
@@ -1439,3 +1458,20 @@ Injection_Exit:
   restore
   li  r3,ExitSceneID
   stb r3,0x0(r30)
+
+################################################################################
+# Room: scene prep and decide
+################################################################################
+# Both are deliberately empty while the pipeline is being proved. The room
+# itself is the m-ex module on common minor 0x51 - everything on screen comes
+# from there, and a prep that does nothing is one fewer thing between "the
+# module did not bind" and "the module bound and drew nothing".
+RoomScenePrep:
+backup
+restore
+blr
+
+RoomSceneDecide:
+backup
+restore
+blr
