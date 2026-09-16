@@ -359,6 +359,37 @@ bl PeppyTrainSSSDecide      #SceneDecide
 .align 2
 .long 0x8048e378            #Minor Data 1
 .long 0x8048e378            #Minor Data 2
+#Peppy playback: the match a spectator watches
+# Read out of DebugMelee's own table rather than guessed - minor 1 there is
+# common 2, the SAME scene an online match is, which is why one think serves
+# both and why the playback codes need a scene guard at all. Two persistent
+# heaps, no decide: playback moves itself on with ChangeScreenMinor.
+#
+# It lives here so that watching never leaves this major. Going to DebugMelee
+# and back reset the heaps, and the room's load then asked for splash artwork
+# that was no longer resident - an inline disc read that cannot finish, so the
+# room came back black or not at all.
+.byte 10                    #Minor Scene ID
+.byte 2                     #Amount of persistent heaps
+.align 2
+.long 0x801b13b8            #ScenePrep, DebugMelee's own
+.long 0                     #SceneDecide - there is none
+.byte 2                     #Common Minor ID (VS Mode)
+.align 2
+.long 0x80480530            #Minor Data 1
+.long 0x80479d98            #Minor Data 2
+#Peppy playback: the "waiting for game" screen
+# DebugMelee minor 3, common 7. This is where a watcher waits for the stream
+# and where it asks to come back to the room.
+.byte 11                    #Minor Scene ID
+.byte 2                     #Amount of persistent heaps
+.align 2
+.long 0x801b16a8            #ScenePrep, DebugMelee's own
+.long 0                     #SceneDecide - there is none
+.byte 7                     #Common Minor ID
+.align 2
+.long 0x8047c020            #Minor Data 1
+.long 0                     #Minor Data 2
 #Peppy catch-all
 # Melee looks a minor up by id, and when it runs off the end of the table it
 # does not stop - it carries on with a null descriptor and calls whatever
