@@ -102,15 +102,6 @@ typedef struct SceneController {
 
 /* The major Slippi's replay playback lives in. */
 #define SCENE_MAJOR_DEBUG_MELEE       0x0E
-/* Watching is a minor of the ONLINE major now, not a major of its own: the
- * waiting screen is minor 11 and the match it leads to is minor 10. The scene
- * controller's pending-minor byte is one-based, hence 12.
- *
- * It moved because leaving the major reset the heaps. Coming back, the room's
- * load asked for splash artwork that was no longer resident, which is an
- * inline disc read that cannot finish - so the room returned black, or crashed
- * into a module that had not finished loading. */
-#define PEPPY_MINOR_PENDING_WATCH     12
 
 /* Melee's scene functions, as named by m-ex's symbol database. */
 void SceneThink_CSS(void);

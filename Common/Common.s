@@ -522,11 +522,6 @@ add \reg, r3, r4
 .set CONST_ExiRead, 0 # arg value to make an EXI read
 .set CONST_ExiWrite, 1 # arg value to make an EXI write
 
-# Peppy: "should this watcher go back to the room?" Answered by Dolphin, which
-# is the only side that knows. Defined here as well as in Playback.s so the
-# online scene can ask it without including the playback header.
-.set CMD_PEPPY_LEAVE_PLAYBACK, 0xCB
-
 # For Slippi communication
 .set CONST_SlippiCmdGetFrame, 0x76
 .set CONST_SlippiCmdCheckForReplay, 0x88
@@ -616,14 +611,7 @@ add \reg, r3, r4
 .set SCENE_HOMERUN_IN_GAME, 0x0120
 
 # Playback scene
-# Playback lives under the ONLINE major now - minor 10 of major 8 - so that a
-# spectator never leaves it. Leaving reset the heaps, and the room could not be
-# rebuilt on the way back.
-#
-# Almost every playback guard is written against this name, so they all move
-# together. The two that are not - SceneThink_Playback's major check, and the
-# room's handover - are changed with it.
-.set SCENE_PLAYBACK_IN_GAME, 0x0A08
+.set SCENE_PLAYBACK_IN_GAME, 0x010E
 
 # Menu Flow Data
 .set Menu_FlowData, 0x804a04f0

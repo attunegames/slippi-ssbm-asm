@@ -1261,22 +1261,19 @@ static void peppy_room_start_searching(void)
  * .slp on disk and points the comm file at it in mirror mode. Once that file
  * has a parseable game in it, this answers yes and the replay is loaded.
  *
- * A PEEK, and only a peek. 0xCA asks whether there is a replay; 0x88 asks and
- * CONSUMES, marking it played.
- *
- * The room used to do both, because watching meant changing major and a pending
- * minor does not survive that - so the replay had to be loaded before leaving,
- * by whoever was leaving. Watching is a minor of this major now, so the waiting
- * screen is reached with its own pending minor intact and does the loading
- * itself, the way Slippi wrote it.
- *
- * ⛔ Consuming here as well is what left a spectator on "Waiting for game"
- * forever: the room took the replay, the waiting screen asked for one and was
- * told there was none, and that screen has no way out but a replay - it does
- * not even let you close Dolphin, because its think is a loop of its own. */
+ * Asked in two steps on purpose. 0xCA only peeks; 0x88 actually loads and marks
+ * the replay played, so it is asked once, at the moment we are about to leave.
+ * A stream that has arrived but has not delivered a whole game yet answers 0 to
+ * the second, and we simply stay in the room and ask again later. */
 static int peppy_room_stream_ready(void)
 {
     peppy_exi_buf[0] = PEPPY_CMD_REPLAY_WAITING;
+    FN_EXITransferBuffer(peppy_exi_buf, 1, CONST_ExiWrite);
+    FN_EXITransferBuffer(peppy_exi_buf, 1, CONST_ExiRead);
+    if (peppy_exi_buf[0] != 1)
+        return 0;
+
+    peppy_exi_buf[0] = SLIPPI_CMD_CHECK_FOR_REPLAY;
     FN_EXITransferBuffer(peppy_exi_buf, 1, CONST_ExiWrite);
     FN_EXITransferBuffer(peppy_exi_buf, 1, CONST_ExiRead);
     return peppy_exi_buf[0] == 1;
@@ -1364,7 +1361,8 @@ static void peppy_room_spectate(void)
     peppy_log("Peppy: watching the match");
     if (s_spectate_line >= 0)
         Text_UpdateSubtextContents(s_text, s_spectate_line, STR_WATCHING);
-    SCENE_CTRL.pending_minor = PEPPY_MINOR_PENDING_WATCH;
+    SCENE_CTRL.pending_minor = 0;
+    MenuController_WriteToPendingMajor_1to_0xC(SCENE_MAJOR_DEBUG_MELEE);
     Scene_ExitMinor();
 }
 
@@ -1404,7 +1402,8 @@ static void peppy_room_watch_pending(void *msrb)
 
     peppy_log("Peppy: the stream arrived - watching the match");
     s_watch_wanted = 0;
-    SCENE_CTRL.pending_minor = PEPPY_MINOR_PENDING_WATCH;
+    SCENE_CTRL.pending_minor = 0;
+    MenuController_WriteToPendingMajor_1to_0xC(SCENE_MAJOR_DEBUG_MELEE);
     Scene_ExitMinor();
 }
 
