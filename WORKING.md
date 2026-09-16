@@ -431,6 +431,78 @@ Reaching a scene and having it set up are different things, and reading the
 scene log as proof of both is what cost an entire evening.
 
 
+## ⛔ The replay-based spectate is OUT of the live build - 2026-09-16
+
+Removed on the advice of Fizzi, who wrote Slippi:
+
+> "I don't think trying to merge the replay based broadcast system with in-game
+> stuff is a good idea. Probably will add a lot of complexity and be fairly jank.
+> It'd probably be better if they functioned the same as the players in the game
+> but don't send inputs and operated on delay based netcode effectively"
+
+> "I recommend you scrap the broadcast idea. If the spectators are the one
+> desyncing, you should just make it so they never need to fast forward by
+> effectively setting the amount of rollback frame to zero."
+
+Two days of evidence agree. Every bug after the merge was a SEAM bug, not a
+spectating bug - the watching itself always worked. The playback major's think
+is a blocking loop, both majors share the persistent heaps and the preload
+cache, and the return is where the room module fails to rebind.
+
+**Restore point: `git tag pre-unmerge/replay-spectate`** (both remotes). That
+state spectates correctly and cannot get back out.
+
+### What the unmerge was
+
+Smaller than it looks, because the merge had MOVED the original rather than
+rewritten it:
+
+* `Online/Superseded/InitOnlinePlay.asm` -> `Online/Core/InitOnlinePlay.asm`.
+  `Online/Core` is built recursively, so the online body owns `0x8016e748`
+  again exactly as before.
+* Dropped both Playback sections from `netplay.json` and
+  `$Required: Slippi Playback` from each regional ini. That takes
+  `Peppy/Playback/StartMelee.asm` - the 917-line merged dispatch - out with
+  them, since it was the only `Peppy/` entry in the build.
+* Nothing else referenced playback in built code: only comments and an unused
+  `.set SCENE_PLAYBACK_IN_GAME`.
+
+Codeset went 175887 -> 163618 bytes; `grep "Slippi Playback"` on the built ini
+returns nothing.
+
+### Most of Fizzi's architecture is still in the tree
+
+It was built, then abandoned for the replay approach. The caller is gone; the
+rest compiles and is wired together:
+
+| piece | state |
+|---|---|
+| `PeppyWatchRemotePad` in `prepareOpponentInputs` | **live** - feeds Melee by Slippi's own input path |
+| `s_timeline` - frame store, waits for complete frames | intact |
+| `PeppyWatch(endpoint)` - receives pads over ENet | intact, **never called** |
+| broadcaster side - sending pads to watchers | **gone** |
+
+⚠️ `ROLLBACK_MAX_FRAMES` is a `#define 7` used in buffer sizing AND in the
+watcher's own pad loop:
+
+    tx.resize(SLIPPI_PAD_FULL_SIZE * ROLLBACK_MAX_FRAMES, 0);
+    for (s32 f = latest; f > latest - ROLLBACK_MAX_FRAMES && ...; f--)
+
+A literal 0 emits NO pads and sizes the buffer to nothing. The translation of
+"set rollback to zero" here is **1** - one frame, no speculation.
+
+⚠️ `s_timeline.Expect(s_selections.Count())` already refuses to simulate a frame
+until every player's pads have arrived - which is delay-based behaviour, added
+to fix the exact desync Fizzi is describing. Part of the suggestion may already
+be in. Worth asking before changing it.
+
+### Why this should work where the merge did not
+
+A spectator that behaves like a player inherits the room -> match -> room path,
+which is PROVEN: Alpha and Bravo play, the match ends, both land back in the
+room and the queue rotates. No second major, no module to rebind, no shared
+heap, and no 2-second lag, because nothing is replaying a file being written.
+
 ## ⛔ CORRECTION: the module does NOT arrive on a spectator's return
 
 This overturns "Every destination arrives broken - it is the EXIT, not the
