@@ -71,9 +71,61 @@ static int   s_said_hello;
 
 /* -------------------------------------------------------------- the module */
 
-void room_load(void)
+/* Where SceneLoad_ClassicModeSplash reads what to build, measured off its own
+ * disassembly rather than assumed:
+ *
+ *     +0x10   character one, external id
+ *     +0x11   character two
+ *
+ * If EITHER is 0x1a - 26, "nobody" - it sets the done flag and builds nothing,
+ * which is most of the time in a room and would look exactly like a failure.
+ * So a real pair goes in before the call. */
+#define SPLASH_CHAR_1 0x10
+#define SPLASH_CHAR_2 0x11
+#define SPLASH_NOBODY 0x1a
+
+/* Hardcoded on purpose, and temporary: this is the first test of whether the
+ * splash will build inside the room's scene at all. Fox and Marth because they
+ * are unmistakable on screen - two characters here means it worked, and no
+ * amount of log reading proves that as well as looking. The real pair comes
+ * from the room's state once there is a room tick to carry it. */
+#define PROBE_CHAR_1 0x02
+#define PROBE_CHAR_2 0x09
+
+void room_load(void *scene)
 {
     room_log("[Rooms] room scene load");
+
+    /* Build the splash BEFORE anything of ours exists.
+     *
+     * This is the whole difference from the old room, which entered a scene
+     * that already had a splash in it and then destroyed everything it did not
+     * recognise - including the GObj carrying VSSplash_Think, which is the
+     * thing that builds the characters. It kept the camera and deleted the
+     * renderer, then concluded the models could not be rendered.
+     *
+     * Building it ourselves gets the camera AND the models, constructed the way
+     * Melee does it every match. Our text goes on top afterwards rather than
+     * pruning underneath.
+     *
+     * `scene` is the minor data Melee handed us - the same pointer the splash's
+     * own load expects. Calling it with no argument leaves whatever was last in
+     * r3, which works by luck on a fresh entry and not at all otherwise. */
+    if (scene)
+    {
+        u8 *d = (u8 *)scene;
+
+        d[SPLASH_CHAR_1] = PROBE_CHAR_1;
+        d[SPLASH_CHAR_2] = PROBE_CHAR_2;
+        SceneLoad_ClassicModeSplash(scene);
+        room_log("[Rooms] splash built");
+    }
+    else
+    {
+        /* Said plainly. Without the minor data there is no camera, and every
+         * later symptom is a consequence of this one line. */
+        room_log("[Rooms] no minor data - no camera, the room will be black");
+    }
 
     s_text = Text_CreateStruct(0, 0);
     if (!s_text)
