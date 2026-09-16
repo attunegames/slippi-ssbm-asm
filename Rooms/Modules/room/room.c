@@ -80,6 +80,7 @@ static void *s_text;
 static int   s_line = -1;
 static int   s_said_hello;
 static int   s_frames;
+static int   s_probes;
 
 /* -------------------------------------------------------------- the module */
 
@@ -195,6 +196,92 @@ static void room_report_cams(void)
         p = room_put_i(p, (int)vp[1]); *p++ = ' ';
         p = room_put_i(p, (int)vp[2]); *p++ = ' ';
         p = room_put_i(p, (int)vp[3]);
+        *p = 0;
+        room_log(line);
+    }
+}
+
+static char *room_put_x(char *p, u32 v)
+{
+    static const char hex[] = "0123456789abcdef";
+    int i;
+
+    for (i = 28; i >= 0; i -= 4)
+        *p++ = hex[(v >> i) & 0xF];
+    return p;
+}
+
+/* Find every camera, rather than the ones that happen to keep their CObj where
+ * this expected it.
+ *
+ * Class 20 holds FIVE GObjs and only two of them have anything at +0x28, which
+ * is where GObj_AddObject is supposed to park the object. Those two are banded,
+ * hold their viewport perfectly, and the fighters ignore them - so the fighters
+ * belong to one of the other three, and the assumption to question is the
+ * offset, not the banding.
+ *
+ * So: for each camera GObj, walk its first few words, and for any that could be
+ * a RAM pointer, look at what it points at and ask whether it looks like a
+ * CObj. A CObj carries its viewport at +0x0C, and a viewport is four floats
+ * describing a rectangle that is the right way round and screen-sized. That is
+ * a specific enough shape to recognise without knowing the struct.
+ *
+ * Self-validating on purpose. If this prints nothing, the guess was wrong and
+ * nothing has been broken to find that out. */
+#define ROOM_GOBJ_SCAN_END 0x50
+
+static int room_ptr_ok(u32 v)
+{
+    return v >= 0x80000000u && v < 0x81800000u && (v & 3u) == 0u;
+}
+
+static int room_looks_like_viewport(const float *vp)
+{
+    return vp[1] - vp[0] >= 16.0f && vp[3] - vp[2] >= 16.0f
+        && vp[0] > -1000.0f && vp[2] > -1000.0f
+        && vp[1] < 2000.0f && vp[3] < 2000.0f;
+}
+
+static void room_probe_cams(void)
+{
+    void **heads = rooms_gobj_heads();
+    void *g;
+    int idx = 0;
+
+    if (!heads)
+        return;
+
+    for (g = heads[ROOM_CLASS_CAMERA]; g; g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+    {
+        char line[120];
+        char *p = line;
+        int off;
+
+        p = room_put(p, "[Rooms] g");
+        p = room_put_i(p, idx++);
+        p = room_put(p, " at ");
+        p = room_put_x(p, (u32)g);
+
+        for (off = 0x10; off < ROOM_GOBJ_SCAN_END; off += 4)
+        {
+            u32 v = *(const u32 *)((const char *)g + off);
+            const float *vp;
+
+            if (!room_ptr_ok(v))
+                continue;
+            vp = (const float *)(u32)(v + ROOM_COBJ_VIEWPORT);
+            if (!room_looks_like_viewport(vp))
+                continue;
+            if (p - line > 84)
+                break;
+            *p++ = ' '; *p++ = '+';
+            p = room_put_x(p, (u32)off);
+            *p++ = ' ';
+            p = room_put_i(p, (int)vp[0]); *p++ = ',';
+            p = room_put_i(p, (int)vp[1]); *p++ = ',';
+            p = room_put_i(p, (int)vp[2]); *p++ = ',';
+            p = room_put_i(p, (int)vp[3]);
+        }
         *p = 0;
         room_log(line);
     }
@@ -379,6 +466,13 @@ void room_think(void)
         s_frames = 0;
         room_report_cams();
         room_report_classes();
+        /* Three times and then quiet: it is five lines a go and the answer
+         * does not change once the fighters are in. */
+        if (s_probes < 3)
+        {
+            s_probes++;
+            room_probe_cams();
+        }
     }
 
     room_band_to_top();
