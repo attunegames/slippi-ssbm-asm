@@ -79,6 +79,7 @@ static const u32 COL_WHITE = 0xFFFFFFFF;
 static void *s_text;
 static int   s_line = -1;
 static int   s_said_hello;
+static int   s_frames;
 
 /* -------------------------------------------------------------- the module */
 
@@ -131,6 +132,112 @@ static int   s_said_hello;
 #define VIEW_RIGHT  (VIEW_LEFT + VIEW_W)
 
 static int s_banded = -1;
+
+/* ------------------------------------------------------- saying what is there
+ *
+ * There is no printf in here, and the answers on this project have all come out
+ * of the log, so it is worth the thirty lines. */
+static char *room_put(char *p, const char *s)
+{
+    while (*s)
+        *p++ = *s++;
+    return p;
+}
+
+static char *room_put_i(char *p, int v)
+{
+    char tmp[12];
+    int n = 0;
+
+    if (v < 0) { *p++ = '-'; v = -v; }
+    do { tmp[n++] = (char)('0' + (v % 10)); v /= 10; } while (v);
+    while (n)
+        *p++ = tmp[--n];
+    return p;
+}
+
+/* Read the viewport back OUT of each camera, before anything is written to it.
+ *
+ * The question this exists to settle: the room writes a 320x240 viewport into
+ * every camera it can find, every frame, and the fighters still draw at full
+ * size down the whole screen. Either the write is not sticking - something
+ * resets these between our think and the draw - or it is sticking and the
+ * fighters are not drawn through any camera on this list. Those need opposite
+ * fixes, and they look identical on screen.
+ *
+ * Ints, because the log takes a string and 320 is as much precision as this
+ * question needs. */
+#define ROOM_COBJ_VIEWPORT 0x0C
+
+static void room_report_cams(void)
+{
+    void **heads = rooms_gobj_heads();
+    void *g;
+    int idx = 0;
+
+    if (!heads)
+        return;
+
+    for (g = heads[ROOM_CLASS_CAMERA]; g; g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+    {
+        void *cobj = *(void **)((char *)g + ROOMS_GOBJ_OBJECT);
+        const float *vp;
+        char line[96];
+        char *p = line;
+
+        if (!cobj)
+            continue;
+        vp = (const float *)((const char *)cobj + ROOM_COBJ_VIEWPORT);
+        p = room_put(p, "[Rooms] cam ");
+        p = room_put_i(p, idx++);
+        p = room_put(p, " vp ");
+        p = room_put_i(p, (int)vp[0]); *p++ = ' ';
+        p = room_put_i(p, (int)vp[1]); *p++ = ' ';
+        p = room_put_i(p, (int)vp[2]); *p++ = ' ';
+        p = room_put_i(p, (int)vp[3]);
+        *p = 0;
+        room_log(line);
+    }
+}
+
+/* Which GObj classes have anything in them.
+ *
+ * Two cameras were found and banded and the fighters ignored both. The old room
+ * counted FIVE cameras on this same screen, so either this scene is built
+ * differently or the walk is missing some - and if the fighters are drawn from
+ * a class this does not know about, that shows up here as a populated class
+ * nobody has accounted for. Cheap, and printed once. */
+static void room_report_classes(void)
+{
+    void **heads = rooms_gobj_heads();
+    char line[112];
+    char *p = line;
+    int c;
+
+    if (!heads)
+        return;
+
+    p = room_put(p, "[Rooms] class:n");
+    for (c = 0; c < 32; c++)
+    {
+        void *g;
+        int n = 0;
+
+        for (g = heads[c]; g; g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+            if (++n > 99)
+                break;
+        if (!n)
+            continue;
+        if (p - line > 92)
+            break;
+        *p++ = ' ';
+        p = room_put_i(p, c);
+        *p++ = ':';
+        p = room_put_i(p, n);
+    }
+    *p = 0;
+    room_log(line);
+}
 
 static void room_band_to_top(void)
 {
@@ -265,6 +372,15 @@ void room_think(void)
      * Cheap, and deliberately so: it walks a short list and stores floats.
      * That is not FN_LoadMatchState, which allocated on every call and took the
      * room down after thirty-six seconds every time. */
+    /* Once a second, and BEFORE the re-band, so what gets printed is whatever
+     * survived the last frame rather than what we just wrote. */
+    if (++s_frames >= 60)
+    {
+        s_frames = 0;
+        room_report_cams();
+        room_report_classes();
+    }
+
     room_band_to_top();
 
     if (s_line >= 0)
