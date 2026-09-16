@@ -238,6 +238,21 @@ void JOBJ_RemoveAnimAll(void *jobj);
 #define ROOMS_JOBJ_CHILD 0x0C
 #define ROOMS_JOBJ_FLAGS 0x14
 
+/* NOW LOADING.
+ *
+ * Not part of the splash's model tree at all, which is why it survived both a
+ * flag sweep and a full-tree animation sweep. It is a SIS string - one of
+ * Melee's language-switched premade texts - built by the routine at 0x80186080
+ * during the splash's load and parked in the splash's state at +0x1C.
+ *
+ * Scaled to nothing rather than destroyed. Text_Destroy would free it, and the
+ * scene's Leave is still the splash's own, so it would free it a second time on
+ * the way out of the room. VSSplash_Think never reads +0x1C, so nothing puts
+ * the size back. */
+#define ROOMS_SPLASH_STATE  0x804735A8
+#define ROOMS_SPLASH_SISTEXT 0x1C
+void Text_SetScale(void *text, float x, float y);
+
 void GObj_Destroy(void *gobj);
 void GObj_DestroyGXLink(void *gobj);
 void GObj_AddGXLink(void *gobj, void *callback, int link, int priority);

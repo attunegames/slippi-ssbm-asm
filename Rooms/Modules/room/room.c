@@ -392,6 +392,23 @@ void room_load(void *scene)
     {
         SceneLoad_ClassicModeSplash(scene);
         room_log("[Rooms] splash built");
+
+        /* NOW LOADING, collapsed to nothing. It is a text object, not part of
+         * the model tree - which is exactly why hiding JObjs never touched it,
+         * through a flag sweep and a whole-tree animation sweep both. */
+        {
+            void *sis = *(void **)(ROOMS_SPLASH_STATE + ROOMS_SPLASH_SISTEXT);
+
+            if (sis)
+            {
+                Text_SetScale(sis, 0.0f, 0.0f);
+                room_log("[Rooms] now loading scaled away");
+            }
+            else
+            {
+                room_log("[Rooms] no sis text - now loading is somewhere else");
+            }
+        }
         room_count_cams();
     }
     else
