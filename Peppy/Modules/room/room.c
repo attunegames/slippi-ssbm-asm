@@ -1882,12 +1882,15 @@ static void peppy_room_camera_covers_text(void)
     link = *(u8 *)((char *)text_gobj + PEPPY_GOBJ_LINK);
     text_bit = 1u << (link & 31);
 
+    /* Counted, not changed. Adding the text's link to Coming Soon's camera was
+     * tried and does not work: the log said "lit 1 camera(s) for textlink 0"
+     * and the room was still black, so the GXLink was never what stopped that
+     * scene's camera drawing our text. Left as a reading, because which camera
+     * a borrowed scene hands over is worth knowing. */
+    (void)text_bit;
     for (g = heads[PEPPY_CLASS_CAMERA]; g;
          g = *(void **)((char *)g + PEPPY_GOBJ_NEXT))
-    {
-        *(u32 *)((char *)g + PEPPY_GOBJ_LINKS0) |= text_bit;
         lit++;
-    }
 
     {
         char line[48];
@@ -1965,8 +1968,8 @@ void peppy_room_load(void *scene)
      *
      * Tried twice: with that scene's own minor data, and with the scene pointer
      * this load is handed. Same both times, so it is not the argument. */
-    /* ⛔ NOT SceneLoad_ClassicModeSplash. It is what broke the way back from
-     * spectating.
+    /* ⚠️ The splash's load is what breaks the way back from spectating - and it
+     * is also the only base the room has ever drawn on. Both are true.
      *
      * That load reaches Load_TyDatai_usd, and a disc read is spread across
      * frames that only the scene machinery runs - the same trap this file
@@ -1978,10 +1981,12 @@ void peppy_room_load(void *scene)
      * "room scene built" never is. Black screen, or a crash into the part of
      * the module that never ran.
      *
-     * Coming Soon loads nothing and gives a camera, which is all a room wants
-     * from a borrowed scene. The text it could not draw is dealt with below. */
-    (void)scene;
-    SceneLoad_ComingSoon();
+     * ⛔ Coming Soon was tried as the replacement and does NOT work, even with
+     * the text's own GXLink added to the camera it provides: "lit 1 camera(s)
+     * for textlink 0" and a black room, on a plain entry from the menu. So the
+     * link was never what stopped it, and the room goes back to the splash
+     * until the way back from spectating is solved somewhere else. */
+    SceneLoad_ClassicModeSplash(scene);
     /* The sweep is what kept the borrowed scene's own artwork off the screen -
      * the 1-P Mode furniture that has no business in a room. But once the block
      * above is filled in, the things it would sweep away ARE the two characters
