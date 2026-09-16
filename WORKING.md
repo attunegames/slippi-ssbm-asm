@@ -396,6 +396,30 @@ is not the transition. Specifically ruled out, each by a test:
 * loading the room's backdrop from the scene prep - ⛔ this BREAKS room creation
   outright, a prep cannot call another scene's load
 
+### Every destination arrives broken - it is the EXIT, not the destination
+
+    the room            module transferred in full, never bound - black screen
+    character select    dies inside SlippiCSS.dat (float read as a pointer)
+    the main menu       reaches it, Charlie still queued, invalid instruction ~2s later
+    playback as a minor same, from every predecessor
+
+Four destinations, four different failures, and an evening spent asking which
+destination was wrong. What they share is that they were all entered FROM the
+playback major. Whatever that scene leaves behind is what breaks the next one.
+
+Things that sounded like the answer and were not, each tested:
+
+* the overclock. The catch-up IS one - `setHardFFW` sets `m_OCEnable` and
+  `m_OCFactor = 4.0`, and only `setHardFFW(false)` puts it back, so a watch that
+  ends mid-catch-up hands the next scene a four-times CPU. That is a REAL bug and
+  the fix is kept. It is not this one: clearing it changed nothing.
+* Dolphin still serving the watched match's block after Melee had gone. Also
+  real, also fixed, also not it - the "Watch block slot 0/1" lines stopped and the
+  crash stayed.
+* ⛔ `SlippiSpectateClient::Stop()` from the EXI handler. Do NOT do this: it joins
+  the client thread and closes the replay file from the emulation thread, and
+  Dolphin dies silently mid-session. Flags only on that path.
+
 ### Where to look next
 
 What m-ex does between transferring the file and attaching think/load/leave to
