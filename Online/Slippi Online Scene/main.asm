@@ -370,7 +370,17 @@ bl PeppyTrainSSSDecide      #SceneDecide
 # that was no longer resident - an inline disc read that cannot finish, so the
 # room came back black or not at all.
 .byte 10                    #Minor Scene ID
-.byte 2                     #Amount of persistent heaps
+# 3, not the 2 DebugMelee declares.
+#
+# The count is how many heaps survive into this scene, and every other minor of
+# this major keeps 3 - the room and all of training. Carrying DebugMelee's 2
+# over freed the heap PeppyRoom.dat lives in, so coming back the module had to
+# be loaded again, while the scene still held function pointers into the copy
+# that had just been cleared. Executing those is "Unknown instruction 00000000"
+# in module space, and landing on them quietly is the black room.
+#
+# DebugMelee can say 2 because in that major there is nothing else to keep.
+.byte 3                     #Amount of persistent heaps
 .align 2
 .long 0x801b13b8            #ScenePrep, DebugMelee's own
 .long 0                     #SceneDecide - there is none
@@ -382,7 +392,7 @@ bl PeppyTrainSSSDecide      #SceneDecide
 # DebugMelee minor 3, common 7. This is where a watcher waits for the stream
 # and where it asks to come back to the room.
 .byte 11                    #Minor Scene ID
-.byte 2                     #Amount of persistent heaps
+.byte 3                     #Amount of persistent heaps
 .align 2
 .long 0x801b16a8            #ScenePrep, DebugMelee's own
 .long 0                     #SceneDecide - there is none
