@@ -65,6 +65,17 @@ static void room_log(const char *msg)
  * moving everything twice. */
 static const u32 COL_WHITE = 0xFFFFFFFF;
 
+/* The old room's palette, and the reason there is more than one colour here.
+ *
+ * ⚠️ A subtext's colour is fixed WHEN IT IS CREATED. There is no way to recolour
+ * one by rewriting its text, which is why joining the queue has to be TWO
+ * subtexts sitting in the same place - a white one offering it and a green one
+ * saying it is done - with whichever does not apply blanked. Swapping the
+ * string alone leaves it white, which is the version that shipped. */
+static const u32 COL_DONE = 0x33FF2FFF;   /* green: this one is done */
+static const u32 COL_WAIT = 0x3CBCFFFF;   /* blue: waiting on you */
+static const u32 COL_GRAY = 0x8E9196FF;
+
 /* Position is in canvas units running roughly 0..640 across and 0..480 down,
  * with the origin near the TOP-LEFT - not the centre-origin the character
  * select uses.
@@ -110,20 +121,24 @@ static int   s_state_line = -1;
 static int   s_name_l = -1;
 static int   s_name_r = -1;
 static int   s_queue_line[ROOMS_STATE_MAX_QUEUE];
-static int   s_act_sym = -1;
-static int   s_act_line = -1;
-static int   s_next_sym = -1;
-static int   s_next_line = -1;
+static int   s_join_sym = -1;    /* blue x, while it is still to do  */
+static int   s_join_line = -1;   /* white, offering the queue        */
+static int   s_done_sym = -1;    /* green -, once you are in it      */
+static int   s_done_line = -1;   /* green, saying so                 */
+static int   s_next_sym = -1;    /* blue +, what you can do next     */
+static int   s_next_line = -1;   /* gray, offering practice          */
 
 /* The two action lines, on the right of the plate so they do not collide with
  * the queue running down the left. The symbol sits in its own subtext ahead of
  * the words, which is how the old room did it - one line can then change its
  * symbol without redrawing the sentence. */
-#define ROOM_ACT_SYM_X   360.0f
-#define ROOM_ACT_X       390.0f
+/* Moved left and down a size from the first attempt, where "Press START to
+ * Practice" ran off the right-hand edge and read "Press START to Pr". */
+#define ROOM_ACT_SYM_X   292.0f
+#define ROOM_ACT_X       320.0f
 #define ROOM_ACT_Y       440.0f
 #define ROOM_ACT_STEP     26.0f
-#define ROOM_ACT_SZ        0.5f
+#define ROOM_ACT_SZ       0.45f
 
 /* The queue, down the left of the plate, under the players. Six lines because
  * that is what the reply carries; a seventh person is in the room and in the
@@ -448,14 +463,21 @@ static void room_draw_queue(void)
 static int s_queued;
 static int s_spin_frame;
 
+/* Two lines in the same place, one blanked. That is how the colour changes. */
 static void room_show_actions(void)
 {
-    if (s_act_sym >= 0)
-        Text_UpdateSubtextContents(s_text, s_act_sym, "%s",
-                                   s_queued ? SYM_DONE : SYM_TODO);
-    if (s_act_line >= 0)
-        Text_UpdateSubtextContents(s_text, s_act_line, "%s",
-                                   s_queued ? STR_IN_QUEUE : STR_JOIN);
+    if (s_join_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_join_sym, "%s",
+                                   s_queued ? "" : SYM_TODO);
+    if (s_join_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_join_line, "%s",
+                                   s_queued ? "" : STR_JOIN);
+    if (s_done_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_done_sym, "%s",
+                                   s_queued ? SYM_DONE : "");
+    if (s_done_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_done_line, "%s",
+                                   s_queued ? STR_IN_QUEUE : "");
     if (s_next_sym >= 0)
         Text_UpdateSubtextContents(s_text, s_next_sym, "%s",
                                    s_queued ? SYM_NEXT : "");
@@ -467,10 +489,10 @@ static void room_show_actions(void)
 
 static void room_spin(void)
 {
-    if (s_queued || s_act_sym < 0)
+    if (s_queued || s_join_sym < 0)
         return;
     if (s_spin_frame % SPINNER_FRAMES == 0)
-        Text_UpdateSubtextContents(s_text, s_act_sym, "%s",
+        Text_UpdateSubtextContents(s_text, s_join_sym, "%s",
                                    (s_spin_frame / SPINNER_FRAMES) ? SYM_TODO
                                                                    : SYM_NEXT);
     s_spin_frame = (s_spin_frame + 1) % (2 * SPINNER_FRAMES);
@@ -839,14 +861,19 @@ void room_load(void *scene)
                 ROOM_QUEUE_X, ROOM_QUEUE_Y + (float)i * ROOM_QUEUE_STEP);
     }
 
-    s_act_sym = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0, "",
-                                 ROOM_ACT_SZ, ROOM_ACT_SYM_X, ROOM_ACT_Y);
-    s_act_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0, "",
-                                  ROOM_ACT_SZ, ROOM_ACT_X, ROOM_ACT_Y);
-    s_next_sym = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0, "",
+    s_join_sym = FG_CreateSubtext(s_text, &COL_WAIT, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                  ROOM_ACT_SZ, ROOM_ACT_SYM_X, ROOM_ACT_Y);
+    s_join_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                   ROOM_ACT_SZ, ROOM_ACT_X, ROOM_ACT_Y);
+    /* Same place as the two above, green instead of white. */
+    s_done_sym = FG_CreateSubtext(s_text, &COL_DONE, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                  ROOM_ACT_SZ, ROOM_ACT_SYM_X, ROOM_ACT_Y);
+    s_done_line = FG_CreateSubtext(s_text, &COL_DONE, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                   ROOM_ACT_SZ, ROOM_ACT_X, ROOM_ACT_Y);
+    s_next_sym = FG_CreateSubtext(s_text, &COL_WAIT, ROOMS_SUBTEXT_PLAIN, 0, "",
                                   ROOM_ACT_SZ, ROOM_ACT_SYM_X,
                                   ROOM_ACT_Y + ROOM_ACT_STEP);
-    s_next_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0, "",
+    s_next_line = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
                                    ROOM_ACT_SZ, ROOM_ACT_X,
                                    ROOM_ACT_Y + ROOM_ACT_STEP);
 
