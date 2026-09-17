@@ -109,6 +109,15 @@ static void *s_text;
 static int   s_state_line = -1;
 static int   s_name_l = -1;
 static int   s_name_r = -1;
+static int   s_queue_line[ROOMS_STATE_MAX_QUEUE];
+
+/* The queue, down the left of the plate, under the players. Six lines because
+ * that is what the reply carries; a seventh person is in the room and in the
+ * queue, just not on the screen yet. */
+#define ROOM_QUEUE_X      60.0f
+#define ROOM_QUEUE_Y     430.0f
+#define ROOM_QUEUE_STEP   22.0f
+#define ROOM_QUEUE_SZ      0.45f
 static int   s_line = -1;
 static int   s_said_hello;
 static int   s_frames;
@@ -293,6 +302,109 @@ static void room_hide_loading(void)
  * so the splash's own Leave still has everything it expects on the way out.
  */
 #define ROOM_TEXT_GX  ((void *)0x803A84BC)
+/* ---------------------------------------------------------- the room state --
+ *
+ * Asked for by writing one command byte and reading the reply straight back,
+ * the same write-then-read the file loader uses. The layout is in rooms.h, and
+ * a copy of it lives in Dolphin's EXI_DeviceSlippi.h - change both.
+ *
+ * ⚠️ 32-byte aligned, because this is a DMA target.
+ *
+ * Not every frame. A tick lands every couple of seconds, so asking sixty times
+ * a second is fifty-nine reads of the same bytes and an EXI transfer each time.
+ */
+#define ROOM_STATE_EVERY 30   /* frames - twice a second */
+
+static u8 s_state_buf[ROOMS_STATE_SIZE] __attribute__((aligned(32)));
+static int s_have_state;
+
+static void room_fetch_state(void)
+{
+    u8 *cmd = rooms_exi_buf;
+
+    cmd[0] = CONST_SlippiCmdRoomState;
+    FN_EXITransferBuffer(cmd, 1, CONST_ExiWrite);
+    FN_EXITransferBuffer(s_state_buf, ROOMS_STATE_SIZE, CONST_ExiRead);
+
+    if (!s_have_state && (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_VALID))
+    {
+        /* Once, and worth saying: it is the first proof that anything the room
+         * knows has reached the game. */
+        s_have_state = 1;
+        room_log("[Rooms] room state is coming through");
+    }
+}
+
+/* One line saying what the room is doing, which is the thing a test needs to
+ * see. Numbers rather than prose while this is being proved out: "3 queued,
+ * you are 2nd" is a sentence, but "Q3 L0 #2" cannot be misread. */
+static void room_draw_status(void)
+{
+    const u8 *st = s_state_buf;
+    char line[48];
+    char *p = line;
+
+    if (!(st[ROOMS_STATE_FLAGS] & ROOMS_FLAG_VALID))
+    {
+        room_put(room_put(line, "no room"), "");
+        line[7] = 0;
+    }
+    else
+    {
+        *p++ = 'Q';
+        p = room_put_i(p, st[ROOMS_STATE_QUEUE_N]);
+        p = room_put(p, "  L");
+        p = room_put_i(p, st[ROOMS_STATE_LOBBY_N]);
+        p = room_put(p, "  #");
+        p = room_put_i(p, st[ROOMS_STATE_POSITION]);
+
+        /* The two the band is about, and whether they are actually playing -
+         * which is the difference between an arranged pair and a live match,
+         * and what decides whether the band shows fighters at all. */
+        if (st[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING)
+            p = room_put(p, "  LIVE");
+        p = room_put(p, "  P");
+        p = room_put_i(p, st[ROOMS_STATE_HOST_CHAR]);
+        p = room_put(p, "/");
+        p = room_put_i(p, st[ROOMS_STATE_GUEST_CHAR]);
+        p = room_put(p, "  ST");
+        p = room_put_i(p, st[ROOMS_STATE_STAGE]);
+        *p = 0;
+    }
+
+    if (s_state_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_state_line, "%s", line);
+}
+
+/* The two the room is playing, on the plate where the character names were.
+ * Blank when nobody is - the reply keeps every slot at a fixed offset and
+ * leaves the unused ones empty, so there is nothing to test for here. */
+static void room_draw_players(void)
+{
+    if (s_name_l >= 0)
+        Text_UpdateSubtextContents(s_text, s_name_l, "%s",
+                                   rooms_state_name(s_state_buf, 0));
+    if (s_name_r >= 0)
+        Text_UpdateSubtextContents(s_text, s_name_r, "%s",
+                                   rooms_state_name(s_state_buf, 1));
+}
+
+/* The queue, down the left. Names 2 upwards are the queue, in the order the
+ * room will actually pair them - pd_tick sorts it the same way it picks, on
+ * purpose, so this list and the next match cannot disagree. */
+static void room_draw_queue(void)
+{
+    int i;
+
+    for (i = 0; i < ROOMS_STATE_MAX_QUEUE; i++)
+    {
+        if (s_queue_line[i] < 0)
+            continue;
+        Text_UpdateSubtextContents(s_text, s_queue_line[i], "%s",
+                                   rooms_state_name(s_state_buf, 2 + i));
+    }
+}
+
 #define ROOM_MAX_TEXT 8
 
 static void *s_our_text_gobj;
@@ -595,14 +707,23 @@ void room_load(void *scene)
     /* Outlined rather than plain: this font has no bold, and an outline is the
      * nearest thing to one that it does have. */
     s_state_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_OUTLINE, 0,
-                                    "DRAFTING", ROOM_STATE_SZ,
+                                    "", ROOM_STATE_SZ,
                                     ROOM_STATE_X, ROOM_STATE_Y);
     s_name_l = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0,
-                                "Player 1", ROOM_NAME_SZ,
+                                "", ROOM_NAME_SZ,
                                 ROOM_NAME_L_X, ROOM_NAME_Y);
     s_name_r = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0,
-                                "Player 2", ROOM_NAME_SZ,
+                                "", ROOM_NAME_SZ,
                                 ROOM_NAME_R_X, ROOM_NAME_Y);
+
+    {
+        int i;
+
+        for (i = 0; i < ROOMS_STATE_MAX_QUEUE; i++)
+            s_queue_line[i] = FG_CreateSubtext(
+                s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0, "", ROOM_QUEUE_SZ,
+                ROOM_QUEUE_X, ROOM_QUEUE_Y + (float)i * ROOM_QUEUE_STEP);
+    }
 
     /* Ours is whichever text GObj was not there a moment ago; everything else
      * drawing text belongs to the splash and stops now. */
@@ -661,6 +782,14 @@ void room_think(void)
         room_report_cams();
         room_report_classes();
         room_report_gobjs();
+    }
+
+    if (s_frames % ROOM_STATE_EVERY == 0)
+    {
+        room_fetch_state();
+        room_draw_status();
+        room_draw_players();
+        room_draw_queue();
     }
 
     if (s_line >= 0)

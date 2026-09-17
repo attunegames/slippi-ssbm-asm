@@ -317,6 +317,63 @@ static inline u32 rooms_pad_pressed(void)
 #define CONST_ExiWrite 1
 
 void FN_EXITransferBuffer(void *buf, int len, int mode);
+
+/* ------------------------------------------------------------- room state --
+ *
+ * What CMD_ROOM_STATE hands back. Ask by writing the command byte, then read
+ * this many bytes straight back - the same write-then-read the file loader uses.
+ *
+ * ⚠️ THIS LAYOUT IS DUPLICATED BY HAND in Dolphin's EXI_DeviceSlippi.h. There is
+ * no shared header: one side is C++ built for the host, this side is PowerPC
+ * built for Melee. A field added there and not here does not fail to build - it
+ * reads the wrong bytes and draws nonsense. Change both.
+ *
+ *   +0x00  u8  flags        bit0 valid, bit1 a match is actually being played
+ *   +0x01  u8  queue count
+ *   +0x02  u8  lobby count
+ *   +0x03  u8  our place in the queue, 1-based, 0 = not queued
+ *   +0x04  u8  host character      0xFF = has not picked
+ *   +0x05  u8  host costume
+ *   +0x06  u8  guest character     0xFF = has not picked
+ *   +0x07  u8  guest costume
+ *   +0x08  u8  stage               0xFF = not picked
+ *   +0x09  u8  pad[3]
+ *   +0x0C      names, 32 bytes each: the two playing, then 6 queue, then 6
+ *              lobby. Blank rather than absent, so every slot keeps its offset.
+ *
+ * ⚠️ 0xFF for "not picked", never 0 - internal character 0 is Captain Falcon
+ * and 0 is a real stage. */
+#define ROOMS_STATE_NAME_LEN  32
+#define ROOMS_STATE_MAX_QUEUE 6
+#define ROOMS_STATE_MAX_LOBBY 6
+#define ROOMS_STATE_NAMES     (2 + ROOMS_STATE_MAX_QUEUE + ROOMS_STATE_MAX_LOBBY)
+#define ROOMS_STATE_HEADER    12
+#define ROOMS_STATE_SIZE      (ROOMS_STATE_HEADER + ROOMS_STATE_NAMES * ROOMS_STATE_NAME_LEN)
+
+#define ROOMS_STATE_FLAGS     0x00
+#define ROOMS_STATE_QUEUE_N   0x01
+#define ROOMS_STATE_LOBBY_N   0x02
+#define ROOMS_STATE_POSITION  0x03
+#define ROOMS_STATE_HOST_CHAR 0x04
+#define ROOMS_STATE_HOST_COL  0x05
+#define ROOMS_STATE_GUEST_CHAR 0x06
+#define ROOMS_STATE_GUEST_COL 0x07
+#define ROOMS_STATE_STAGE     0x08
+
+#define ROOMS_FLAG_VALID   0x01
+#define ROOMS_FLAG_PLAYING 0x02
+#define ROOMS_NOT_PICKED   0xFF
+
+/* Melee's own "nobody", which SceneLoad_ClassicModeSplash checks for and then
+ * builds nothing at all. That is the room's empty band, and it is one byte. */
+#define ROOMS_CHAR_NOBODY  26
+
+/* The name at index n: 0 and 1 are the two playing, then the queue, then the
+ * lobby. Shift-JIS and null-terminated, ready for the text calls. */
+static inline const char *rooms_state_name(const unsigned char *st, int n)
+{
+    return (const char *)st + ROOMS_STATE_HEADER + n * ROOMS_STATE_NAME_LEN;
+}
 /* Fills and returns the match state read buffer: the block Dolphin fills and
  * Melee reads, which is where the room's roster arrives.
  *

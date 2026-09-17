@@ -551,6 +551,11 @@ add \reg, r3, r4
 .set CONST_SlippiCmdRoomSetQueued,0xC6
 .set CONST_SlippiCmdRoomList,0xC7
 .set CONST_SlippiCmdRoomJoin,0xC8
+# Ask for the room, then read the reply back. The layout of that reply is
+# written out in Dolphin's EXI_DeviceSlippi.h and again in the module's
+# rooms.h - there is no shared header between a host build and a PowerPC one,
+# so a change to one and not the other reads wrong bytes silently.
+.set CONST_SlippiCmdRoomState,0xC9
 .set CONST_SlippiCmdFetchRank,0xE4
 # For Slippi file loads
 .set CONST_SlippiCmdFileLength, 0xD1
