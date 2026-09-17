@@ -61,7 +61,11 @@ def main(sources, out, prefixes):
 
 
 if __name__ == "__main__":
-    kept = main(sys.argv[1:-1], sys.argv[-1], ("MSRB_", "CSSDT_", "ONLINE_MODE_", "MM_STATE_"))
+    # CONST_SlippiCmd rather than CONST_, deliberately: rooms.h already defines
+    # CONST_ExiRead and CONST_ExiWrite by hand, and generating those as well
+    # would be a redefinition.
+    kept = main(sys.argv[1:-1], sys.argv[-1],
+                ("MSRB_", "CSSDT_", "ONLINE_MODE_", "MM_STATE_", "CONST_SlippiCmd"))
     for k in ("MSRB_ROSTER", "MSRB_ROSTER_SLOTS", "MSRB_ROSTER_STRIDE",
               "MSRB_ROOM_MODE", "MSRB_SIZE"):
         print(f"  {k:22s} {kept.get(k, 'unresolved')}")
