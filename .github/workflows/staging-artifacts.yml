@@ -47,6 +47,7 @@ jobs:
           path: |
             Output/Netplay/GALE01r2.ini
             Output/Netplay/GALJ01r2.ini
+            Output/InjectionLists/list_netplay.json
 
       - name: "Upload m-ex modules"
         if: steps.mex.outcome == 'success'
