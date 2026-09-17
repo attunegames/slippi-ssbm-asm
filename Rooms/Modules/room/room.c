@@ -529,6 +529,53 @@ static void room_practice(void)
     Scene_ExitMinor();
 }
 
+/* --------------------------------------------------------- off to a match --
+ *
+ * The room paired us with somebody, so ask Slippi to connect us to them and go
+ * to the draft.
+ *
+ * ⚠️ DIRECT, against the opponent's connect code. The room decides WHO plays
+ * WHO - that is the queue, the rotation, the winner staying - and Slippi's own
+ * servers make the introduction, exactly as they do for any direct match. This
+ * project owns no STUN, no NAT punching and no matchmaking server because of
+ * this one call.
+ *
+ * The code arrives already Shift-JIS: CMD_FIND_OPPONENT hands it to the
+ * matchmaking server in that encoding, so Dolphin converts on its side and this
+ * copies bytes.
+ *
+ * Once only. The tick keeps saying "ready" for as long as the pairing stands,
+ * and asking Slippi to find the same opponent sixty times would be sixty
+ * searches.
+ */
+#define ROOM_MODE_DIRECT 2
+
+static int s_match_started;
+
+static void room_start_match(void)
+{
+    u8 *cmd = rooms_exi_buf;
+    int i;
+
+    s_match_started = 1;
+
+    cmd[0] = CONST_SlippiCmdFindOpponent;
+    cmd[1] = ROOM_MODE_DIRECT;
+    for (i = 0; i < 18; i++)
+        cmd[2 + i] = s_state_buf[ROOMS_STATE_OPPCODE + i];
+    FN_EXITransferBuffer(cmd, 20, CONST_ExiWrite);
+
+    room_log("[Rooms] matched - asking Slippi to connect us");
+
+    /* Straight to the draft, which is Slippi's own game-prep scene and is
+     * already a minor of this major. It reads GamePrepData - how long the set
+     * is, the score, who won the last one - and every one of those is something
+     * the room knows. The connection finishes while it is on screen, the same
+     * way ranked does it. */
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_GAMESETUP);
+    Scene_ExitMinor();
+}
+
 static void room_buttons(void)
 {
     u32 pressed = rooms_pad_pressed();
@@ -1265,6 +1312,11 @@ void room_think(void)
             room_draw_status();
             room_draw_players();
             room_draw_queue();
+
+            /* Paired. Off to connect and draft. */
+            if (!s_match_started &&
+                (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_READY))
+                room_start_match();
         }
 
         if (s_browsing != s_was_browsing)

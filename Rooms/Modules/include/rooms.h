@@ -348,7 +348,14 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
 #define ROOMS_STATE_MAX_LOBBY 6
 #define ROOMS_STATE_NAMES     (2 + ROOMS_STATE_MAX_QUEUE + ROOMS_STATE_MAX_LOBBY)
 #define ROOMS_STATE_HEADER    12
-#define ROOMS_STATE_SIZE      (ROOMS_STATE_HEADER + ROOMS_STATE_NAMES * ROOMS_STATE_NAME_LEN)
+#define ROOMS_STATE_NAMES_END (ROOMS_STATE_HEADER + ROOMS_STATE_NAMES * ROOMS_STATE_NAME_LEN)
+
+/* The opponent's connect code, already Shift-JIS. Dolphin converts it, not us:
+ * CMD_FIND_OPPONENT wants Shift-JIS and hands it to the matchmaking server that
+ * way, so the module copies bytes and never has to know about encodings. */
+#define ROOMS_STATE_OPPCODE     ROOMS_STATE_NAMES_END
+#define ROOMS_STATE_OPPCODE_LEN 20
+#define ROOMS_STATE_SIZE        (ROOMS_STATE_NAMES_END + ROOMS_STATE_OPPCODE_LEN)
 
 #define ROOMS_STATE_FLAGS     0x00
 #define ROOMS_STATE_QUEUE_N   0x01
@@ -362,6 +369,9 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
 
 #define ROOMS_FLAG_VALID   0x01
 #define ROOMS_FLAG_PLAYING 0x02
+/* The pairing is on: go and connect. Distinct from PLAYING, which means a
+ * match is already under way and this client is watching it happen. */
+#define ROOMS_FLAG_READY   0x04
 #define ROOMS_NOT_PICKED   0xFF
 
 /* Melee's own "nobody", which SceneLoad_ClassicModeSplash checks for and then
