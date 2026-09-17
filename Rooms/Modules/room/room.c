@@ -646,6 +646,10 @@ static int s_browsing;
 /* Starts at "browsing", so the first frame always counts as a change: a room
  * entered directly still needs its band switched on and its actions drawn. */
 static int s_was_browsing = 1;
+/* ...but a room entered to BROWSE starts equal to it and so counted as no
+ * change at all, and never had its band switched OFF. The first decision is
+ * always acted on, whichever way it goes. */
+static int s_screen_known;
 
 static void room_fetch_list(void)
 {
@@ -1305,12 +1309,19 @@ void room_think(void)
         room_report_gobjs();
     }
 
-    /* No room means browsing. Joining one starts the heartbeat, the state goes
-     * valid, and the screen becomes a room without either side being told. */
-    if (s_frames % ROOM_STATE_EVERY == 0)
+    /* ⚠️ On the FIRST frame as well as every half second after it. Waiting for
+     * frame 30 to ask meant half a second of drawing whichever screen the last
+     * scene happened to leave behind, which is the room's own look - so Public
+     * opened as a room and then became a list.
+     *
+     * ⚠️ And the answer is ROOMS_FLAG_INROOM, not VALID. Valid means a tick has
+     * come BACK, which is another half second, so a room you had just made drew
+     * the public list until then. Both flashes, one cause: asking a question
+     * whose answer arrives late when there is one available immediately. */
+    if (s_frames == 1 || s_frames % ROOM_STATE_EVERY == 0)
     {
         room_fetch_state();
-        s_browsing = !(s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_VALID);
+        s_browsing = !(s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_INROOM);
 
         if (s_browsing)
         {
@@ -1343,8 +1354,9 @@ void room_think(void)
                 room_go_to_draft();
         }
 
-        if (s_browsing != s_was_browsing)
+        if (s_browsing != s_was_browsing || !s_screen_known)
             room_show_band(!s_browsing);
+        s_screen_known = 1;
         s_was_browsing = s_browsing;
     }
 

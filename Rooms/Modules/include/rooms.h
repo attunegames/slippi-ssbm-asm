@@ -379,6 +379,15 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
  * their "searching" branch, where a character cannot be locked in - so handing
  * over early means arriving at a screen that refuses to start. */
 #define ROOMS_FLAG_CONNECTED 0x08
+
+/* We are IN a room, as opposed to browsing the public list.
+ *
+ * ⚠ Not the same question as ROOMS_FLAG_VALID. Valid means a tick has come
+ * BACK - half a second after this scene is built - and this screen used to
+ * decide which of its two faces to wear from that. So a room you had just made
+ * drew the public list until its first tick landed, and Public drew a room.
+ * Two half-second flashes of the wrong screen, one cause. */
+#define ROOMS_FLAG_INROOM  0x10
 #define ROOMS_NOT_PICKED   0xFF
 
 /* Melee's own "nobody", which SceneLoad_ClassicModeSplash checks for and then
