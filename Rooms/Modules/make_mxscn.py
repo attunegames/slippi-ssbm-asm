@@ -7,6 +7,16 @@ not live in this repo, so this script is the recipe rather than the result:
 
 Scene ids above 0x50 are ones Melee never enters by itself, so they are ours to
 invent - the same way Slippi's GameSetup took 0x50.
+
+⚠️ THIS IS NOT BUILT BY CI. The codeset and the modules are; this file is not,
+because Melee's own MxScn.dat is Nintendo's and cannot live in the repo. Adding
+a scene here changes nothing until it is run and the result copied to every rig
+- and the symptom of forgetting is the game asking for a scene the table does
+not have, which lands in the catch-all rather than saying anything.
+
+It is safe to run against an already-patched file: ids that are present are left
+alone, so a rig's current MxScn.dat can be fed straight back in to pick up
+whatever is new.
 """
 import argparse
 from mxscn import Scn
