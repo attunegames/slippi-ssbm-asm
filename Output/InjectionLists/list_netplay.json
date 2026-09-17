@@ -1170,6 +1170,13 @@
    "Tags": ""
   },
   {
+   "InjectionAddress": "80368468",
+   "Name": "Required: Slippi Online",
+   "Codetype": "Auto",
+   "Annotation": "Online/Menus/Room/RaiseSplash.asm",
+   "Tags": ""
+  },
+  {
    "InjectionAddress": "8025B8A4",
    "Name": "Required: Slippi Online",
    "Codetype": "Auto",
