@@ -110,6 +110,20 @@ static int   s_state_line = -1;
 static int   s_name_l = -1;
 static int   s_name_r = -1;
 static int   s_queue_line[ROOMS_STATE_MAX_QUEUE];
+static int   s_act_sym = -1;
+static int   s_act_line = -1;
+static int   s_next_sym = -1;
+static int   s_next_line = -1;
+
+/* The two action lines, on the right of the plate so they do not collide with
+ * the queue running down the left. The symbol sits in its own subtext ahead of
+ * the words, which is how the old room did it - one line can then change its
+ * symbol without redrawing the sentence. */
+#define ROOM_ACT_SYM_X   360.0f
+#define ROOM_ACT_X       390.0f
+#define ROOM_ACT_Y       440.0f
+#define ROOM_ACT_STEP     26.0f
+#define ROOM_ACT_SZ        0.5f
 
 /* The queue, down the left of the plate, under the players. Six lines because
  * that is what the reply carries; a seventh person is in the room and in the
@@ -402,6 +416,106 @@ static void room_draw_queue(void)
             continue;
         Text_UpdateSubtextContents(s_text, s_queue_line[i], "%s",
                                    rooms_state_name(s_state_buf, 2 + i));
+    }
+}
+
+/* ------------------------------------------------------------------ START --
+ *
+ * One button, two jobs, the way the old room had it: START puts you in the
+ * queue, and once you are in it START is how you go and practise while you
+ * wait. It is never how you leave.
+ *
+ * The two-line shape carries over as well. Not queued, there is one thing to do
+ * and it is not done. Queued, that one is done and practising becomes the next
+ * thing available - so the screen always has something on it, which a room that
+ * opens in the state it is already in would never manage.
+ */
+#define STR_JOIN     "Press START to Join the Queue"
+#define STR_IN_QUEUE "In the Queue"
+#define STR_PRACTICE "Press START to Practice"
+
+/* Shift-JIS, because this font has no ASCII for them: × is what is still to do,
+ * − is done, + is what you can do next. */
+#define SYM_TODO "\x81\x7E"
+#define SYM_DONE "\x81\x7C"
+#define SYM_NEXT "\x81\x7B"
+
+/* The waiting symbol alternates the way Slippi's does while it searches: two
+ * icons, fifteen frames each, and only while something is still waiting on you.
+ * Once you are in the queue that line is done and stops moving. */
+#define SPINNER_FRAMES 15
+
+static int s_queued;
+static int s_spin_frame;
+
+static void room_show_actions(void)
+{
+    if (s_act_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_act_sym, "%s",
+                                   s_queued ? SYM_DONE : SYM_TODO);
+    if (s_act_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_act_line, "%s",
+                                   s_queued ? STR_IN_QUEUE : STR_JOIN);
+    if (s_next_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_next_sym, "%s",
+                                   s_queued ? SYM_NEXT : "");
+    if (s_next_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_next_line, "%s",
+                                   s_queued ? STR_PRACTICE : "");
+    s_spin_frame = 0;
+}
+
+static void room_spin(void)
+{
+    if (s_queued || s_act_sym < 0)
+        return;
+    if (s_spin_frame % SPINNER_FRAMES == 0)
+        Text_UpdateSubtextContents(s_text, s_act_sym, "%s",
+                                   (s_spin_frame / SPINNER_FRAMES) ? SYM_TODO
+                                                                   : SYM_NEXT);
+    s_spin_frame = (s_spin_frame + 1) % (2 * SPINNER_FRAMES);
+}
+
+/* Telling Dolphin is what actually joins the queue - it goes on the next tick,
+ * and until it does pd_tick leaves us out of the pairing and lists us in the
+ * lobby instead. */
+static void room_set_queued(int queued)
+{
+    u8 *cmd = rooms_exi_buf;
+
+    s_queued = queued;
+    cmd[0] = CONST_SlippiCmdRoomSetQueued;
+    cmd[1] = (u8)(queued ? 1 : 0);
+    FN_EXITransferBuffer(cmd, 2, CONST_ExiWrite);
+
+    room_show_actions();
+    room_log(queued ? "[Rooms] joined the queue" : "[Rooms] left the queue");
+}
+
+/* Off to practise.
+ *
+ * Training's CHARACTER SELECT first, not training itself - a match needs a
+ * character in it and that is where one comes from. Going straight to the
+ * in-game scene means a match of nobodies, which renders nothing.
+ *
+ * ⚠️ The pending byte is the minor id PLUS ONE. */
+static void room_practice(void)
+{
+    room_log("[Rooms] off to practise");
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_TRAIN_CSS);
+    Scene_ExitMinor();
+}
+
+static void room_buttons(void)
+{
+    u32 pressed = rooms_pad_pressed();
+
+    if (pressed & PAD_START)
+    {
+        if (!s_queued)
+            room_set_queued(1);
+        else
+            room_practice();
     }
 }
 
@@ -725,6 +839,21 @@ void room_load(void *scene)
                 ROOM_QUEUE_X, ROOM_QUEUE_Y + (float)i * ROOM_QUEUE_STEP);
     }
 
+    s_act_sym = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                 ROOM_ACT_SZ, ROOM_ACT_SYM_X, ROOM_ACT_Y);
+    s_act_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                  ROOM_ACT_SZ, ROOM_ACT_X, ROOM_ACT_Y);
+    s_next_sym = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                  ROOM_ACT_SZ, ROOM_ACT_SYM_X,
+                                  ROOM_ACT_Y + ROOM_ACT_STEP);
+    s_next_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                   ROOM_ACT_SZ, ROOM_ACT_X,
+                                   ROOM_ACT_Y + ROOM_ACT_STEP);
+
+    /* Drawn once here rather than waiting for a change: a room you walk into
+     * already not-queued would otherwise show two blank lines. */
+    room_show_actions();
+
     /* Ours is whichever text GObj was not there a moment ago; everything else
      * drawing text belongs to the splash and stops now. */
     room_note_our_text(before, n_before);
@@ -791,6 +920,9 @@ void room_think(void)
         room_draw_players();
         room_draw_queue();
     }
+
+    room_buttons();
+    room_spin();
 
     if (s_line >= 0)
         Text_UpdateSubtextContents(s_text, s_line, "%s", "Rooms");

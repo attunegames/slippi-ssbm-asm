@@ -44,12 +44,27 @@ SPLASH_THINK = 0x80186DFC   # SceneThink_ClassicModeSplash - twelve instructions
 SPLASH_LOAD  = 0x80186E30   # SceneLoad_ClassicModeSplash
 
 SCENES = [
-    # id,   file,              think, load, leave
+    # id,   file,              think,       load,       leave
     #
-    # Think and Load come from the module; Leave is left at 0 deliberately,
-    # the same as the splash's own entry, because m-ex only overwrites a slot
-    # a module actually exports.
-    (0x51, "SlippiRoom.dat",   0,     0,    0),
+    # The room. Think and Load come from the module; Leave is left at 0
+    # deliberately, the same as the splash's own entry, because m-ex only
+    # overwrites a slot a module actually exports.
+    (0x51, "SlippiRoom.dat",   0,           0,          0),
+
+    # Training, with NO module on it. Melee's own scene functions, called by the
+    # scene machinery with the arguments they expect. Putting a module here
+    # would replace those functions and then have to hand the scene pointer back
+    # through them, which is one more thing to get wrong.
+    #
+    # A copy rather than a hook on 0x04, so real training mode keeps its own
+    # functions untouched and only the room's version comes through here.
+    (0x52, None,               TRAIN_THINK, TRAIN_LOAD, TRAIN_LEAVE),
+
+    # The character select, also with no module - and 0x53 rather than 0x08 for
+    # a specific reason. 0x08 is where Slippi attaches SlippiCSS.dat, and that
+    # module has no business running over a training session: it expects an
+    # online match and reads a float as if it were a pointer when there is none.
+    (0x53, None,               CSS_THINK,   CSS_LOAD,   CSS_LEAVE),
 ]
 
 

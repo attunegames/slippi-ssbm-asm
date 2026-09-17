@@ -315,6 +315,69 @@ bl RoomSceneDecide          #SceneDecide
 .align 2
 .long 0x80490880            #Minor Data 1
 .long 0x804d68d0            #Minor Data 2
+#Practice: training in-game
+# Waiting in a queue is exactly when somebody wants to be in training, so
+# training is a minor of THIS major rather than a major of its own. Melee's
+# training-in-game scene is common minor 0x04; MxScn.dat carries a COPY of it
+# as 0x52, so real training mode keeps its own functions untouched and only the
+# room's version comes through here.
+.byte 7                     #Minor Scene ID
+.byte 3                     #Amount of persistent heaps
+.align 2
+bl RoomTrainScenePrep       #ScenePrep
+bl RoomTrainSceneDecide     #SceneDecide
+.byte 0x52                  #Common Minor ID (training, no module)
+.align 2
+# Training's OWN minor data, read out of major 0x1c minor 2 - the descriptor
+# Melee uses to reach this same scene. An in-game scene loads the match its
+# minor data describes, so borrowing VS mode's here meant waiting on a match
+# that was never going to arrive.
+.long 0x8048e4c0            #Minor Data 1
+.long 0x8048e5f8            #Minor Data 2
+#Practice: training character select
+.byte 8                     #Minor Scene ID
+.byte 3                     #Amount of persistent heaps
+.align 2
+bl RoomTrainCSSPrep         #ScenePrep
+bl RoomTrainCSSDecide       #SceneDecide
+# 0x53, not 0x08: the same screen, but 0x08 is where Slippi attaches
+# SlippiCSS.dat, and that module has no business running over a training
+# session - it expects an online match and reads a float as if it were a
+# pointer when there is none. MxScn.dat carries 0x53 as a copy with no module.
+.byte 0x53                  #Common Minor ID (character select, no module)
+.align 2
+.long 0x8048e230            #Minor Data 1
+.long 0x8048e230            #Minor Data 2
+#Practice: training stage select
+.byte 9                     #Minor Scene ID
+.byte 3                     #Amount of persistent heaps
+.align 2
+.long ScenePrep_TrainingMode_SSS
+bl RoomTrainSSSDecide       #SceneDecide
+.byte 0x09                  #Common Minor ID (stage select)
+.align 2
+.long 0x8048e378            #Minor Data 1
+.long 0x8048e378            #Minor Data 2
+#Catch-all
+# ⚠️ Melee looks a minor up by id, and when it runs off the end of the table it
+# does not stop - it carries on with a null descriptor and calls whatever
+# address 8 happens to contain. That is the "Unknown instruction at PC =
+# 010000fc" crash, and without this it is one bad scene request away at all
+# times.
+#
+# The lookup walks upwards until something matches, so a high id catches
+# everything above us, and it is the room: whatever asked to go somewhere that
+# does not exist here ends up back where it started, which is the worst that
+# should ever happen.
+.byte 0xFE                  #Minor Scene ID
+.byte 3                     #Amount of persistent heaps
+.align 2
+bl RoomScenePrep            #ScenePrep
+bl RoomSceneDecide          #SceneDecide
+.byte 0x51                  #Common Minor ID (Room)
+.align 2
+.long 0x80490880            #Minor Data 1
+.long 0x804d68d0            #Minor Data 2
 #End
 .byte -1
 .align 2
@@ -1582,6 +1645,89 @@ blr
 
 RoomSceneDecide:
 backup
+restore
+blr
+
+
+################################################################################
+# Practice. Melee's own training scenes, run as minors of the online major.
+#
+# ⚠️ Every one of these writes the scene controller's pending-minor byte, which
+# is ONE-BASED - the id plus one. Off by one lands on the neighbouring scene.
+################################################################################
+
+# Training's own prep builds the match its minor data describes.
+RoomTrainScenePrep:
+backup
+branchl r12, ScenePrep_TrainingMode_InGame
+restore
+blr
+
+# Leaving training goes back to the room, never out of the major. The room is
+# where the queue is, and the whole point of practising is that you are still
+# in it.
+RoomTrainSceneDecide:
+backup
+load r4, 0x80479d30
+li r3, MINOR_ROOM + 1
+stb r3, 0x5(r4)
+restore
+blr
+
+# The character select comes first - a training match needs a character in it,
+# and this is where one comes from. MajorSetup_TrainingMode before the prep,
+# because the prep reads what it sets up.
+RoomTrainCSSPrep:
+backup
+mr r31, r3
+branchl r12, MajorSetup_TrainingMode
+mr r3, r31
+branchl r12, ScenePrep_TrainingMode_CSS
+restore
+blr
+
+# Forward to the stage select, or back to the room if they backed out. ⚠️ The
+# back path also has to say the major is not going anywhere: without the write
+# to 0x1, backing out of practice leaves the online major entirely and lands on
+# the main menu.
+RoomTrainCSSDecide:
+backup
+mr r31, r3
+branchl r12, SceneDecide_TrainingMode_CSS
+mr r3, r31
+branchl r12, GetMinorSceneData2
+lbz r0, 0x3(r3)
+load r4, 0x80479d30
+cmpwi r0, TRAIN_CSS_BACKED_OUT
+beq RoomTrainCSSDecide_BACK
+li r3, MINOR_TRAIN_SSS + 1
+b RoomTrainCSSDecide_SET
+RoomTrainCSSDecide_BACK:
+li r3, ONLINE_MAJOR_ID
+stb r3, 0x1(r4)             # nothing is leaving this major
+li r3, MINOR_ROOM + 1
+RoomTrainCSSDecide_SET:
+stb r3, 0x5(r4)
+restore
+blr
+
+# Stage picked goes to training; backing out goes to the character select.
+RoomTrainSSSDecide:
+backup
+mr r31, r3
+branchl r12, SceneDecide_TrainingMode_SSS
+mr r3, r31
+branchl r12, GetMinorSceneData2
+lbz r0, 0x4(r3)
+load r4, 0x80479d30
+cmpwi r0, 0
+beq RoomTrainSSSDecide_BACK
+li r3, MINOR_TRAIN + 1
+b RoomTrainSSSDecide_SET
+RoomTrainSSSDecide_BACK:
+li r3, MINOR_TRAIN_CSS + 1
+RoomTrainSSSDecide_SET:
+stb r3, 0x5(r4)
 restore
 blr
 

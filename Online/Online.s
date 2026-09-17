@@ -102,6 +102,37 @@
 # scene, and the room borrows that screen, so they have to know about it.
 .set SCENE_ONLINE_ROOM, 0x0608
 
+################################################################################
+# Practice, which is training mode run as a minor of this major.
+#
+# Waiting in a queue is exactly when somebody wants to be hitting things, so
+# training belongs inside the room rather than being somewhere you leave for.
+# Melee's own training scenes, called with the arguments they expect.
+################################################################################
+.set ONLINE_MAJOR_ID, 8
+
+.set Scene_ExitMinor, 0x801a4b60
+.set GetMinorSceneData2, 0x801a4284
+.set MajorSetup_TrainingMode, 0x801b2298
+.set ScenePrep_TrainingMode_CSS, 0x801b1b74
+.set SceneDecide_TrainingMode_CSS, 0x801b1c24
+.set ScenePrep_TrainingMode_InGame, 0x801b1f70
+.set SceneDecide_TrainingMode_SSS, 0x801b1eec
+.set ScenePrep_TrainingMode_SSS, 0x801b1eb8
+
+# What the training character select leaves in its data when you back out of it
+# rather than going on to pick a stage.
+.set TRAIN_CSS_BACKED_OUT, 2
+
+# ⚠️ The scene controller's pending-minor byte is ONE-BASED: zero means "carry
+# on", anything else is the minor id PLUS ONE. Every store in this codeset
+# reads that way. Off by one lands on the neighbouring scene, which is a
+# different screen entirely and looks like a completely different bug.
+.set MINOR_ROOM, 6
+.set MINOR_TRAIN, 7
+.set MINOR_TRAIN_CSS, 8
+.set MINOR_TRAIN_SSS, 9
+
 /*
 -each is 0xC long
 -4 total, one for each controller
