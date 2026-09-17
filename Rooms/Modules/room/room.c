@@ -550,7 +550,8 @@ static void room_practice(void)
  */
 #define ROOM_MODE_DIRECT 2
 
-static int s_match_started;
+static int s_match_started;
+static int s_draft_entered;
 
 static void room_start_match(void)
 {
@@ -567,13 +568,26 @@ static void room_start_match(void)
 
     room_log("[Rooms] matched - asking Slippi to connect us");
 
-    /* Straight to the draft, which is Slippi's own game-prep scene and is
-     * already a minor of this major. It reads GamePrepData - how long the set
-     * is, the score, who won the last one - and every one of those is something
-     * the room knows. The connection finishes while it is on screen, the same
-     * way ranked does it. */
-    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_GAMESETUP);
-    Scene_ExitMinor();
+}
+
+/* And into the draft, once Slippi has actually connected the two.
+ *
+ * ⚠️ Not a moment earlier. The screens past this fork on the same connection
+ * state, and anything below CONNECTION_SUCCESS opens them on their "searching"
+ * branch - where a character cannot be locked in. Handing over early lands the
+ * player on a screen that will not let them start.
+ *
+ * Setting the pending byte IS the request: the room's own SceneDecide reads it,
+ * sees the draft was asked for, and fills in GamePrepData before the scene
+ * loads. Slippi only ever reaches that screen between games of a set, so it
+ * helps itself to things a room has never set up.
+ */
+static void room_go_to_draft(void)
+{
+    s_draft_entered = 1;
+    room_log("[Rooms] connected - handing over to the draft");
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_GAMESETUP);
+    Scene_ExitMinor();
 }
 
 static void room_buttons(void)
@@ -1318,10 +1332,15 @@ void room_think(void)
             room_draw_players();
             room_draw_queue();
 
-            /* Paired. Off to connect and draft. */
+            /* Paired: ask Slippi to connect us. Then WAIT - the draft is only
+             * enterable once it actually has. */
             if (!s_match_started &&
                 (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_READY))
                 room_start_match();
+
+            if (s_match_started && !s_draft_entered &&
+                (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_CONNECTED))
+                room_go_to_draft();
         }
 
         if (s_browsing != s_was_browsing)

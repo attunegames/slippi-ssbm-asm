@@ -128,6 +128,7 @@
 # on", anything else is the minor id PLUS ONE. Every store in this codeset
 # reads that way. Off by one lands on the neighbouring scene, which is a
 # different screen entirely and looks like a completely different bug.
+.set MINOR_GAMESETUP, 5   # the draft: Slippi's own game-prep screen
 .set MINOR_ROOM, 6
 .set MINOR_TRAIN, 7
 .set MINOR_TRAIN_CSS, 8

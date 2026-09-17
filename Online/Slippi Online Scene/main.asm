@@ -503,6 +503,8 @@ CSSSceneDecide_Advance:
 lbz r3, OFST_R13_ONLINE_MODE(r13)
 cmpwi r3, ONLINE_MODE_RANKED
 beq CSSSceneDecide_Adv_IsRanked
+cmpwi r3, ONLINE_MODE_ROOMS
+beq CSSSceneDecide_Adv_IsRoom
 cmpwi r3, ONLINE_MODE_UNRANKED
 beq CSSSceneDecide_Adv_IsUnranked
 cmpwi r3, ONLINE_MODE_PARTY
@@ -515,6 +517,25 @@ beq CSSSceneDecide_Adv_IsDirect
 ################################################################################
 # Unranked Mode Logic
 ################################################################################
+################################################################################
+# Rooms: this screen is never on the way to a match
+################################################################################
+# Two people who have been paired go room -> draft -> game and never see it.
+# Anybody who ends up here has finished a game, and belongs back in the room.
+#
+# ⚠️ Sharing the unranked answer - "load the splash and start playing" - is what
+# overrules the room. The input handler on this screen asks for the room and
+# ends the minor, then this runs and writes the splash over the top of the
+# request. Melee starts a match, it ends at once because there is nothing to
+# connect to, and it comes straight back here.
+#
+# No SplashSceneInit, deliberately: nothing is starting.
+CSSSceneDecide_Adv_IsRoom:
+load r4, 0x80479d30
+li r3, MINOR_ROOM + 1
+stb r3, 0x5(r4)
+b CSSSceneDecide_Exit
+
 CSSSceneDecide_Adv_IsUnranked:
 b CSSSceneDecide_LoadSplash
 
@@ -711,6 +732,19 @@ cmpwi r3, ONLINE_MODE_RANKED
 beq VSSceneDecide_Ranked
 cmpwi r3, ONLINE_MODE_PARTY
 beq VSSceneDecide_Party
+cmpwi r3, ONLINE_MODE_ROOMS
+beq VSSceneDecide_Rooms
+b VSSceneDecide_GoToNextScene
+
+# In Rooms a finished game goes to the room, and nowhere else.
+#
+# It gets there either way, but by way of the character select: the default is
+# scene 1, that screen loads, and its own Decide sends it on to the room. The
+# round trip takes a couple of hundred milliseconds and you can SEE it - the
+# character select flashes up between every game. Naming the room here skips a
+# screen with nothing to do.
+VSSceneDecide_Rooms:
+li REG_NEXT_SCENE, MINOR_ROOM + 1
 b VSSceneDecide_GoToNextScene
 
 VSSceneDecide_Party:
@@ -1732,8 +1766,56 @@ branchl r12,0x80017700
 restore
 blr
 
+# The draft, and what it needs before it can be entered.
+#
+# The module asks by writing the pending-minor byte, and this notices what was
+# asked for. That byte is one-based, so the draft - minor 5 - asks as 6.
+.set ROOM_PENDING_DRAFT, MINOR_GAMESETUP + 1
+
 RoomSceneDecide:
+.set REG_ROOM_GPD, 31
+
 backup
+
+load r4, 0x80479d30
+lbz r3, 0x5(r4)
+cmpwi r3, ROOM_PENDING_DRAFT
+bne RoomSceneDecide_EXIT
+
+################################################################################
+# Fill in the draft's own data, because nothing else will
+################################################################################
+# Slippi only ever reaches this screen from the VS scene's decide, BETWEEN games
+# of a set, so it helps itself to whatever that path has already left lying
+# around. A room arrives from its own queue with none of it.
+#
+# ⚠️ GPDO_CUR_GAME is 2, not 1. This is the between-games screen: told it is
+# game one it has nothing to counterpick from and skips straight past itself,
+# which is a draft that never appears. A room's first game has no previous
+# result to show - that is something to fill in later, not a reason to avoid
+# the screen.
+bl GamePrepData_BLRL
+mflr REG_ROOM_GPD
+
+mr r3, REG_ROOM_GPD
+li r4, GPDO_SIZE
+branchl r12, Zero_AreaLength
+
+# ⚠️ Zeroed just now, so the winner callback has to go back in. Without it the
+# set has no way to work out who won a game.
+bl SinglesDetermineWinner_BLRL
+mflr r3
+stw r3, GPDO_FN_COMPUTE_RANKED_WINNER(REG_ROOM_GPD)
+
+li r3, 3
+stb r3, GPDO_MAX_GAMES(REG_ROOM_GPD)
+li r3, 2
+sth r3, GPDO_CUR_GAME(REG_ROOM_GPD)
+li r3, 0
+stb r3, GPDO_TIEBREAK_GAME_NUM(REG_ROOM_GPD)
+stb r3, GPDO_COLOR_BAN_ACTIVE(REG_ROOM_GPD)
+
+RoomSceneDecide_EXIT:
 restore
 blr
 

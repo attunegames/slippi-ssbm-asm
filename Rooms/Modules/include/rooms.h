@@ -372,6 +372,13 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
 /* The pairing is on: go and connect. Distinct from PLAYING, which means a
  * match is already under way and this client is watching it happen. */
 #define ROOMS_FLAG_READY   0x04
+/* Slippi says the two are actually connected.
+ *
+ * ⚠️ The handoff to the draft waits on THIS, not on READY. The screens past it
+ * fork on the same state, and anything below CONNECTION_SUCCESS lands them in
+ * their "searching" branch, where a character cannot be locked in - so handing
+ * over early means arriving at a screen that refuses to start. */
+#define ROOMS_FLAG_CONNECTED 0x08
 #define ROOMS_NOT_PICKED   0xFF
 
 /* Melee's own "nobody", which SceneLoad_ClassicModeSplash checks for and then
