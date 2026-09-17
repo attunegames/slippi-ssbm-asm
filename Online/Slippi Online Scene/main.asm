@@ -1494,8 +1494,17 @@ blr
 # with the characters hardcoded instead of read out of the match - there is no
 # match yet. When there is, these two come from the room's state and nothing
 # else here changes.
-.set ROOM_PROBE_CHAR_L, 1     # Fox
-.set ROOM_PROBE_CHAR_R, 18    # Marth
+# INTERNAL character ids, not external ones - which is why asking for "Fox and
+# Marth" has been putting DK and Zelda on screen this whole time. Internal
+# order runs Falcon, DK, Fox, Game & Watch, Kirby, Bowser, Link, Luigi, Mario,
+# Marth ... Zelda at 18. The screen was right and the comment was wrong.
+#
+# Worth keeping for another reason: Game & Watch is internal 3, and he is drawn
+# flat solid black. A character as a black shape is the one way this scene can
+# put an opaque rectangle anywhere, since nothing here can draw a filled quad.
+.set ROOM_PROBE_CHAR_L, 1     # Donkey Kong
+.set ROOM_PROBE_CHAR_R, 18    # Zelda
+.set ROOM_CHAR_GAMEWATCH, 3   # flat black, if a cover is ever wanted
 .set ROOM_PROBE_STAGE, 0x1F   # Battlefield
 RoomScenePrep:
 backup
