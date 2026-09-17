@@ -80,11 +80,38 @@ static const u32 COL_WHITE = 0xFFFFFFFF;
 #define ROOM_TEXT_Y  144.0f
 #define ROOM_TEXT_SZ 0.55f
 
+/* The state line, sitting where NOW LOADING was.
+ *
+ * Deliberately NOT matching the splash's italic outlined lettering. There is no
+ * way to reach that face from here, and a near-miss reads as a failed imitation
+ * where an obvious difference reads as on purpose.
+ *
+ * Placed against a screenshot: NOW LOADING sat around screen row 255, and every
+ * canvas Y here carries the 104 the splash is raised by, so 359. */
+/* Measured off the screenshot of the last attempt rather than guessed again.
+ * Setting X to 470 put the word at screen x 498 and ran it off the right edge
+ * at 0.85, so both come down. NOW LOADING sits at about screen row 231, and
+ * canvas Y carries the 104 the splash is raised by, so 335 lands on it. */
+#define ROOM_STATE_X   430.0f
+#define ROOM_STATE_Y   335.0f
+#define ROOM_STATE_SZ  0.55f
+
+/* And the two names, on the plate where DK and Zelda were - which is where the
+ * Slippi usernames go. Placeholders until a room has players in it. */
+/* Same: at Y 413 the names came out at screen row 322 and the plate wants 309,
+ * and both were sitting too far right of where DK and Zelda were. */
+#define ROOM_NAME_L_X   60.0f
+#define ROOM_NAME_R_X  420.0f
+#define ROOM_NAME_Y    400.0f
+#define ROOM_NAME_SZ   0.70f
+
 static void *s_text;
+static int   s_state_line = -1;
+static int   s_name_l = -1;
+static int   s_name_r = -1;
 static int   s_line = -1;
 static int   s_said_hello;
 static int   s_frames;
-static int   s_probes;
 
 /* -------------------------------------------------------------- the module */
 
@@ -193,79 +220,208 @@ static char *room_put_x(char *p, u32 v)
     return p;
 }
 
-/* Find every camera, rather than the ones that happen to keep their CObj where
- * this expected it.
- *
- * Class 20 holds FIVE GObjs and only two of them have anything at +0x28, which
- * is where GObj_AddObject is supposed to park the object. Those two are banded,
- * hold their viewport perfectly, and the fighters ignore them - so the fighters
- * belong to one of the other three, and the assumption to question is the
- * offset, not the banding.
- *
- * So: for each camera GObj, walk its first few words, and for any that could be
- * a RAM pointer, look at what it points at and ask whether it looks like a
- * CObj. A CObj carries its viewport at +0x0C, and a viewport is four floats
- * describing a rectangle that is the right way round and screen-sized. That is
- * a specific enough shape to recognise without knowing the struct.
- *
- * Self-validating on purpose. If this prints nothing, the guess was wrong and
- * nothing has been broken to find that out. */
-#define ROOM_GOBJ_SCAN_END 0x50
+/* Recorded rather than kept as code: of the five class-20 GObjs, only two carry
+ * anything at +0x28, and both hold whatever viewport is written to them. The
+ * fighters are drawn through a camera no GObj owns, which is why the band had
+ * to be forced from CObj_SetCurrent. The probe that established that walked
+ * each camera GObj's first words looking for something shaped like a CObj -
+ * four floats at +0x0C making a screen-sized rectangle the right way round.
+ */
 
-static int room_ptr_ok(u32 v)
-{
-    return v >= 0x80000000u && v < 0x81800000u && (v & 3u) == 0u;
-}
+/* NOW LOADING is drawn by a JObj on a class 3 GObj - the last candidate left.
+ *
+ * It is not in the splash's model tree, not a SIS string, and not one of the
+ * text canvases: silencing both of those took the DK and Zelda plate with them
+ * and left NOW LOADING exactly where it was. What the census leaves is class 3,
+ * which nothing has ever touched, holding two generic JObj drawers on links 4
+ * and 0 plus a light.
+ *
+ * Being a JObj is the useful part: the invisible flag works on those, which is
+ * why it worked on the backdrop. This hides the one on link 4 and says so. If
+ * the wrong thing disappears it is the other one, and the flag is a bit in a
+ * word - nothing is freed and nothing is structural, so it cannot hang the way
+ * destroying links did.
+ */
+#define ROOM_CLASS_LOADING 3
+#define ROOM_LOADING_LINK  4
+#define ROOM_JOBJ_HIDDEN   0x10
 
-static int room_looks_like_viewport(const float *vp)
-{
-    return vp[1] - vp[0] >= 16.0f && vp[3] - vp[2] >= 16.0f
-        && vp[0] > -1000.0f && vp[2] > -1000.0f
-        && vp[1] < 2000.0f && vp[3] < 2000.0f;
-}
-
-static void room_probe_cams(void)
+static void room_hide_loading(void)
 {
     void **heads = rooms_gobj_heads();
     void *g;
-    int idx = 0;
 
     if (!heads)
         return;
 
-    for (g = heads[ROOM_CLASS_CAMERA]; g; g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+    for (g = heads[ROOM_CLASS_LOADING]; g;
+         g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
     {
-        char line[120];
-        char *p = line;
-        int off;
+        u8 link = *(const u8 *)((const char *)g + ROOMS_GOBJ_LINK);
+        u32 *flags;
+        void *jobj;
 
-        p = room_put(p, "[Rooms] g");
-        p = room_put_i(p, idx++);
-        p = room_put(p, " at ");
-        p = room_put_x(p, (u32)g);
+        if (link != ROOM_LOADING_LINK)
+            continue;
+        jobj = *(void **)((char *)g + ROOMS_GOBJ_OBJECT);
+        if (!jobj)
+            continue;
+        flags = (u32 *)((char *)jobj + ROOMS_JOBJ_FLAGS);
+        *flags |= ROOM_JOBJ_HIDDEN;
+        room_log("[Rooms] hid the class 3 link 4 jobj");
+        return;
+    }
+    room_log("[Rooms] no class 3 link 4 jobj to hide");
+}
 
-        for (off = 0x10; off < ROOM_GOBJ_SCAN_END; off += 4)
+/* The splash's own text, switched off.
+ *
+ * NOW LOADING is a TEXT canvas, not a model. It survived the invisible flag, a
+ * whole-tree animation sweep and being hunted as a SIS string because none of
+ * those touch text - and the census is what finally said so: three GObjs draw
+ * through Text_GX with nothing at +0x28.
+ *
+ * They are class 20, the same class as the cameras, which is the other thing
+ * that census settled. An earlier probe reported "2 cameras" out of five class
+ * 20 GObjs and I read that as "there are two cameras". Three of them were text.
+ *
+ * Two belong to the splash - the DK/Zelda plate and NOW LOADING - and both go.
+ * The names were placeholders standing where the Slippi usernames belong, so
+ * losing them is the direction of travel rather than a casualty.
+ *
+ * Destroying the GX LINK, not the GObj: it stops drawing and nothing is freed,
+ * so the splash's own Leave still has everything it expects on the way out.
+ */
+#define ROOM_TEXT_GX  ((void *)0x803A84BC)
+#define ROOM_MAX_TEXT 8
+
+static void *s_our_text_gobj;
+
+static int room_is_text_gobj(void *g)
+{
+    return *(void **)((char *)g + ROOMS_GOBJ_DRAWFN) == ROOM_TEXT_GX;
+}
+
+/* Anything drawing text that is not ours. Called after our own text exists, so
+ * "not ours" is a complete description of the splash's. */
+static void room_silence_splash_text(void)
+{
+    void *hit[ROOM_MAX_TEXT];
+    void **heads = rooms_gobj_heads();
+    void *g;
+    int n = 0;
+    int i;
+
+    if (!heads)
+        return;
+
+    /* Collected first, destroyed after.
+     *
+     * ⚠️ GObj_DestroyGXLink relinks the list this loop is walking, so calling it
+     * inside the walk means reading a next pointer that has already moved. The
+     * first version did exactly that and the room hung on its opening frame. */
+    for (g = heads[ROOM_CLASS_CAMERA]; g && n < ROOM_MAX_TEXT;
+         g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+    {
+        if (g == s_our_text_gobj || !room_is_text_gobj(g))
+            continue;
+        hit[n++] = g;
+    }
+
+    for (i = 0; i < n; i++)
+        GObj_DestroyGXLink(hit[i]);
+}
+
+/* Which GObj of the text ones is ours: the one that was not there a moment ago.
+ * Called side by side with creating it, so the difference is exactly ours. */
+static void room_note_our_text(void *before[], int n_before)
+{
+    void **heads = rooms_gobj_heads();
+    void *g;
+
+    if (!heads)
+        return;
+
+    for (g = heads[ROOM_CLASS_CAMERA]; g;
+         g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+    {
+        int i, seen = 0;
+
+        if (!room_is_text_gobj(g))
+            continue;
+        for (i = 0; i < n_before; i++)
+            if (before[i] == g)
+                seen = 1;
+        if (!seen)
         {
-            u32 v = *(const u32 *)((const char *)g + off);
-            const float *vp;
-
-            if (!room_ptr_ok(v))
-                continue;
-            vp = (const float *)(u32)(v + ROOM_COBJ_VIEWPORT);
-            if (!room_looks_like_viewport(vp))
-                continue;
-            if (p - line > 84)
-                break;
-            *p++ = ' '; *p++ = '+';
-            p = room_put_x(p, (u32)off);
-            *p++ = ' ';
-            p = room_put_i(p, (int)vp[0]); *p++ = ',';
-            p = room_put_i(p, (int)vp[1]); *p++ = ',';
-            p = room_put_i(p, (int)vp[2]); *p++ = ',';
-            p = room_put_i(p, (int)vp[3]);
+            s_our_text_gobj = g;
+            return;
         }
-        *p = 0;
-        room_log(line);
+    }
+}
+
+static int room_snapshot_text(void *out[], int max)
+{
+    void **heads = rooms_gobj_heads();
+    void *g;
+    int n = 0;
+
+    if (!heads)
+        return 0;
+    for (g = heads[ROOM_CLASS_CAMERA]; g && n < max;
+         g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+        if (room_is_text_gobj(g))
+            out[n++] = g;
+    return n;
+}
+
+/* Every GObj, and the function that DRAWS it.
+ *
+ * NOW LOADING has now survived the invisible flag, a whole-tree animation
+ * sweep, and being looked for as a SIS text - so it is not in the splash's
+ * model tree and it is not that text. It is drawn by something, though, and
+ * every GObj records what: GObj_AddGXLink parks the callback at +0x1C and the
+ * render link at +0x03.
+ *
+ * So instead of hiding things to see what disappears - which is what the last
+ * several attempts did, and what cost the fighters their placement - print the
+ * callback for every GObj and look the addresses up in the DOL. That names them
+ * outright: GXLink_Common, HSD_SetFog and the rest all have symbols.
+ *
+ * Once, and non-destructive. It changes nothing on screen. */
+static void room_report_gobjs(void)
+{
+    void **heads = rooms_gobj_heads();
+    int c;
+
+    if (!heads)
+        return;
+
+    for (c = 0; c < 32; c++)
+    {
+        void *g;
+        int n = 0;
+
+        for (g = heads[c]; g && n < 8;
+             g = *(void **)((char *)g + ROOMS_GOBJ_NEXT), n++)
+        {
+            char line[80];
+            char *p = line;
+            u8 link = *(const u8 *)((const char *)g + ROOMS_GOBJ_LINK);
+            u32 fn  = *(const u32 *)((const char *)g + ROOMS_GOBJ_DRAWFN);
+            u32 obj = *(const u32 *)((const char *)g + ROOMS_GOBJ_OBJECT);
+
+            p = room_put(p, "[Rooms] c");
+            p = room_put_i(p, c);
+            p = room_put(p, " l");
+            p = room_put_i(p, link);
+            p = room_put(p, " draw ");
+            p = room_put_x(p, fn);
+            p = room_put(p, " obj ");
+            p = room_put_x(p, obj);
+            *p = 0;
+            room_log(line);
+        }
     }
 }
 
@@ -370,6 +526,9 @@ static void room_count_cams(void)
 
 void room_load(void *scene)
 {
+    void *before[ROOM_MAX_TEXT];
+    int n_before;
+
     room_log("[Rooms] room scene load");
 
     /* Build the splash BEFORE anything of ours exists.
@@ -417,6 +576,9 @@ void room_load(void *scene)
         room_log("[Rooms] no minor data - no camera, the room will be black");
     }
 
+    /* Taken BEFORE ours exists, so the one that appears after is ours. */
+    n_before = room_snapshot_text(before, ROOM_MAX_TEXT);
+
     s_text = Text_CreateStruct(0, 0);
     if (!s_text)
     {
@@ -429,6 +591,24 @@ void room_load(void *scene)
 
     s_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0,
                               "Rooms", ROOM_TEXT_SZ, ROOM_TEXT_X, ROOM_TEXT_Y);
+
+    /* Outlined rather than plain: this font has no bold, and an outline is the
+     * nearest thing to one that it does have. */
+    s_state_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_OUTLINE, 0,
+                                    "DRAFTING", ROOM_STATE_SZ,
+                                    ROOM_STATE_X, ROOM_STATE_Y);
+    s_name_l = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0,
+                                "Player 1", ROOM_NAME_SZ,
+                                ROOM_NAME_L_X, ROOM_NAME_Y);
+    s_name_r = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0,
+                                "Player 2", ROOM_NAME_SZ,
+                                ROOM_NAME_R_X, ROOM_NAME_Y);
+
+    /* Ours is whichever text GObj was not there a moment ago; everything else
+     * drawing text belongs to the splash and stops now. */
+    room_note_our_text(before, n_before);
+    room_silence_splash_text();
+    room_hide_loading();
 
     room_log("[Rooms] room scene built");
 }
@@ -471,18 +651,16 @@ void room_think(void)
      * room down after thirty-six seconds every time. */
     /* Once a second, and BEFORE the re-band, so what gets printed is whatever
      * survived the last frame rather than what we just wrote. */
-    if (++s_frames >= 60)
+    /* ⚠️ Counts on past 90 rather than stopping at it. Written as
+     * "s_frames < 90 && ++s_frames == 90" the counter sticks at 90 for ever,
+     * and anything else testing it - a "only for the first few seconds" guard,
+     * say - never expires. That is what turned a one-off into a call every
+     * frame, and the room hung. */
+    if (++s_frames == 90)
     {
-        s_frames = 0;
         room_report_cams();
         room_report_classes();
-        /* Three times and then quiet: it is five lines a go and the answer
-         * does not change once the fighters are in. */
-        if (s_probes < 3)
-        {
-            s_probes++;
-            room_probe_cams();
-        }
+        room_report_gobjs();
     }
 
     if (s_line >= 0)

@@ -386,7 +386,9 @@ int FG_CreateSubtext(void *text, const void *color, int mode,
                      const void *outline_color, const char *str,
                      float size, float x, float y);
 
-#define ROOMS_SUBTEXT_PLAIN 0    /* 1 = outlined, 2 = premade text */
+#define ROOMS_SUBTEXT_PLAIN   0
+#define ROOMS_SUBTEXT_OUTLINE 1  /* the nearest thing to bold here */
+#define ROOMS_SUBTEXT_PREMADE 2
 
 /* Slippi's CSS code builds the text struct in CSS_LoadFunction and parks it
  * in the CSS data table, so a module that runs after SceneLoad_CSS can just
