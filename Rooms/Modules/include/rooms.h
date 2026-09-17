@@ -381,7 +381,8 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
  *            +0x00  char code[8]    four characters, null-terminated
  *            +0x08  u8   mode       0..4, 0xFF if it is a kind we do not know
  *            +0x09  u8   players
- *            +0x0A  u8   pad[2]
+ *            +0x0A  u8   capacity   the room's own limit
+ *            +0x0B  u8   pad
  *            +0x0C  char owner[32]
  *            +0x2C  u8   pad[4]
  *
@@ -398,14 +399,17 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
 #define ROOMS_LIST_CODE     0x00
 #define ROOMS_LIST_MODE     0x08
 #define ROOMS_LIST_PLAYERS  0x09
+#define ROOMS_LIST_CAPACITY 0x0A
 #define ROOMS_LIST_OWNER    0x0C
 #define ROOMS_MODE_UNKNOWN  0xFF
 
-/* How many a room holds. ⚠️ Shown as "2/8" but NOT enforced anywhere yet -
- * nothing in the schema stops a ninth person joining. Displaying a limit that
- * does not exist is a promise the room cannot keep, so this wants a check in
- * pd_tick before anybody relies on it. */
-#define ROOMS_ROOM_CAPACITY 8
+/* The capacity comes from the ROOM now, not from here - a singles room and a
+ * crew battle are not the same size, and a number compiled into the game could
+ * only ever be one of them. pd_tick enforces it on the way in, counting live
+ * members exactly the way the browser counts them, so the figure on screen and
+ * the figure it refuses on cannot disagree. This is only the fallback for a
+ * room that answered without one. */
+#define ROOMS_CAPACITY_UNKNOWN 8
 
 static inline const unsigned char *rooms_list_entry(const unsigned char *b, int n)
 {

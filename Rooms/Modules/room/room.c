@@ -647,7 +647,9 @@ static void room_draw_browser(void)
             p = room_put_col(p, (const char *)(e + ROOMS_LIST_OWNER), COL_HOST);
             p = room_put_i(p, e[ROOMS_LIST_PLAYERS]);
             *p++ = '/';
-            p = room_put_i(p, ROOMS_ROOM_CAPACITY);
+            p = room_put_i(p, e[ROOMS_LIST_CAPACITY]
+                                  ? e[ROOMS_LIST_CAPACITY]
+                                  : ROOMS_CAPACITY_UNKNOWN);
         }
         *p = 0;
 
