@@ -368,6 +368,50 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
  * builds nothing at all. That is the room's empty band, and it is one byte. */
 #define ROOMS_CHAR_NOBODY  26
 
+/* --------------------------------------------------------- the room list --
+ *
+ * What CMD_ROOM_LIST_READ hands back, after CMD_ROOM_LIST has asked Dolphin to
+ * go and fetch. ⚠️ Duplicated by hand in Dolphin's EXI_DeviceSlippi.h, same as
+ * the room state - change both or the browser draws nonsense.
+ *
+ *   +0x00  u8  flags   bit0 = a fetch has actually come back
+ *   +0x01  u8  count
+ *   +0x02  u8  pad[2]
+ *   +0x04  rooms, 48 bytes each:
+ *            +0x00  char code[8]    four characters, null-terminated
+ *            +0x08  u8   mode       0..4, 0xFF if it is a kind we do not know
+ *            +0x09  u8   players
+ *            +0x0A  u8   pad[2]
+ *            +0x0C  char owner[32]
+ *            +0x2C  u8   pad[4]
+ *
+ * ⚠️ The FETCHED flag is not decoration. An empty list means "none found" AND
+ * "nothing has come back yet", and those want different words - a browser that
+ * says "no rooms" before its first reply arrives is lying. */
+#define ROOMS_LIST_MAX      8
+#define ROOMS_LIST_STRIDE   48
+#define ROOMS_LIST_HEADER   4
+#define ROOMS_LIST_SIZE     (ROOMS_LIST_HEADER + ROOMS_LIST_MAX * ROOMS_LIST_STRIDE)
+#define ROOMS_LIST_FLAGS    0x00
+#define ROOMS_LIST_COUNT    0x01
+#define ROOMS_LIST_FETCHED  0x01
+#define ROOMS_LIST_CODE     0x00
+#define ROOMS_LIST_MODE     0x08
+#define ROOMS_LIST_PLAYERS  0x09
+#define ROOMS_LIST_OWNER    0x0C
+#define ROOMS_MODE_UNKNOWN  0xFF
+
+/* How many a room holds. ⚠️ Shown as "2/8" but NOT enforced anywhere yet -
+ * nothing in the schema stops a ninth person joining. Displaying a limit that
+ * does not exist is a promise the room cannot keep, so this wants a check in
+ * pd_tick before anybody relies on it. */
+#define ROOMS_ROOM_CAPACITY 8
+
+static inline const unsigned char *rooms_list_entry(const unsigned char *b, int n)
+{
+    return b + ROOMS_LIST_HEADER + n * ROOMS_LIST_STRIDE;
+}
+
 /* The name at index n: 0 and 1 are the two playing, then the queue, then the
  * lobby. Shift-JIS and null-terminated, ready for the text calls. */
 static inline const char *rooms_state_name(const unsigned char *st, int n)

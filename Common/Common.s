@@ -556,6 +556,8 @@ add \reg, r3, r4
 # rooms.h - there is no shared header between a host build and a PowerPC one,
 # so a change to one and not the other reads wrong bytes silently.
 .set CONST_SlippiCmdRoomState,0xC9
+# Ask Dolphin to go and fetch the public rooms, then read what it found.
+.set CONST_SlippiCmdRoomListRead,0xCA
 .set CONST_SlippiCmdFetchRank,0xE4
 # For Slippi file loads
 .set CONST_SlippiCmdFileLength, 0xD1

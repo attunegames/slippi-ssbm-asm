@@ -75,6 +75,7 @@ static const u32 COL_WHITE = 0xFFFFFFFF;
 static const u32 COL_DONE = 0x33FF2FFF;   /* green: this one is done */
 static const u32 COL_WAIT = 0x3CBCFFFF;   /* blue: waiting on you */
 static const u32 COL_GRAY = 0x8E9196FF;
+static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
 
 /* Position is in canvas units running roughly 0..640 across and 0..480 down,
  * with the origin near the TOP-LEFT - not the centre-origin the character
@@ -541,6 +542,214 @@ static void room_buttons(void)
     }
 }
 
+/* ----------------------------------------------------------- the browser --
+ *
+ * Public lands here: the public rooms, one a line.
+ *
+ *     Singles     HSJK   MrBirdMD          2/8
+ *     type        name   host              size
+ *
+ * One SUBTEXT per row rather than one per column, with the columns made by
+ * padding. This font draws at a fixed width, so padding lines up - and a row
+ * per line is twelve subtexts instead of forty-eight, which matters because
+ * nothing here knows what Melee's limit is.
+ *
+ * ⚠️ The highlight is a COLOUR, not a caret. This font has no ASCII '>' and a
+ * '[' wedges the text draw, both found the hard way on the old room. A
+ * subtext's colour is fixed when it is created, so each row is drawn TWICE -
+ * white and gold, in the same place - and whichever does not apply is blanked.
+ */
+#define ROOM_BROWSE_ROWS   6
+#define ROOM_BROWSE_X     40.0f
+#define ROOM_BROWSE_HEAD_Y 380.0f
+#define ROOM_BROWSE_Y     406.0f
+#define ROOM_BROWSE_STEP   20.0f
+#define ROOM_BROWSE_SZ     0.42f
+
+/* Column widths, in characters. The last one is not padded - nothing follows
+ * it, and a trailing run of spaces is just more string to draw. */
+#define COL_TYPE  12
+#define COL_NAME   7
+#define COL_HOST  17
+
+static const char *const ROOM_MODE_NAME[] = {
+    "Singles", "Doubles", "Ironmans", "Crew", "Tournament"};
+
+static u8 s_list_buf[ROOMS_LIST_SIZE] __attribute__((aligned(32)));
+static int s_browse_row[ROOM_BROWSE_ROWS];
+static int s_browse_sel[ROOM_BROWSE_ROWS];
+static int s_browse_head = -1;
+static int s_browse_note = -1;
+static int s_browse_pick;
+static int s_browsing;
+
+static void room_fetch_list(void)
+{
+    u8 *cmd = rooms_exi_buf;
+
+    cmd[0] = CONST_SlippiCmdRoomListRead;
+    FN_EXITransferBuffer(cmd, 1, CONST_ExiWrite);
+    FN_EXITransferBuffer(s_list_buf, ROOMS_LIST_SIZE, CONST_ExiRead);
+}
+
+/* Pad to a column width, truncating anything that would push the next column
+ * along - a long name must not shove the whole row out of line. */
+static char *room_put_col(char *p, const char *s, int width)
+{
+    int i = 0;
+
+    while (s[i] && i < width - 1)
+    {
+        *p++ = s[i];
+        i++;
+    }
+    while (i < width)
+    {
+        *p++ = ' ';
+        i++;
+    }
+    return p;
+}
+
+static void room_draw_browser(void)
+{
+    const u8 *b = s_list_buf;
+    int fetched = b[ROOMS_LIST_FLAGS] & ROOMS_LIST_FETCHED;
+    int count = b[ROOMS_LIST_COUNT];
+    int i;
+
+    if (count > ROOM_BROWSE_ROWS)
+        count = ROOM_BROWSE_ROWS;
+    if (s_browse_pick >= count)
+        s_browse_pick = count > 0 ? count - 1 : 0;
+
+    /* ⚠️ These are different things and they want different words. An empty
+     * list before the first reply is not "there are none". */
+    if (s_browse_note >= 0)
+        Text_UpdateSubtextContents(
+            s_text, s_browse_note, "%s",
+            !fetched ? "Looking for rooms..."
+                     : (count == 0 ? "No public rooms right now" : ""));
+
+    for (i = 0; i < ROOM_BROWSE_ROWS; i++)
+    {
+        char line[80];
+        char *p = line;
+
+        if (i < count)
+        {
+            const u8 *e = rooms_list_entry(b, i);
+            u8 mode = e[ROOMS_LIST_MODE];
+
+            p = room_put_col(p, mode < 5 ? ROOM_MODE_NAME[mode] : "Room",
+                             COL_TYPE);
+            p = room_put_col(p, (const char *)(e + ROOMS_LIST_CODE), COL_NAME);
+            p = room_put_col(p, (const char *)(e + ROOMS_LIST_OWNER), COL_HOST);
+            p = room_put_i(p, e[ROOMS_LIST_PLAYERS]);
+            *p++ = '/';
+            p = room_put_i(p, ROOMS_ROOM_CAPACITY);
+        }
+        *p = 0;
+
+        /* Drawn twice, one blanked. That is the highlight. */
+        if (s_browse_row[i] >= 0)
+            Text_UpdateSubtextContents(s_text, s_browse_row[i], "%s",
+                                       i == s_browse_pick ? "" : line);
+        if (s_browse_sel[i] >= 0)
+            Text_UpdateSubtextContents(s_text, s_browse_sel[i], "%s",
+                                       i == s_browse_pick ? line : "");
+    }
+}
+
+/* Joining is telling Dolphin the code. The heartbeat starting IS the join -
+ * pd_tick inserts the member row on its first call - so there is nothing else
+ * to send and nothing to get out of step with. */
+static void room_join_pick(void)
+{
+    const u8 *b = s_list_buf;
+    const u8 *e;
+    u8 *cmd = rooms_exi_buf;
+    int i;
+
+    if (s_browse_pick >= b[ROOMS_LIST_COUNT])
+        return;
+
+    e = rooms_list_entry(b, s_browse_pick);
+    cmd[0] = CONST_SlippiCmdRoomJoin;
+    for (i = 0; i < 4; i++)
+        cmd[1 + i] = e[ROOMS_LIST_CODE + i];
+    FN_EXITransferBuffer(cmd, 5, CONST_ExiWrite);
+
+    room_log("[Rooms] joining a room from the list");
+}
+
+/* The two screens share one text struct, so whichever is not showing has to be
+ * emptied - a subtext nobody rewrites keeps drawing whatever it last said, and
+ * the browser's rows would sit under the room's queue for ever. */
+static void room_blank_browser(void)
+{
+    int i;
+
+    if (s_browse_head >= 0)
+        Text_UpdateSubtextContents(s_text, s_browse_head, "%s", "");
+    if (s_browse_note >= 0)
+        Text_UpdateSubtextContents(s_text, s_browse_note, "%s", "");
+    for (i = 0; i < ROOM_BROWSE_ROWS; i++)
+    {
+        if (s_browse_row[i] >= 0)
+            Text_UpdateSubtextContents(s_text, s_browse_row[i], "%s", "");
+        if (s_browse_sel[i] >= 0)
+            Text_UpdateSubtextContents(s_text, s_browse_sel[i], "%s", "");
+    }
+}
+
+static void room_blank_room(void)
+{
+    int i;
+
+    if (s_state_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_state_line, "%s", "");
+    if (s_name_l >= 0)
+        Text_UpdateSubtextContents(s_text, s_name_l, "%s", "");
+    if (s_name_r >= 0)
+        Text_UpdateSubtextContents(s_text, s_name_r, "%s", "");
+    for (i = 0; i < ROOMS_STATE_MAX_QUEUE; i++)
+        if (s_queue_line[i] >= 0)
+            Text_UpdateSubtextContents(s_text, s_queue_line[i], "%s", "");
+
+    /* The action lines belong to the room, not the browser: there is no queue
+     * to join until you are in one. */
+    if (s_join_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_join_sym, "%s", "");
+    if (s_join_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_join_line, "%s", "");
+    if (s_done_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_done_sym, "%s", "");
+    if (s_done_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_done_line, "%s", "");
+    if (s_next_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_next_sym, "%s", "");
+    if (s_next_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_next_line, "%s", "");
+}
+
+static void room_browse_buttons(void)
+{
+    u32 pressed = rooms_pad_pressed();
+    int count = s_list_buf[ROOMS_LIST_COUNT];
+
+    if (count > ROOM_BROWSE_ROWS)
+        count = ROOM_BROWSE_ROWS;
+
+    if ((pressed & (PAD_STICK_UP | PAD_DPAD_LEFT)) && s_browse_pick > 0)
+        s_browse_pick--;
+    if ((pressed & (PAD_STICK_DOWN | PAD_DPAD_RIGHT)) &&
+        s_browse_pick + 1 < count)
+        s_browse_pick++;
+    if (pressed & PAD_A)
+        room_join_pick();
+}
+
 #define ROOM_MAX_TEXT 8
 
 static void *s_our_text_gobj;
@@ -881,6 +1090,30 @@ void room_load(void *scene)
      * already not-queued would otherwise show two blank lines. */
     room_show_actions();
 
+    {
+        int i;
+
+        s_browse_head = FG_CreateSubtext(
+            s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0,
+            "Type        Name   Host             Size", ROOM_BROWSE_SZ,
+            ROOM_BROWSE_X, ROOM_BROWSE_HEAD_Y);
+        s_browse_note = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN,
+                                         0, "", ROOM_BROWSE_SZ, ROOM_BROWSE_X,
+                                         ROOM_BROWSE_Y);
+        for (i = 0; i < ROOM_BROWSE_ROWS; i++)
+        {
+            float y = ROOM_BROWSE_Y + (float)i * ROOM_BROWSE_STEP;
+
+            s_browse_row[i] = FG_CreateSubtext(s_text, &COL_WHITE,
+                                               ROOMS_SUBTEXT_PLAIN, 0, "",
+                                               ROOM_BROWSE_SZ, ROOM_BROWSE_X, y);
+            /* Same place, gold. Blanking one of the pair is the highlight. */
+            s_browse_sel[i] = FG_CreateSubtext(s_text, &COL_GOLD,
+                                               ROOMS_SUBTEXT_PLAIN, 0, "",
+                                               ROOM_BROWSE_SZ, ROOM_BROWSE_X, y);
+        }
+    }
+
     /* Ours is whichever text GObj was not there a moment ago; everything else
      * drawing text belongs to the splash and stops now. */
     room_note_our_text(before, n_before);
@@ -940,16 +1173,37 @@ void room_think(void)
         room_report_gobjs();
     }
 
+    /* No room means browsing. Joining one starts the heartbeat, the state goes
+     * valid, and the screen becomes a room without either side being told. */
     if (s_frames % ROOM_STATE_EVERY == 0)
     {
         room_fetch_state();
-        room_draw_status();
-        room_draw_players();
-        room_draw_queue();
+        s_browsing = !(s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_VALID);
+
+        if (s_browsing)
+        {
+            room_fetch_list();
+            room_draw_browser();
+            room_blank_room();
+        }
+        else
+        {
+            room_blank_browser();
+            room_draw_status();
+            room_draw_players();
+            room_draw_queue();
+        }
     }
 
-    room_buttons();
-    room_spin();
+    if (s_browsing)
+    {
+        room_browse_buttons();
+    }
+    else
+    {
+        room_buttons();
+        room_spin();
+    }
 
     if (s_line >= 0)
         Text_UpdateSubtextContents(s_text, s_line, "%s", "Rooms");
