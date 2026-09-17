@@ -376,8 +376,12 @@ static void room_draw_status(void)
 
     if (!(st[ROOMS_STATE_FLAGS] & ROOMS_FLAG_VALID))
     {
-        room_put(room_put(line, "no room"), "");
-        line[7] = 0;
+        /* ⚠️ Blank, not "no room". Being in a room and having HEARD from it are
+         * different things, and making one costs two network calls before the
+         * first tick can answer - so this line said "no room" for half a second
+         * on a room you were watching being made. Nothing is the honest thing
+         * to say while the answer is still coming; the line fills itself in. */
+        line[0] = 0;
     }
     else
     {
