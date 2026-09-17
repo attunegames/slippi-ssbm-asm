@@ -757,6 +757,11 @@ static void room_join_pick(void)
  * is the only reliable way to tell them apart, which the GObj census is what
  * established.
  */
+/* The splash's own GObj class. Named here because the helper that used to
+ * define it became a comment when the camera work came out - and a class
+ * number on its own tells the next reader nothing. */
+#define ROOM_CLASS_SPLASH 15
+
 #define ROOM_DRAW_COMMON  0x80391070   /* GXLink_Common - the splash tree     */
 #define ROOM_DRAW_FIGHTER 0x80080E18   /* FighterGX_OnscreenDraw - the two    */
 #define ROOM_DRAW_JOBJ_A  0x8009F54C   /* plain jobj drawers, class 3         */
