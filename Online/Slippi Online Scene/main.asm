@@ -1462,12 +1462,101 @@ restore
 blr
 #endregion
 
+################################################################################
+# Routine: RoomSlpCSSStrings
+# ------------------------------------------------------------------------------
+# The file and the symbol inside it, laid out the way SceneLoadCSS.asm lays them
+# out: the name at +0 and the symbol at +11, so one pointer reaches both.
+################################################################################
+RoomSlpCSSStrings:
+blrl
+.string "slpCSS.dat"
+.string "slpCSS"
+.align 2
+
 GamePrepScenePrep:
 .set REG_GPD, 31
+.set REG_ROOM_STR, 30
+.set REG_ROOM_ARC, 29
+.set REG_ROOM_SYM, 28
+.set REG_ROOM_CSSDT, 27
 
 backup
 
 lwz REG_GPD, 0x10(r3) # Grabs load data
+
+################################################################################
+# The draft wants the character select's archive
+################################################################################
+# GameSetup.dat builds its models out of it -
+#
+#     r9  = *CSSDT_BUF_ADDR        the character select's data table
+#     r29 = *(r9 + 4)              this pointer
+#     r9  = *(r29 + 0x10)          a JOBJ descriptor
+#
+# at code+0x38e4 - and only SceneLoad_CSS ever fills it in, because Slippi only
+# reaches this screen between games of a set, after that scene has run. A room
+# comes straight from its own queue, so it arrives with the field holding
+# whatever was last in the buffer, and both clients die on it.
+#
+# ⚠️ That is the "Invalid read from 0x30310012" crash, and the number is the
+# clue: *CSSDT_BUF_ADDR was NULL, so reading the archive pointer at +4 read
+# address 0x00000004 instead - which is "01" and the disc version bytes out of
+# GALE01's OWN HEADER. The pointer that killed both clients was the disc label.
+#
+# So do what that scene does: load the file, ask the archive for the symbol,
+# write it down. HERE and not in the room module, because a file loaded from a
+# scene lives on that scene's heap and the room's is about to be freed. This
+# runs inside the draft's own scene, before its module's Load.
+#
+# Not conditional on the field being empty - it is not empty when it is wrong,
+# it is stale.
+lbz r3, OFST_R13_ONLINE_MODE(r13)
+cmpwi r3, ONLINE_MODE_ROOMS
+bne RoomSlpCSS_SKIP
+
+# The table itself first, since a room has never been to the character select.
+loadwz REG_ROOM_CSSDT, CSSDT_BUF_ADDR
+cmpwi REG_ROOM_CSSDT, 0
+bne RoomSlpCSS_HAVE_TABLE
+
+li r3, CSSDT_SIZE
+branchl r12, HSD_MemAlloc
+mr REG_ROOM_CSSDT, r3
+li r4, CSSDT_SIZE
+branchl r12, Zero_AreaLength
+
+load r3, CSSDT_BUF_ADDR
+stw REG_ROOM_CSSDT, 0(r3)
+
+li r3, MSRB_SIZE
+branchl r12, HSD_MemAlloc
+stw r3, CSSDT_MSRB_ADDR(REG_ROOM_CSSDT)
+
+RoomSlpCSS_HAVE_TABLE:
+cmpwi REG_ROOM_CSSDT, 0
+beq RoomSlpCSS_SKIP
+
+# And then the archive, the same two calls the character select makes.
+bl RoomSlpCSSStrings
+mflr REG_ROOM_STR
+
+mr r3, REG_ROOM_STR
+branchl r12, 0x80016be0     # File_Load
+mr REG_ROOM_ARC, r3
+cmpwi REG_ROOM_ARC, 0
+beq RoomSlpCSS_SKIP
+
+mr r3, REG_ROOM_ARC
+addi r4, REG_ROOM_STR, 11   # the symbol, just past the file name
+branchl r12, 0x80380358     # File_GetSymbol
+mr REG_ROOM_SYM, r3
+cmpwi REG_ROOM_SYM, 0
+beq RoomSlpCSS_SKIP
+
+stw REG_ROOM_SYM, CSSDT_SLPCSS_ADDR(REG_ROOM_CSSDT)
+
+RoomSlpCSS_SKIP:
 
 # Check if this is a tiebreak. If it is a tiebreak, we dont want to invalidate since the same
 # characters will be loaded
