@@ -582,6 +582,9 @@ static int s_browse_head = -1;
 static int s_browse_note = -1;
 static int s_browse_pick;
 static int s_browsing;
+/* Starts at "browsing", so the first frame always counts as a change: a room
+ * entered directly still needs its band switched on and its actions drawn. */
+static int s_was_browsing = 1;
 
 static void room_fetch_list(void)
 {
@@ -646,7 +649,11 @@ static void room_draw_browser(void)
             p = room_put_col(p, (const char *)(e + ROOMS_LIST_CODE), COL_NAME);
             p = room_put_col(p, (const char *)(e + ROOMS_LIST_OWNER), COL_HOST);
             p = room_put_i(p, e[ROOMS_LIST_PLAYERS]);
-            *p++ = '/';
+            /* ⚠️ Shift-JIS solidus, not ASCII '/'. This font does not have the
+             * ASCII one - the size column drew "1" and then stopped dead, the
+             * same way '#' vanished out of the status line. Every symbol that
+             * does work here lives in this same 0x81 block. */
+            p = room_put(p, "^");
             p = room_put_i(p, e[ROOMS_LIST_CAPACITY]
                                   ? e[ROOMS_LIST_CAPACITY]
                                   : ROOMS_CAPACITY_UNKNOWN);
@@ -688,6 +695,63 @@ static void room_join_pick(void)
 /* The two screens share one text struct, so whichever is not showing has to be
  * emptied - a subtext nobody rewrites keeps drawing whatever it last said, and
  * the browser's rows would sit under the room's queue for ever. */
+/* ---------------------------------------------- the band, on and off again --
+ *
+ * The browser is a different place from a room, so it does not borrow the
+ * room's picture: no fighters, no backdrop, no NOW LOADING. Just the list.
+ *
+ * Hidden by FLAG rather than by destroying anything, because this has to come
+ * back the moment somebody joins. GObj_DestroyGXLink is one-way; the JObj
+ * hidden bit is a bit, and clearing it puts the picture back exactly as it was.
+ *
+ * ⚠️ Only GObjs whose draw callback is known to take a JOBJ. Class 15 also
+ * holds the fog, whose object at +0x28 is a fog descriptor - writing a hidden
+ * flag into that would be scribbling on something else entirely. The callback
+ * is the only reliable way to tell them apart, which the GObj census is what
+ * established.
+ */
+#define ROOM_DRAW_COMMON  0x80391070   /* GXLink_Common - the splash tree     */
+#define ROOM_DRAW_FIGHTER 0x80080E18   /* FighterGX_OnscreenDraw - the two    */
+#define ROOM_DRAW_JOBJ_A  0x8009F54C   /* plain jobj drawers, class 3         */
+#define ROOM_DRAW_JOBJ_B  0x801C4640
+
+static int room_draws_jobj(u32 fn)
+{
+    return fn == ROOM_DRAW_COMMON || fn == ROOM_DRAW_FIGHTER ||
+           fn == ROOM_DRAW_JOBJ_A || fn == ROOM_DRAW_JOBJ_B;
+}
+
+static void room_show_band(int show)
+{
+    static const int classes[] = {3, 8, ROOM_CLASS_SPLASH};
+    void **heads = rooms_gobj_heads();
+    unsigned int c;
+
+    if (!heads)
+        return;
+
+    for (c = 0; c < sizeof(classes) / sizeof(classes[0]); c++)
+    {
+        void *g;
+
+        for (g = heads[classes[c]]; g;
+             g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+        {
+            u32 fn = *(const u32 *)((const char *)g + ROOMS_GOBJ_DRAWFN);
+            void *jobj = *(void **)((char *)g + ROOMS_GOBJ_OBJECT);
+            u32 *flags;
+
+            if (!jobj || !room_draws_jobj(fn))
+                continue;
+            flags = (u32 *)((char *)jobj + ROOMS_JOBJ_FLAGS);
+            if (show)
+                *flags &= ~(u32)ROOM_JOBJ_HIDDEN;
+            else
+                *flags |= (u32)ROOM_JOBJ_HIDDEN;
+        }
+    }
+}
+
 static void room_blank_browser(void)
 {
     int i;
@@ -1190,11 +1254,22 @@ void room_think(void)
         }
         else
         {
-            room_blank_browser();
+            /* ⚠️ The action lines were blanked on the way into the browser and
+             * nothing else rewrites them, so entering a room showed the
+             * spinner and nothing beside it - a lone symbol, no words. */
+            if (s_was_browsing)
+            {
+                room_blank_browser();
+                room_show_actions();
+            }
             room_draw_status();
             room_draw_players();
             room_draw_queue();
         }
+
+        if (s_browsing != s_was_browsing)
+            room_show_band(!s_browsing);
+        s_was_browsing = s_browsing;
     }
 
     if (s_browsing)
