@@ -604,13 +604,34 @@ static void room_go_to_draft(void)
  * whatever it last saw, and between matches that is two people who have
  * finished.
  */
+static int s_watching;
+
 static void room_watch(void)
 {
     u8 *cmd = rooms_exi_buf;
 
     cmd[0] = CONST_SlippiCmdRoomWatch;
     FN_EXITransferBuffer(cmd, 1, CONST_ExiWrite);
+    s_watching = 1;
     room_log("[Rooms] asked to watch");
+}
+
+/* Straight to the VS splash, skipping the character select.
+ *
+ * A watcher has nothing to pick and no way to advance a screen that wants a
+ * pick. The splash is the last thing before a match and the thing that starts
+ * one, and RoomSceneDecide does the rest - it names the 1P port, which nothing
+ * else on this path will, and runs the splash's own init.
+ *
+ * ⚠️ Only once Dolphin says the watch is CONNECTED. Going early means arriving
+ * at a match Dolphin cannot yet describe: it has no characters, no stage and no
+ * seed until both players have said what they picked.
+ */
+static void room_go_to_watch(void)
+{
+    room_log("[Rooms] watching - handing over to the match");
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_SPLASH);
+    Scene_ExitMinor();
 }
 
 static void room_buttons(void)
@@ -1378,6 +1399,11 @@ void room_think(void)
             if (s_match_started && !s_draft_entered &&
                 (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_CONNECTED))
                 room_go_to_draft();
+
+            /* Asked to watch, and Dolphin now has enough of the match to
+             * describe it. */
+            if (s_watching && (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_WATCHING))
+                room_go_to_watch();
         }
 
         if (s_browsing != s_was_browsing || !s_screen_known)

@@ -1771,6 +1771,8 @@ blr
 # The module asks by writing the pending-minor byte, and this notices what was
 # asked for. That byte is one-based, so the draft - minor 5 - asks as 6.
 .set ROOM_PENDING_DRAFT, MINOR_GAMESETUP + 1
+.set ROOM_PENDING_SPLASH, MINOR_SPLASH + 1
+.set ROOM_WATCHER_PORT, 2
 
 RoomSceneDecide:
 .set REG_ROOM_GPD, 31
@@ -1779,6 +1781,39 @@ backup
 
 load r4, 0x80479d30
 lbz r3, 0x5(r4)
+
+################################################################################
+# A watcher, going straight to the match
+################################################################################
+# It has nothing to pick and no way to advance a screen that wants a pick, so
+# the room skips it past the character select entirely. What that screen would
+# have done is copy Dolphin's match block into the scene, and for a watcher
+# Dolphin has already filled that block in from the stream - so the splash's own
+# init is the whole of what is owed, and it has to run before the scene loads.
+cmpwi r3, ROOM_PENDING_SPLASH
+bne RoomSceneDecide_NOT_SPLASH
+
+# ⚠️ Say which port the local inputs come from, because nothing else will.
+#
+# InitOnlinePlay reads the 1P port out of -0x5108(r13) and makes it the game's
+# input source. That byte is written by CSS_StoreSinglePlayerPortNumber, from
+# the character select's A press - and a watcher never presses A, so on this
+# path it holds whatever happened to be there.
+#
+# If it names a port that IS in the match, Melee takes a neutral controller for
+# a player who is actually being fed, and simulates a DIFFERENT match: the clock
+# stays right and the damage does not. That is the divergence the old build
+# died of, and it is why going through the character select used to work - it
+# set this byte on the way past.
+#
+# Port 2 is not in the match. Its neutral controller moves nothing.
+li r3, ROOM_WATCHER_PORT
+stb r3, -0x5108(r13)
+
+bl SplashSceneInit
+b RoomSceneDecide_EXIT
+
+RoomSceneDecide_NOT_SPLASH:
 cmpwi r3, ROOM_PENDING_DRAFT
 bne RoomSceneDecide_EXIT
 

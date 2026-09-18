@@ -389,6 +389,13 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
  * drew the public list until its first tick landed, and Public drew a room.
  * Two half-second flashes of the wrong screen, one cause. */
 #define ROOMS_FLAG_INROOM  0x10
+
+/* A watch is up and Dolphin has enough of the match to describe it: both
+ * players have said what they picked, and at least the first frame is in hand.
+ *
+ * ⚠ Not "we asked to watch". Handing Melee a match Dolphin cannot yet describe
+ * means arriving with no characters, no stage and no seed. */
+#define ROOMS_FLAG_WATCHING 0x20
 #define ROOMS_NOT_PICKED   0xFF
 
 /* Melee's own "nobody", which SceneLoad_ClassicModeSplash checks for and then
