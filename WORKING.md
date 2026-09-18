@@ -7,6 +7,7 @@ nothing without the tag on the other, so every entry names both.
 |---|---|---|---|
 | Room hands two players to the draft over Slippi DIRECT, and a game is played | `works/rooms-draft-over-direct` (`fbdf5d6`) | `works/rooms-draft-over-direct` (`3973015e8`) | 2026-09-17 |
 | The whole room loop: pair, draft, play, report, ROTATE, pair the next two | `works/rooms-queue-rotation` | `works/rooms-queue-rotation` (`65bd21418`) | 2026-09-17 |
+| Both room screens open clean - no flash of the wrong one | `works/rooms-screens-clean` (`0f4026a`) | `works/rooms-screens-clean` (`5cfbc74d6`) | 2026-09-17 |
 
 ## rooms-draft-over-direct
 
@@ -75,3 +76,31 @@ searches ONCE per session; a room searches once per pairing.
 
 Still open at this tag: a genuine draw reports nothing and leaves the
 pairing open (`[Rooms] no result to report`).
+
+## rooms-screens-clean
+
+The room scene wears two faces - a room, and the public list - and it opened
+as the wrong one for about half a second either way.
+
+One mistake, three places. Each time it asked a question whose answer comes
+over the network when a local answer was available the whole time:
+
+- It only asked every 30th frame, so it first drew whatever the scene was
+  built as, which is the room's own look. Now it asks on frame 1.
+- It asked `ROOMS_FLAG_VALID`, which means a tick has come BACK. Now it asks
+  `ROOMS_FLAG_INROOM`, which Dolphin answers from whether we have a room.
+- Making a room is two network calls - sign in, then `pd_room_create` - and
+  `Enter()` has no code to store until they finish, so `INROOM` was still
+  false on the create path. The intent is now recorded synchronously when the
+  create is asked for, and taken back if the room is never made.
+
+Plus: `s_was_browsing` starts at 1 so entering a ROOM counts as a change and
+switches the band on. Entering to BROWSE started equal to it, counted as no
+change, and never switched the band OFF - so the public list kept the
+characters whenever it was the first screen opened.
+
+And the status line said "no room" until the first tick answered, which with
+the flash fixed would have been the new wrong thing to show. Blank now.
+
+⚠ This pair must ship together. `ROOMS_FLAG_INROOM` is new on both sides;
+the module reads it and Dolphin is what sets it.
