@@ -1105,6 +1105,21 @@ stb REG_IS_TEAMS,-0x5(r4) # Conditionally make announcer say "Team..." before th
 
 # Load local player idx + team ID
 lbz REG_LOCAL_PLAYER_IDX, MSRB_LOCAL_PLAYER_INDEX(REG_MSRB_ADDR)
+
+# ⚠️ A WATCHER is not in the match it is looking at. The split below is
+# "me on the left, everybody else on the right", and a watcher sits on a
+# port that is deliberately empty - so BOTH players went right and the
+# splash read as the two of them being on one team. Stand in for port 0
+# FOR THE SPLASH ONLY; the real local index still says 2 everywhere that
+# matters, because it decides which port's inputs come off the network.
+mulli r3, REG_LOCAL_PLAYER_IDX, 0x24
+addi r3, r3, MSRB_GAME_INFO_BLOCK + 0x61 # player type for the local port
+lbzx r3, REG_MSRB_ADDR, r3
+cmpwi r3, 3
+blt VS_SPLASH_LOCAL_IS_PLAYING
+li REG_LOCAL_PLAYER_IDX, 0
+VS_SPLASH_LOCAL_IS_PLAYING:
+
 li REG_PLAYER_IDX, 0
 li REG_LEFT_COUNT, 0
 li REG_RIGHT_COUNT, 0
