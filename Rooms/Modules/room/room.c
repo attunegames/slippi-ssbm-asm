@@ -453,6 +453,10 @@ static void room_draw_queue(void)
 #define STR_JOIN     "Press START to Join the Queue"
 #define STR_IN_QUEUE "In the Queue"
 #define STR_PRACTICE "Press START to Practice"
+/* Takes the practice line's place while a match is on. There are three slots,
+ * and while somebody is actually playing, watching is the more useful offer of
+ * the two - practice is still there the rest of the time. */
+#define STR_WATCH    "Press Y to Watch"
 
 /* Shift-JIS, because this font has no ASCII for them: × is what is still to do,
  * − is done, + is what you can do next. */
@@ -487,8 +491,11 @@ static void room_show_actions(void)
         Text_UpdateSubtextContents(s_text, s_next_sym, "%s",
                                    s_queued ? SYM_NEXT : "");
     if (s_next_line >= 0)
+    {
+        int playing = (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
         Text_UpdateSubtextContents(s_text, s_next_line, "%s",
-                                   s_queued ? STR_PRACTICE : "");
+                                   s_queued ? (playing ? STR_WATCH : STR_PRACTICE) : "");
+    }
     s_spin_frame = 0;
 }
 
@@ -605,6 +612,7 @@ static void room_go_to_draft(void)
  * finished.
  */
 static int s_watching;
+static int s_was_playing = -1; /* forces the first decision */
 
 static void room_watch(void)
 {
@@ -1386,6 +1394,17 @@ void room_think(void)
                 room_blank_browser();
                 room_show_actions();
             }
+            /* The offer changes when a match starts or ends: watching while
+             * one is on, practice the rest of the time. */
+            {
+                int playing = (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
+                if (playing != s_was_playing)
+                {
+                    s_was_playing = playing;
+                    room_show_actions();
+                }
+            }
+
             room_draw_status();
             room_draw_players();
             room_draw_queue();
