@@ -283,6 +283,7 @@ void Preload_Update(void);
 #define PAD_B      0x0200
 #define PAD_Z      0x0010
 #define PAD_A      0x0100
+#define PAD_Y      0x0800
 
 /* Melee puts the control stick's direction into the same word as the buttons,
  * so a menu can read a flick without touching the analog values at all.

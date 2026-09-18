@@ -594,6 +594,25 @@ static void room_go_to_draft(void)
     Scene_ExitMinor();
 }
 
+/* Y: watch the match the room is playing.
+ *
+ * No payload. Dolphin already holds the room state and therefore both players'
+ * addresses, so the game only has to ask - nothing about where anybody is has
+ * to come through here.
+ *
+ * ⚠️ Only while there IS a match. Asking otherwise would have Dolphin dial
+ * whatever it last saw, and between matches that is two people who have
+ * finished.
+ */
+static void room_watch(void)
+{
+    u8 *cmd = rooms_exi_buf;
+
+    cmd[0] = CONST_SlippiCmdRoomWatch;
+    FN_EXITransferBuffer(cmd, 1, CONST_ExiWrite);
+    room_log("[Rooms] asked to watch");
+}
+
 static void room_buttons(void)
 {
     u32 pressed = rooms_pad_pressed();
@@ -605,6 +624,9 @@ static void room_buttons(void)
         else
             room_practice();
     }
+
+    if ((pressed & PAD_Y) && (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING))
+        room_watch();
 }
 
 /* ----------------------------------------------------------- the browser --

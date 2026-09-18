@@ -558,6 +558,9 @@ add \reg, r3, r4
 .set CONST_SlippiCmdRoomState,0xC9
 # Ask Dolphin to go and fetch the public rooms, then read what it found.
 .set CONST_SlippiCmdRoomListRead,0xCA
+# Watch the match the room is playing. No payload: Dolphin already holds the
+# room state and therefore both players' addresses, so the game only has to ask.
+.set CONST_SlippiCmdRoomWatch,0xCB
 .set CONST_SlippiCmdFetchRank,0xE4
 # For Slippi file loads
 .set CONST_SlippiCmdFileLength, 0xD1
