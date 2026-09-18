@@ -574,6 +574,8 @@
 # Define online static data (OSD) and include macro to create static data
 ################################################################################
 .set OSD_LOCAL_PLAYER_INDEX, 0 # u8
+.set OSD_WATCH_SAVED_PORT, OSD_LOCAL_PLAYER_INDEX + 1 # u8
+.set OSD_WATCH_PORT_BORROWED, OSD_WATCH_SAVED_PORT + 1 # u8
 
 ################################################################################
 # Create space for the defined offsets above
@@ -583,6 +585,16 @@
 # that it can be used on the results screen or any scene following the in game
 # vs scene
 .byte 0 # OSD_LOCAL_PLAYER_INDEX
+
+# OSD_WATCH_SAVED_PORT holds the 1P port as it was before a watch
+# borrowed it, and OSD_WATCH_PORT_BORROWED says whether it is worth
+# putting back. A watch points the 1P port at a slot that is not in the
+# match, and nothing on the room's path to a game writes that byte again
+# - the character select's A press does, and a room does not go through
+# it - so without this the watcher's OWN next match reads an empty port
+# and their controller does nothing.
+.byte 0 # OSD_WATCH_SAVED_PORT
+.byte 0 # OSD_WATCH_PORT_BORROWED
 .align 2
 .endm
 

@@ -1794,6 +1794,27 @@ RoomSceneDecide:
 
 backup
 
+################################################################################
+# Give the 1P port back, if a watch borrowed it
+################################################################################
+# ⚠️ A watch points -0x5108(r13) at a port that is NOT in the match, and on
+# the room's path to a game nothing ever writes it again. The character
+# select's A press is what normally sets it and a room does not go through
+# that screen - so after watching, the watcher's OWN next match read an
+# empty port and their controller did nothing at all.
+#
+# Done here, before anything decides where to go, so it holds for every way
+# out of the room. The watch path below borrows it again straight after.
+fetchOnlineStaticDataPtr r4
+lbz r5, OSD_WATCH_PORT_BORROWED(r4)
+cmpwi r5, 0
+beq RoomSceneDecide_PORT_NOT_BORROWED
+lbz r5, OSD_WATCH_SAVED_PORT(r4)
+stb r5, -0x5108(r13)
+li r5, 0
+stb r5, OSD_WATCH_PORT_BORROWED(r4)
+RoomSceneDecide_PORT_NOT_BORROWED:
+
 load r4, 0x80479d30
 lbz r3, 0x5(r4)
 
@@ -1822,6 +1843,16 @@ bne RoomSceneDecide_NOT_SPLASH
 # set this byte on the way past.
 #
 # Port 2 is not in the match. Its neutral controller moves nothing.
+#
+# ⚠️ Kept first, because it has to go back. See the restore at the top of
+# this function - without it, watching once left this client unable to
+# play for the rest of the session.
+fetchOnlineStaticDataPtr r4
+lbz r5, -0x5108(r13)
+stb r5, OSD_WATCH_SAVED_PORT(r4)
+li r5, 1
+stb r5, OSD_WATCH_PORT_BORROWED(r4)
+
 li r3, ROOM_WATCHER_PORT
 stb r3, -0x5108(r13)
 
