@@ -8,6 +8,7 @@ nothing without the tag on the other, so every entry names both.
 | Room hands two players to the draft over Slippi DIRECT, and a game is played | `works/rooms-draft-over-direct` (`fbdf5d6`) | `works/rooms-draft-over-direct` (`3973015e8`) | 2026-09-17 |
 | The whole room loop: pair, draft, play, report, ROTATE, pair the next two | `works/rooms-queue-rotation` | `works/rooms-queue-rotation` (`65bd21418`) | 2026-09-17 |
 | Both room screens open clean - no flash of the wrong one | `works/rooms-screens-clean` (`0f4026a`) | `works/rooms-screens-clean` (`5cfbc74d6`) | 2026-09-17 |
+| A third person in the room watches the live match, re-simulated from the players' own inputs | `works/rooms-spectate-live` (`962983e`) | `works/rooms-spectate-live` (`709e8959a`) | 2026-09-18 |
 
 ## rooms-draft-over-direct
 
@@ -104,3 +105,54 @@ the flash fixed would have been the new wrong thing to show. Blank now.
 
 ⚠ This pair must ship together. `ROOMS_FLAG_INROOM` is new on both sides;
 the module reads it and Dolphin is what sets it.
+
+## rooms-spectate-live
+
+Someone waiting in the room presses Y and watches the match that is already
+being played, as a delay-based peer: it connects to BOTH players, takes
+their pads, and re-simulates the game. No `.slp` stream, no replay, and the
+online major is never left - so the return bug that killed the replay
+version cannot happen here.
+
+⚠️ Confirmed on the TEST RIG, which needs `lanForTesting`. Three clients
+behind one router cannot reach each other at their shared public address -
+the packets hairpin and are dropped - so the watcher falls back to a LAN
+address after three seconds. Every piece of that carries a
+`TEST RIGS ONLY - DELETE BEFORE THE FIRST BETA` banner. Spectating between
+real players over the internet is UNTESTED at this tag.
+
+Five things had to be true at once, and four of them presented as either
+silence or a crash:
+
+- A watcher joining mid-match must be TOLD what is being played.
+  `StartSlippiGame` ends with `matchInfo.Reset()` ready for the next game,
+  so a player's own selections are zeros by the time a match is on screen.
+  The watcher was being handed character 0, colour 0, stage 0, and having
+  no idea what it was looking at, never started anything - pressing Y
+  simply appeared to do nothing. A snapshot is now kept from just before
+  that reset.
+- ⚠️ The seed is PLAYER 0's `rngOffset`, always. Both players generate
+  their own and the match runs on the decider's, who is player index 0.
+  Taking whichever packet landed last is a coin flip, and a wrong seed is
+  every random thing in the match happening differently - which reads as a
+  divergence and is almost certainly part of what the old
+  re-simulation attempt died of. The stage has the same trap: it is the
+  first player in port order who chose one.
+- ⚠️ `localSelections` and `matchInfo.localPlayerSelections` are different
+  things. The first is the EXI device's, the second is what
+  `prepareOnlineMatchState` reads. Filling only the first left the second
+  claiming player index 0 and seed 0 - so `orderedSelections[2]` was never
+  filled and the next statement dereferenced it. That was a hard crash one
+  line after the handover logged.
+- ⚠️ ENet reports a dial that TIMED OUT through the same event as a player
+  leaving. The two unreachable addresses gave up at 30 seconds and ended
+  the view every time, no matter how well it was going. Only a peer that
+  actually answered can end it now.
+- Port 2 must stay empty. A watcher has a remote player count of 2, and
+  the normal rule reads that as "there is a third player" and marks port 2
+  human - standing a motionless fighter on the very port that was chosen
+  for being out of the match.
+
+NOT yet true at this tag: the watcher shows no player names, and the splash
+puts both players on the same team. Both are cosmetic - the match itself
+plays.
