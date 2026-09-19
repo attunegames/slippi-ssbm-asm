@@ -294,41 +294,24 @@ static void room_hide_loading(void)
     if (!heads)
         return;
 
-    /* ⚠️ ALL of them, not just link 4.
-     *
-     * The census says class 3 holds THREE GObjs, not the two the note above
-     * assumed - link 4 plus two more on link 0 - and hiding link 4 alone left
-     * NOW LOADING exactly where it was. The draw callbacks cannot tell them
-     * apart either: 0x80391044 and 0x801C4640 are byte-for-byte the same
-     * function, the plain three-call JObj draw.
-     *
-     * So take all three and log each address. If something wanted goes with
-     * them the log names which to put back, which beats another round of
-     * hide-one-and-look. Nothing is freed and nothing is structural - the
-     * hidden flag is a bit in a word.
-     */
     for (g = heads[ROOM_CLASS_LOADING]; g;
          g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
     {
         u8 link = *(const u8 *)((const char *)g + ROOMS_GOBJ_LINK);
         u32 *flags;
         void *jobj;
-        char line[80];
-        char *p = line;
 
+        if (link != ROOM_LOADING_LINK)
+            continue;
         jobj = *(void **)((char *)g + ROOMS_GOBJ_OBJECT);
         if (!jobj)
             continue;
         flags = (u32 *)((char *)jobj + ROOMS_JOBJ_FLAGS);
         *flags |= ROOM_JOBJ_HIDDEN;
-
-        p = room_put(p, "[Rooms] hid class 3 link ");
-        p = room_put_i(p, link);
-        p = room_put(p, " jobj ");
-        p = room_put_x(p, (u32)jobj);
-        *p = 0;
-        room_log(line);
+        room_log("[Rooms] hid the class 3 link 4 jobj");
+        return;
     }
+    room_log("[Rooms] no class 3 link 4 jobj to hide");
 }
 
 /* The splash's own text, switched off.
@@ -669,35 +652,6 @@ static void room_go_to_watch(void)
     room_log("[Rooms] watching - handing over to the match");
     SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_SPLASH);
     Scene_ExitMinor();
-}
-
-/* NOW LOADING, collapsed to nothing - kept trying until it works.
- *
- * ⚠️ Hiding it once, right after the splash is built, does not. The object does
- * not exist yet at that point: the log says "no sis text - now loading is
- * somewhere else" and the words sit across the band for the rest of the
- * session. Same shape as the fighters' camera, which is not there on the frame
- * the scene loads either - so the answer is the same, look again next frame.
- *
- * It is a text object rather than part of the model tree, which is why hiding
- * JObjs never touched it - through a flag sweep and a whole-tree animation
- * sweep both. */
-static int s_now_loading_hidden;
-
-static void room_hide_now_loading(void)
-{
-    void *sis;
-
-    if (s_now_loading_hidden)
-        return;
-
-    sis = *(void **)(ROOMS_SPLASH_STATE + ROOMS_SPLASH_SISTEXT);
-    if (!sis)
-        return;
-
-    Text_SetScale(sis, 0.0f, 0.0f);
-    s_now_loading_hidden = 1;
-    room_log("[Rooms] now loading scaled away");
 }
 
 /* Rebuild the band around what the pair actually picked.
@@ -1355,9 +1309,6 @@ void room_load(void *scene)
         SceneLoad_ClassicModeSplash(scene);
         room_log("[Rooms] splash built");
 
-        /* NOW LOADING is not hidden here - it does not exist yet on the frame
-         * the splash is built. room_hide_now_loading keeps asking. */
-        s_now_loading_hidden = 0;
         room_count_cams();
     }
     else
@@ -1615,8 +1566,6 @@ void room_think(void)
         s_screen_known = 1;
         s_was_browsing = s_browsing;
     }
-
-    room_hide_now_loading();
 
     if (s_browsing)
     {
