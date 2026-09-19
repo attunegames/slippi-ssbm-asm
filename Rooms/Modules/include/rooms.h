@@ -286,6 +286,10 @@ void Preload_Update(void);
 #define ROOMS_PAD_STRIDE   0x44
 #define ROOMS_PAD_PORTS    4
 #define ROOMS_PAD_PRESSED  0x08
+/* Held THIS frame, as opposed to newly pressed. Melee's pad struct keeps both:
+ * +0x00 is what is down now, +0x08 is what went down this frame. A hold needs
+ * the first - the second fires once and is gone. */
+#define ROOMS_PAD_HELD     0x00
 
 #define PAD_START  0x1000
 #define PAD_B      0x0200
@@ -309,6 +313,19 @@ void Preload_Update(void);
 
 /* Any port: a room is watched by whoever is sitting there, not by a fixed
  * controller slot. */
+/* Any port, like rooms_pad_pressed - a room is watched by whoever is sitting
+ * there. */
+static inline u32 rooms_pad_held(void)
+{
+    const char *pad = (const char *)ROOMS_PAD_MASTER;
+    u32 all = 0;
+    int i;
+
+    for (i = 0; i < ROOMS_PAD_PORTS; i++)
+        all |= *(u32 *)(pad + i * ROOMS_PAD_STRIDE + ROOMS_PAD_HELD);
+    return all;
+}
+
 static inline u32 rooms_pad_pressed(void)
 {
     const char *pad = (const char *)ROOMS_PAD_MASTER;

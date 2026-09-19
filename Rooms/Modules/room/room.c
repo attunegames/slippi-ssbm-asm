@@ -675,9 +675,55 @@ static void room_go_to_watch(void)
  * reload.
  */
 
+/* The two ways out, both on a HOLD rather than a press.
+ *
+ * B leaves the room altogether, Z steps back out of the queue. Held, because
+ * both are easy to hit by accident on a screen where the only other controls
+ * are Start and Y - and losing your place in a queue to a stray B is a worse
+ * mistake than having to hold it for a moment.
+ *
+ * ⚠️ rooms_pad_held, not rooms_pad_pressed. Pressed fires on the frame the
+ * button goes down and is gone the next one, so a counter built on it never
+ * gets past 1.
+ */
+/* ⚠️ Declared up here rather than down with the browser's own statics, because
+ * room_leave_room needs it and that sits above them. Which screen is showing
+ * decides whether there was a room to leave at all. */
+static int s_browsing;
+
+#define ROOM_HOLD_FRAMES 60      /* one second at 60fps */
+
+static int s_hold_b;
+static int s_hold_z;
+
+static void room_leave_room(void)
+{
+    u8 *cmd = rooms_exi_buf;
+
+    room_log("[Rooms] leaving the room");
+
+    /* ⚠️ The byte says whether there was a room to leave. Walking off the list
+     * of public rooms is not leaving one - you were never in it - and the old
+     * build's note records that saying otherwise drops the client out of the
+     * room it was already in. */
+    cmd[0] = CONST_SlippiCmdRoomLeave;
+    cmd[1] = (u8)!s_browsing;
+    FN_EXITransferBuffer(cmd, 2, CONST_ExiWrite);
+
+    /* Out to the menu. ⚠️ Both halves, in this order: the pending MINOR is
+     * cleared so nothing of ours is next, the major is written through
+     * MenuController_WriteToPendingMajor_1to_0xC, and only then does the minor
+     * end - Scene_ProcessMajor only looks at the major flag between minors, so
+     * ending the minor first lands you back where you started. */
+    SCENE_CTRL.pending_minor = 0;
+    MenuController_WriteToPendingMajor_1to_0xC(SCENE_MAJOR_MAIN_MENU);
+    Scene_ExitMinor();
+}
+
 static void room_buttons(void)
 {
     u32 pressed = rooms_pad_pressed();
+    u32 held = rooms_pad_held();
 
     if (pressed & PAD_START)
     {
@@ -689,6 +735,28 @@ static void room_buttons(void)
 
     if ((pressed & PAD_Y) && (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING))
         room_watch();
+
+    /* Hold B: out of the room. */
+    s_hold_b = (held & PAD_B) ? s_hold_b + 1 : 0;
+    if (s_hold_b == ROOM_HOLD_FRAMES)
+    {
+        s_hold_b = 0;
+        room_leave_room();
+        return;
+    }
+
+    /* Hold Z: out of the queue, staying in the room. Nothing to do if we are
+     * not in it. */
+    s_hold_z = (held & PAD_Z) ? s_hold_z + 1 : 0;
+    if (s_hold_z == ROOM_HOLD_FRAMES)
+    {
+        s_hold_z = 0;
+        if (s_queued)
+        {
+            room_log("[Rooms] stepping out of the queue");
+            room_set_queued(0);
+        }
+    }
 }
 
 /* ----------------------------------------------------------- the browser --
@@ -730,7 +798,6 @@ static int s_browse_sel[ROOM_BROWSE_ROWS];
 static int s_browse_head = -1;
 static int s_browse_note = -1;
 static int s_browse_pick;
-static int s_browsing;
 /* Starts at "browsing", so the first frame always counts as a change: a room
  * entered directly still needs its band switched on and its actions drawn. */
 static int s_was_browsing = 1;
@@ -1020,6 +1087,17 @@ static void room_browse_buttons(void)
         s_browse_pick++;
     if (pressed & PAD_A)
         room_join_pick();
+
+    /* Out the same way a room is left. ⚠️ Not the same thing underneath: the
+     * byte room_leave_room sends says we were only looking at the list, so
+     * nobody's membership is touched. There was no way off this screen either
+     * until now. */
+    s_hold_b = (rooms_pad_held() & PAD_B) ? s_hold_b + 1 : 0;
+    if (s_hold_b == ROOM_HOLD_FRAMES)
+    {
+        s_hold_b = 0;
+        room_leave_room();
+    }
 }
 
 #define ROOM_MAX_TEXT 8

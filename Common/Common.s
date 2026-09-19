@@ -561,6 +561,7 @@ add \reg, r3, r4
 # Watch the match the room is playing. No payload: Dolphin already holds the
 # room state and therefore both players' addresses, so the game only has to ask.
 .set CONST_SlippiCmdRoomWatch,0xCB
+.set CONST_SlippiCmdRoomLeave,0xCC
 .set CONST_SlippiCmdFetchRank,0xE4
 # For Slippi file loads
 .set CONST_SlippiCmdFileLength, 0xD1
