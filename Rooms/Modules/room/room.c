@@ -654,69 +654,78 @@ static void room_go_to_watch(void)
     Scene_ExitMinor();
 }
 
-/* ⛔ The band is NOT rebuilt while the room is open. There was a
- * room_rebuild_band here that re-entered the room scene when the picks
- * changed, and it FROZE the room: 2026-09-18, three rebuilds inside five
- * seconds and the third never came back - "room scene load" with no "splash
- * built" after it, and the log stops there.
+/* Rebuild the band around what the pair actually picked.
  *
- * ⚠️ The reasoning that put it there was that a scene change frees the scene
- * heap, so rebuilding costs nothing that accumulates. Two worked and the third
- * did not, which is what a leak looks like - the same shape as
- * FN_LoadMatchState, which allocated on every call and took this room down at
- * thirty-six seconds.
+ * The models are FILES, ordered in RoomScenePrep before the scene loads, and
+ * the draft happens long after that - everyone else is already sitting in the
+ * room while two of them choose. So the band is rebuilt by re-entering the room
+ * scene, which runs that prep again with the picks in hand.
  *
- * It also cost the queue. Every reload restarts this module and clears its
- * statics, so a Start press before one was simply forgotten.
+ * ⚠️ This froze the room once, 2026-09-18: three rebuilds inside five seconds
+ * and the third never came back - "room scene load" with no "splash built"
+ * after it. Two things have changed since, and the guards below are the third.
  *
- * RoomScenePrep still reads the picks, so the band is right for anyone
- * ENTERING the room. Making it update while sitting there needs the two
- * fighter models swapped in place, without a scene change - not another
- * reload.
+ * ⚠️ It was NOT a heap leak, which is what I said at the time and used as the
+ * reason to take it out. Measured 2026-09-19: the heap cursor reads the same
+ * address on every room entry, so the scene heap is reset in full each time.
+ *
+ * What actually caused those three was the PICK bug - the draft reported the
+ * field it was not choosing as 0, so the band saw 0/0, then 20/0, then 20/5.
+ * Picks now come from the resolved match and change once per game.
+ *
+ * ⚠️ The remaining suspect is the old build's note on this exact approach:
+ * "its models are a preload nothing in this scene advances". The two rebuilds
+ * that SURVIVED used characters already in memory; the one that hung wanted
+ * Bowser, which was not. If a re-entry does not finish loading a new fighter's
+ * file, the build waits for it for ever - and that looks precisely like a hang
+ * inside SceneLoad_ClassicModeSplash. The log either side of the build is there
+ * to tell the two stories apart.
  */
+#define ROOM_REBUILD_COOLDOWN 180   /* three seconds, in frames */
 
-/* The two ways out, both on a HOLD rather than a press.
- *
- * B leaves the room altogether, Z steps back out of the queue. Held, because
- * both are easy to hit by accident on a screen where the only other controls
- * are Start and Y - and losing your place in a queue to a stray B is a worse
- * mistake than having to hold it for a moment.
- *
- * ⚠️ rooms_pad_held, not rooms_pad_pressed. Pressed fires on the frame the
- * button goes down and is gone the next one, so a counter built on it never
- * gets past 1.
- */
-/* ⚠️ Declared up here rather than down with the browser's own statics, because
- * room_leave_room needs it and that sits above them. Which screen is showing
- * decides whether there was a room to leave at all. */
-static int s_browsing;
+static int s_rebuild_cooldown;
 
-#define ROOM_HOLD_FRAMES 60      /* one second at 60fps */
-
-static int s_hold_b;
-static int s_hold_z;
-
-static void room_leave_room(void)
+static void room_rebuild_band(void)
 {
-    u8 *cmd = rooms_exi_buf;
+    u8 l = s_state_buf[ROOMS_STATE_HOST_CHAR];
+    u8 r = s_state_buf[ROOMS_STATE_GUEST_CHAR];
+    u8 st = s_state_buf[ROOMS_STATE_STAGE];
 
-    room_log("[Rooms] leaving the room");
+    /* ⚠️ Not in the first second of a scene. A rebuild reloads this module, so
+     * everything here starts again from zero - and if the state read on the way
+     * in disagreed even briefly with what RoomScenePrep built from, a rebuild
+     * could ask for another immediately. Letting the room settle first means a
+     * loop cannot start, and a loop here is a room nobody can even leave. */
+    if (!s_band_known || s_rebuild_cooldown > 0 || s_frames < 60)
+        return;
+    /* ⚠️ Only a COMPLETE draft. A half-filled one is a band that would have to
+     * be rebuilt again a moment later, and stacking these is what went wrong. */
+    if (l == ROOMS_NOT_PICKED || r == ROOMS_NOT_PICKED || st == ROOMS_NOT_PICKED)
+        return;
+    if (l == s_band_char_l && r == s_band_char_r && st == s_band_stage)
+        return;
 
-    /* ⚠️ The byte says whether there was a room to leave. Walking off the list
-     * of public rooms is not leaving one - you were never in it - and the old
-     * build's note records that saying otherwise drops the client out of the
-     * room it was already in. */
-    cmd[0] = CONST_SlippiCmdRoomLeave;
-    cmd[1] = (u8)!s_browsing;
-    FN_EXITransferBuffer(cmd, 2, CONST_ExiWrite);
+    {
+        char line[80];
+        char *p = line;
 
-    /* Out to the menu. ⚠️ Both halves, in this order: the pending MINOR is
-     * cleared so nothing of ours is next, the major is written through
-     * MenuController_WriteToPendingMajor_1to_0xC, and only then does the minor
-     * end - Scene_ProcessMajor only looks at the major flag between minors, so
-     * ending the minor first lands you back where you started. */
-    SCENE_CTRL.pending_minor = 0;
-    MenuController_WriteToPendingMajor_1to_0xC(SCENE_MAJOR_MAIN_MENU);
+        p = room_put(p, "[Rooms] band out of date - rebuilding for ");
+        p = room_put_i(p, l);
+        p = room_put(p, "/");
+        p = room_put_i(p, r);
+        p = room_put(p, " on ");
+        p = room_put_i(p, st);
+        *p = 0;
+        room_log(line);
+    }
+
+    /* ⚠️ Set BEFORE the scene change, not after - there is no after. Melee
+     * leaves the scene inside Scene_ExitMinor and this module is reloaded, so
+     * anything written past this line never runs. The cooldown survives only
+     * because the reload resets it to zero anyway, which is the same thing. */
+    s_rebuild_cooldown = ROOM_REBUILD_COOLDOWN;
+
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_ROOM);
     Scene_ExitMinor();
 }
 
@@ -1491,6 +1500,9 @@ void room_load(void *scene)
 
 void room_think(void)
 {
+    if (s_rebuild_cooldown > 0)
+        s_rebuild_cooldown--;
+
     /* Once, not every frame. A think that logs per frame drowns everything
      * else in the log, which is where every answer in this project has come
      * from so far. */
@@ -1612,6 +1624,11 @@ void room_think(void)
              * describe it. */
             if (s_watching && (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_WATCHING))
                 room_go_to_watch();
+            /* ⚠️ Not while a watch is being handed over - that is a scene
+             * change already on its way, and a second one would take the room
+             * back instead of the match. */
+            else if (!s_watching)
+                room_rebuild_band();
         }
 
         if (s_browsing != s_was_browsing || !s_screen_known)
