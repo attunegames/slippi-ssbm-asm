@@ -1444,10 +1444,27 @@ void room_think(void)
          * scene. Everything after it is compared against that. */
         if (!s_band_known)
         {
+            char line[80];
+            char *p = line;
+
             s_band_char_l = s_state_buf[ROOMS_STATE_HOST_CHAR];
             s_band_char_r = s_state_buf[ROOMS_STATE_GUEST_CHAR];
             s_band_stage = s_state_buf[ROOMS_STATE_STAGE];
             s_band_known = 1;
+
+            /* ⚠️ Logged rather than left to the status line, which runs off the
+             * right-hand edge of the band and loses everything after the first
+             * number - 255 for "nobody has picked" and a real id look the same
+             * once the rest is clipped away. */
+            p = room_put(p, "[Rooms] band built from ");
+            p = room_put_i(p, s_band_char_l);
+            p = room_put(p, "/");
+            p = room_put_i(p, s_band_char_r);
+            p = room_put(p, " on ");
+            p = room_put_i(p, s_band_stage);
+            p = room_put(p, "  (255 = nobody has picked)");
+            *p = 0;
+            room_log(line);
         }
 
         if (s_browsing)
