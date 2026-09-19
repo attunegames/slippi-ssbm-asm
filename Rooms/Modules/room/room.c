@@ -125,11 +125,14 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
 /* The room's own name, top left under the title: ROOM QAFK PASS 5143.
  * A private room shows stars until somebody holds R or L, so a code is not
  * left sitting on a stream. */
+/* ⚠️ Where the "Rooms" title used to be. The title said nothing a player in a
+ * room needed - they know where they are - so it is gone and this has its
+ * place, in the dark of the picture above the left fighter's head. */
 #define ROOM_CODE_X     40.0f
-#define ROOM_CODE_Y    176.0f
+#define ROOM_CODE_Y    144.0f
 #define ROOM_CODE_SZ    0.50f
-#define ROOM_HINT_Y    198.0f
-#define ROOM_HINT_SZ    0.40f
+#define ROOM_HINT_Y    166.0f
+#define ROOM_HINT_SZ    0.38f
 
 /* And the two names, on the plate where DK and Zelda were - which is where the
  * Slippi usernames go. Placeholders until a room has players in it. */
@@ -139,7 +142,7 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
 #define ROOM_NAME_R_X  420.0f
 /* ⚠️ Up from 400. They were sitting well below the picture with a band of
  * nothing between, and belong just under the fighters' feet. */
-#define ROOM_NAME_Y    366.0f
+#define ROOM_NAME_Y    348.0f
 #define ROOM_NAME_SZ   0.70f
 
 static void *s_text;
@@ -161,18 +164,28 @@ static int   s_done_sym = -1;    /* green -, once you are in it      */
 static int   s_done_line = -1;   /* green, saying so                 */
 static int   s_next_sym = -1;    /* blue +, what you can do next     */
 static int   s_next_line = -1;   /* gray, offering practice          */
+static int   s_leaveq_sym = -1;  /* hold Z, out of the queue         */
+static int   s_leaveq_line = -1;
+static int   s_leaver_sym = -1;  /* hold B, out of the room          */
+static int   s_leaver_line = -1;
+static int   s_rule_lobby = -1;  /* the line under each heading      */
+static int   s_rule_queue = -1;
 
-/* The two action lines, on the right of the plate so they do not collide with
- * the queue running down the left. The symbol sits in its own subtext ahead of
- * the words, which is how the old room did it - one line can then change its
- * symbol without redrawing the sentence. */
-/* Moved left and down a size from the first attempt, where "Press START to
- * Practice" ran off the right-hand edge and read "Press START to Pr". */
-#define ROOM_ACT_SYM_X   292.0f
-#define ROOM_ACT_X       320.0f
-#define ROOM_ACT_Y       440.0f
-#define ROOM_ACT_STEP     26.0f
-#define ROOM_ACT_SZ       0.45f
+/* The third column: everything you can do from here, one line each. The symbol
+ * sits in its own subtext ahead of the words, which is how the old room did it
+ * - a line can then change its symbol without redrawing the sentence.
+ *
+ * ⚠️ Smaller than the columns beside it, and it has to be. "Press START to Join
+ * the Queue" is the longest string on the screen and at 0.45 it ran off the
+ * right-hand edge and read "Press START to Join the".
+ *
+ * Top-aligned with the two headings rather than with the names under them, so
+ * the three columns start on the same line. */
+#define ROOM_ACT_SYM_X   404.0f
+#define ROOM_ACT_X       424.0f
+#define ROOM_ACT_Y       ROOM_HEAD_Y
+#define ROOM_ACT_STEP     22.0f
+#define ROOM_ACT_SZ       0.34f
 
 /* Two columns under the picture: who is waiting, and who is just here.
  *
@@ -188,19 +201,38 @@ static int   s_next_line = -1;   /* gray, offering practice          */
  * twice the width and push the names out of line. Same trick the action lines
  * use for their symbols, and for the same reason a subtext's colour is fixed
  * when it is created. */
-#define ROOM_QUEUE_X      88.0f
-#define ROOM_QUEUE_Y     406.0f
-#define ROOM_QUEUE_STEP   22.0f
-#define ROOM_QUEUE_SZ      0.45f
+/* Three columns, left to right: who is here, who is waiting, and what you can
+ * do about it.
+ *
+ *   Lobby            Queue            + Press START to Join the Queue
+ *   -----            -----            + Press Y to Spectate
+ *   Peppy          2 Alpha            - Hold Z to Leave the Queue
+ *   Bravo            Charlie          - Hold B to Leave the Room
+ *
+ * ⚠️ Down and left of where they first went, which put them on top of the two
+ * players' names. */
+#define ROOM_COL_Y       424.0f
+#define ROOM_COL_STEP     22.0f
+#define ROOM_COL_SZ        0.45f
 
-#define ROOM_LOBBY_X     330.0f
-#define ROOM_LOBBY_Y     ROOM_QUEUE_Y
-#define ROOM_LOBBY_STEP  ROOM_QUEUE_STEP
-#define ROOM_LOBBY_SZ    ROOM_QUEUE_SZ
+#define ROOM_LOBBY_X      40.0f
+#define ROOM_LOBBY_Y     ROOM_COL_Y
+#define ROOM_LOBBY_STEP  ROOM_COL_STEP
+#define ROOM_LOBBY_SZ    ROOM_COL_SZ
 
-/* The two headings, a line above their columns. */
-#define ROOM_HEAD_Y      (ROOM_QUEUE_Y - 24.0f)
+#define ROOM_QUEUE_X     230.0f
+#define ROOM_QUEUE_Y     ROOM_COL_Y
+#define ROOM_QUEUE_STEP  ROOM_COL_STEP
+#define ROOM_QUEUE_SZ    ROOM_COL_SZ
+
+/* The headings, a line above their columns, with a rule under each. This font
+ * has no underline, so the rule is a row of underscores in its own subtext -
+ * which also lets it be the heading's colour rather than the names'. */
+#define ROOM_HEAD_Y      (ROOM_COL_Y - 30.0f)
 #define ROOM_HEAD_SZ      0.50f
+#define ROOM_RULE_Y      (ROOM_COL_Y - 22.0f)
+#define ROOM_RULE_SZ      0.50f
+#define ROOM_RULE        "________"
 
 /* The crown and its number, both at this X, one over the other. */
 #define ROOM_CROWN_X      60.0f
@@ -213,7 +245,6 @@ static int   s_next_line = -1;   /* gray, offering practice          */
  * black star, 0x81 0x99, the nearest thing to a crown that is likely to exist.
  * If it comes out blank, the candidates are in room_draw_crowns. */
 #define SYM_CROWN "\x81\x99"
-static int   s_line = -1;
 static int   s_said_hello;
 static int   s_frames;
 
@@ -534,11 +565,11 @@ static void room_draw_code(void)
         return;
     }
 
-    p = room_put(p, "ROOM ");
+    p = room_put(p, "Room ");
     p = room_put(p, (private_room && !show) ? "****" : code);
     if (pass[0])
     {
-        p = room_put(p, "  PASS ");
+        p = room_put(p, "  Pass ");
         p = room_put(p, (private_room && !show) ? "****" : pass);
     }
     *p = 0;
@@ -547,7 +578,7 @@ static void room_draw_code(void)
         Text_UpdateSubtextContents(s_text, s_code_line, "%s", line);
     if (s_hint_line >= 0)
         Text_UpdateSubtextContents(s_text, s_hint_line, "%s",
-                                   private_room && !show ? "Press R or L to show" : "");
+                                   private_room && !show ? "Hold R or L to show" : "");
 }
 
 /* The two the room is playing, on the plate where the character names were.
@@ -603,6 +634,45 @@ static void room_draw_queue(void)
 {
     int i;
 
+    /* ⚠️ The headings are written HERE, every time, not once when they are
+     * made. They used to be set at creation and never again - and
+     * room_blank_room clears them, which every client that joins a room passes
+     * through: there is always a poll or two before the first tick comes back
+     * when the answer is "not in a room yet". So everyone except whoever made
+     * the room lost their headings for good, and got them back only if
+     * something happened to rebuild the scene. */
+    if (s_head_lobby >= 0)
+        Text_UpdateSubtextContents(s_text, s_head_lobby, "%s", "Lobby");
+    if (s_head_queue >= 0)
+        Text_UpdateSubtextContents(s_text, s_head_queue, "%s", "Queue");
+    if (s_rule_lobby >= 0)
+        Text_UpdateSubtextContents(s_text, s_rule_lobby, "%s", ROOM_RULE);
+    if (s_rule_queue >= 0)
+        Text_UpdateSubtextContents(s_text, s_rule_queue, "%s", ROOM_RULE);
+
+    /* ⚠️ Said out loud when it changes, because a blank crown column has two
+     * very different meanings and they look identical: nobody has won a room
+     * yet, or the glyph does not exist in this font. A crown is not one win -
+     * it is beating EVERYONE in the room - so "none" is the usual answer. */
+    {
+        static int said = -1;
+        int total = 0;
+
+        for (i = 0; i < ROOMS_STATE_NAMES; i++)
+            total += s_state_buf[ROOMS_STATE_CROWNS + i];
+        if (total != said)
+        {
+            char line[64];
+            char *p = line;
+
+            said = total;
+            p = room_put(p, "[Rooms] crowns in this room: ");
+            p = room_put_i(p, total);
+            *p = 0;
+            room_log(line);
+        }
+    }
+
     for (i = 0; i < ROOMS_STATE_MAX_QUEUE; i++)
         room_draw_row(s_queue_line[i], s_queue_crown[i], s_queue_num[i], 2 + i);
 
@@ -628,7 +698,9 @@ static void room_draw_queue(void)
 /* Takes the practice line's place while a match is on. There are three slots,
  * and while somebody is actually playing, watching is the more useful offer of
  * the two - practice is still there the rest of the time. */
-#define STR_WATCH    "Press Y to Watch"
+#define STR_WATCH    "Press Y to Spectate"
+#define STR_LEAVE_Q  "Hold Z to Leave the Queue"
+#define STR_LEAVE_R  "Hold B to Leave the Room"
 
 /* Shift-JIS, because this font has no ASCII for them: × is what is still to do,
  * − is done, + is what you can do next. */
@@ -647,6 +719,9 @@ static int s_spin_frame;
 /* Two lines in the same place, one blanked. That is how the colour changes. */
 static void room_show_actions(void)
 {
+    int playing = (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
+
+    /* Row one changes with you: offering the queue, or saying you are in it. */
     if (s_join_sym >= 0)
         Text_UpdateSubtextContents(s_text, s_join_sym, "%s",
                                    s_queued ? "" : SYM_TODO);
@@ -659,15 +734,29 @@ static void room_show_actions(void)
     if (s_done_line >= 0)
         Text_UpdateSubtextContents(s_text, s_done_line, "%s",
                                    s_queued ? STR_IN_QUEUE : "");
+
+    /* Row two: watching, which only exists while a match is on. */
     if (s_next_sym >= 0)
         Text_UpdateSubtextContents(s_text, s_next_sym, "%s",
-                                   s_queued ? SYM_NEXT : "");
+                                   playing ? SYM_NEXT : "");
     if (s_next_line >= 0)
-    {
-        int playing = (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
         Text_UpdateSubtextContents(s_text, s_next_line, "%s",
-                                   s_queued ? (playing ? STR_WATCH : STR_PRACTICE) : "");
-    }
+                                   playing ? STR_WATCH : "");
+
+    /* Rows three and four: the two ways out. ⚠️ Shown whether or not they apply
+     * this second - they are how you LEAVE, and a way out that appears only
+     * once you have guessed it exists is not a way out. Leaving the queue is
+     * greyed rather than hidden when you are not in one. */
+    if (s_leaveq_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_leaveq_sym, "%s",
+                                   s_queued ? SYM_DONE : SYM_TODO);
+    if (s_leaveq_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_leaveq_line, "%s", STR_LEAVE_Q);
+    if (s_leaver_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_leaver_sym, "%s", SYM_DONE);
+    if (s_leaver_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_leaver_line, "%s", STR_LEAVE_R);
+
     s_spin_frame = 0;
 }
 
@@ -1279,6 +1368,10 @@ static void room_blank_room(void)
         Text_UpdateSubtextContents(s_text, s_head_queue, "%s", "");
     if (s_head_lobby >= 0)
         Text_UpdateSubtextContents(s_text, s_head_lobby, "%s", "");
+    if (s_rule_lobby >= 0)
+        Text_UpdateSubtextContents(s_text, s_rule_lobby, "%s", "");
+    if (s_rule_queue >= 0)
+        Text_UpdateSubtextContents(s_text, s_rule_queue, "%s", "");
     if (s_name_l >= 0)
         Text_UpdateSubtextContents(s_text, s_name_l, "%s", "");
     if (s_name_r >= 0)
@@ -1638,8 +1731,8 @@ void room_load(void *scene)
         return;
     }
 
-    s_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0,
-                              "Rooms", ROOM_TEXT_SZ, ROOM_TEXT_X, ROOM_TEXT_Y);
+    /* ⚠️ No title. "Rooms" said nothing to somebody already standing in
+     * one, and the room's own name wants that place - see room_draw_code. */
 
     /* Outlined rather than plain: this font has no bold, and an outline is the
      * nearest thing to one that it does have. */
@@ -1658,12 +1751,12 @@ void room_load(void *scene)
                                    "", ROOM_HINT_SZ, ROOM_CODE_X, ROOM_HINT_Y);
 
     /* The two column headings. */
-    s_head_queue = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0,
-                                    "Queue", ROOM_HEAD_SZ,
-                                    ROOM_QUEUE_X, ROOM_HEAD_Y);
     s_head_lobby = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0,
-                                    "Lobby", ROOM_HEAD_SZ,
+                                    "", ROOM_HEAD_SZ,
                                     ROOM_LOBBY_X, ROOM_HEAD_Y);
+    s_head_queue = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0,
+                                    "", ROOM_HEAD_SZ,
+                                    ROOM_QUEUE_X, ROOM_HEAD_Y);
     s_name_l = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0,
                                 "", ROOM_NAME_SZ,
                                 ROOM_NAME_L_X, ROOM_NAME_Y);
@@ -1713,6 +1806,27 @@ void room_load(void *scene)
     s_next_line = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
                                    ROOM_ACT_SZ, ROOM_ACT_X,
                                    ROOM_ACT_Y + ROOM_ACT_STEP);
+
+    /* The two ways out, rows three and four. */
+    s_leaveq_sym = FG_CreateSubtext(s_text, &COL_WAIT, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                    ROOM_ACT_SZ, ROOM_ACT_SYM_X,
+                                    ROOM_ACT_Y + 2.0f * ROOM_ACT_STEP);
+    s_leaveq_line = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                     ROOM_ACT_SZ, ROOM_ACT_X,
+                                     ROOM_ACT_Y + 2.0f * ROOM_ACT_STEP);
+    s_leaver_sym = FG_CreateSubtext(s_text, &COL_WAIT, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                    ROOM_ACT_SZ, ROOM_ACT_SYM_X,
+                                    ROOM_ACT_Y + 3.0f * ROOM_ACT_STEP);
+    s_leaver_line = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                     ROOM_ACT_SZ, ROOM_ACT_X,
+                                     ROOM_ACT_Y + 3.0f * ROOM_ACT_STEP);
+
+    /* The rules under the two headings. ⚠️ Created AFTER the headings so they
+     * draw over nothing - subtexts go down in the order they are made. */
+    s_rule_lobby = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0,
+                                    "", ROOM_RULE_SZ, ROOM_LOBBY_X, ROOM_RULE_Y);
+    s_rule_queue = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0,
+                                    "", ROOM_RULE_SZ, ROOM_QUEUE_X, ROOM_RULE_Y);
 
     /* Drawn once here rather than waiting for a change: a room you walk into
      * already not-queued would otherwise show two blank lines. */
@@ -1936,6 +2050,4 @@ void room_think(void)
         room_spin();
     }
 
-    if (s_line >= 0)
-        Text_UpdateSubtextContents(s_text, s_line, "%s", "Rooms");
 }
