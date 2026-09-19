@@ -276,10 +276,11 @@ static char *room_put_x(char *p, u32 v)
  * and 0 plus a light.
  *
  * Being a JObj is the useful part: the invisible flag works on those, which is
- * why it worked on the backdrop. This hides the one on link 4 and says so. If
- * the wrong thing disappears it is the other one, and the flag is a bit in a
- * word - nothing is freed and nothing is structural, so it cannot hang the way
- * destroying links did.
+ * why it worked on the backdrop. The flag is a bit in a word - nothing is freed
+ * and nothing is structural, so it cannot hang the way destroying links did.
+ *
+ * ⚠️ 2026-09-18: link 4 alone was NOT it. The census shows three GObjs in this
+ * class, and hiding link 4 left NOW LOADING exactly where it was - see the loop.
  */
 #define ROOM_CLASS_LOADING 3
 #define ROOM_LOADING_LINK  4
@@ -293,24 +294,41 @@ static void room_hide_loading(void)
     if (!heads)
         return;
 
+    /* ⚠️ ALL of them, not just link 4.
+     *
+     * The census says class 3 holds THREE GObjs, not the two the note above
+     * assumed - link 4 plus two more on link 0 - and hiding link 4 alone left
+     * NOW LOADING exactly where it was. The draw callbacks cannot tell them
+     * apart either: 0x80391044 and 0x801C4640 are byte-for-byte the same
+     * function, the plain three-call JObj draw.
+     *
+     * So take all three and log each address. If something wanted goes with
+     * them the log names which to put back, which beats another round of
+     * hide-one-and-look. Nothing is freed and nothing is structural - the
+     * hidden flag is a bit in a word.
+     */
     for (g = heads[ROOM_CLASS_LOADING]; g;
          g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
     {
         u8 link = *(const u8 *)((const char *)g + ROOMS_GOBJ_LINK);
         u32 *flags;
         void *jobj;
+        char line[80];
+        char *p = line;
 
-        if (link != ROOM_LOADING_LINK)
-            continue;
         jobj = *(void **)((char *)g + ROOMS_GOBJ_OBJECT);
         if (!jobj)
             continue;
         flags = (u32 *)((char *)jobj + ROOMS_JOBJ_FLAGS);
         *flags |= ROOM_JOBJ_HIDDEN;
-        room_log("[Rooms] hid the class 3 link 4 jobj");
-        return;
+
+        p = room_put(p, "[Rooms] hid class 3 link ");
+        p = room_put_i(p, link);
+        p = room_put(p, " jobj ");
+        p = room_put_x(p, (u32)jobj);
+        *p = 0;
+        room_log(line);
     }
-    room_log("[Rooms] no class 3 link 4 jobj to hide");
 }
 
 /* The splash's own text, switched off.
