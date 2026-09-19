@@ -1703,13 +1703,20 @@ blr
 # Worth keeping for another reason: Game & Watch is internal 3, and he is drawn
 # flat solid black. A character as a black shape is the one way this scene can
 # put an opaque rectangle anywhere, since nothing here can draw a filled quad.
-# What the room draws when the pair have NOT settled on anything yet. Named
-# probe because that is what they were: proof that a fighter could be drawn
-# on the band at all. They are the idle look now, not the only look.
-.set ROOM_PROBE_CHAR_L, 1     # Donkey Kong
-.set ROOM_PROBE_CHAR_R, 18    # Zelda
+
+# Nobody on the band until somebody has actually chosen.
+#
+# ⚠️ 26 is not a character. Written into a character slot it makes
+# SceneLoad_ClassicModeSplash build NOTHING, which is the room's empty state in
+# one byte - there is no separate "draw no fighters" path to find.
+#
+# This used to be Donkey Kong and Zelda, named probe because that is what they
+# were: proof that a fighter could be drawn on the band at all. They had done
+# that job, and an idle room should not claim two people are about to play.
+.set ROOM_NO_CHAR, 26
 .set ROOM_CHAR_GAMEWATCH, 3   # flat black, if a cover is ever wanted
-.set ROOM_PROBE_STAGE, 0x1F   # Battlefield
+.set ROOM_EMPTY_STAGE, 0x1F  # Battlefield, as the empty backdrop
+
 # What CMD_ROOM_STATE hands back. ⚠️ Mirrors the layout in
 # Rooms/Modules/include/rooms.h - change both or this reads the wrong bytes.
 .set ROOMS_STATE_SIZE,       480   # 12 header + 14 names of 32 + 20 opp code
@@ -1775,11 +1782,14 @@ cmpwi r30, ROOMS_NOT_PICKED
 bne RoomScenePrep_HAVE_PICKS
 
 RoomScenePrep_NO_PICKS:
-li r26, ROOM_PROBE_CHAR_L
+li r26, ROOM_NO_CHAR
 li r27, 0
-li r28, ROOM_PROBE_CHAR_R
+li r28, ROOM_NO_CHAR
 li r29, 0
-li r30, ROOM_PROBE_STAGE
+# ⚠️ A stage is still ordered even with nobody on it. It is the backdrop, and
+# more to the point NOW LOADING is the splash saying it is still waiting for
+# files - ask for no stage and it waits for ever.
+li r30, ROOM_EMPTY_STAGE
 RoomScenePrep_HAVE_PICKS:
 
 

@@ -653,6 +653,35 @@ static void room_go_to_watch(void)
     Scene_ExitMinor();
 }
 
+/* NOW LOADING, collapsed to nothing - kept trying until it works.
+ *
+ * ⚠️ Hiding it once, right after the splash is built, does not. The object does
+ * not exist yet at that point: the log says "no sis text - now loading is
+ * somewhere else" and the words sit across the band for the rest of the
+ * session. Same shape as the fighters' camera, which is not there on the frame
+ * the scene loads either - so the answer is the same, look again next frame.
+ *
+ * It is a text object rather than part of the model tree, which is why hiding
+ * JObjs never touched it - through a flag sweep and a whole-tree animation
+ * sweep both. */
+static int s_now_loading_hidden;
+
+static void room_hide_now_loading(void)
+{
+    void *sis;
+
+    if (s_now_loading_hidden)
+        return;
+
+    sis = *(void **)(ROOMS_SPLASH_STATE + ROOMS_SPLASH_SISTEXT);
+    if (!sis)
+        return;
+
+    Text_SetScale(sis, 0.0f, 0.0f);
+    s_now_loading_hidden = 1;
+    room_log("[Rooms] now loading scaled away");
+}
+
 /* Rebuild the band around what the pair actually picked.
  *
  * The models are FILES, ordered in RoomScenePrep before the scene loads, and
@@ -1260,22 +1289,9 @@ void room_load(void *scene)
         SceneLoad_ClassicModeSplash(scene);
         room_log("[Rooms] splash built");
 
-        /* NOW LOADING, collapsed to nothing. It is a text object, not part of
-         * the model tree - which is exactly why hiding JObjs never touched it,
-         * through a flag sweep and a whole-tree animation sweep both. */
-        {
-            void *sis = *(void **)(ROOMS_SPLASH_STATE + ROOMS_SPLASH_SISTEXT);
-
-            if (sis)
-            {
-                Text_SetScale(sis, 0.0f, 0.0f);
-                room_log("[Rooms] now loading scaled away");
-            }
-            else
-            {
-                room_log("[Rooms] no sis text - now loading is somewhere else");
-            }
-        }
+        /* NOW LOADING is not hidden here - it does not exist yet on the frame
+         * the splash is built. room_hide_now_loading keeps asking. */
+        s_now_loading_hidden = 0;
         room_count_cams();
     }
     else
@@ -1524,6 +1540,8 @@ void room_think(void)
         s_screen_known = 1;
         s_was_browsing = s_browsing;
     }
+
+    room_hide_now_loading();
 
     if (s_browsing)
     {
