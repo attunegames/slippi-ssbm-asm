@@ -114,15 +114,16 @@ their pads, and re-simulates the game. No `.slp` stream, no replay, and the
 online major is never left - so the return bug that killed the replay
 version cannot happen here.
 
-⚠️ **What this tag actually proves: it RUNS.** The watcher connects, is told
-the right characters, stage and seed, catches up invisibly and holds a steady
-few frames behind. Nobody compared the PERCENTAGES against a player's screen,
-so "stays in sync" was never established - and 2026-09-19 turned up a reason to
-doubt it: `MatchmakeResult::items` had no initialiser and a watcher never fills
-the struct in, so items were spawning on the watcher and not on the players.
-Items pull the shared RNG. Spotted by eye, not by any log. Fixed in dolphin
-`84ec25f95`; a full game watched end to end with the damage matching is still
-the test that would earn this tag its name.
+✅ **VERIFIED IN FULL 2026-09-19.** A whole match watched start to finish: no
+items, percentages matching a player's screen throughout, same winner and final
+stocks, and the watcher could queue and play afterwards. This is the check that
+had NOT been done when the tag was first applied - until then it recorded only
+that a watch connects, is told the right characters, stage and seed, catches up
+and holds level. Two things had to be fixed before it passed: the drafted picks
+(dolphin `e5b3e39bd`) and ⚠️ `MatchmakeResult::items`, which had no initialiser
+and which a watcher never fills in - items were spawning on the watcher alone
+and items pull the shared RNG (dolphin `84ec25f95`). That one was spotted BY
+EYE, a barrel on the stage; every number in the log looked perfect throughout.
 
 ⚠️ Confirmed on the TEST RIG, which needs `lanForTesting`. Three clients
 behind one router cannot reach each other at their shared public address -
