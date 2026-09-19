@@ -1067,15 +1067,18 @@ static void room_show_fighters(int show)
         {
             u32 fn = *(const u32 *)((const char *)g + ROOMS_GOBJ_DRAWFN);
             void *jobj = *(void **)((char *)g + ROOMS_GOBJ_OBJECT);
-            u32 *flags;
 
             if (!jobj || fn != ROOM_DRAW_FIGHTER)
                 continue;
-            flags = (u32 *)((char *)jobj + ROOMS_JOBJ_FLAGS);
+
+            /* ⚠️ The WHOLE model, not the root joint. Writing the flag straight
+             * into the root hid Bowser's body and left his shell spikes
+             * floating in mid air - they hang off child joints, and each joint
+             * is tested on its own on the way down. */
             if (show)
-                *flags &= ~(u32)ROOM_JOBJ_HIDDEN;
+                JOBJ_ClearFlagsAll(jobj, ROOM_JOBJ_HIDDEN);
             else
-                *flags |= (u32)ROOM_JOBJ_HIDDEN;
+                JOBJ_SetFlagsAll(jobj, ROOM_JOBJ_HIDDEN);
         }
     }
 }

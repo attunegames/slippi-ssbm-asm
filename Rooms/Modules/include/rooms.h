@@ -240,6 +240,16 @@ void CObj_SetScissor(void *cobj, int left, int right, int top, int bottom);
 void JOBJ_GetChild(void *jobj, void **out, int idx, ...);
 void JOBJ_RemoveAnimAll(void *jobj);
 
+/* The hidden flag across a WHOLE model, not just its root joint.
+ *
+ * ⚠️ Setting it on the root alone hides the body and leaves the rest behind:
+ * Bowser's shell spikes stayed floating in mid air after he was hidden, because
+ * they hang off child joints and each joint is tested on its own way down.
+ * These two walk the tree - confirmed in the DOL, they follow the child pointer
+ * and OR the flag in at every joint. */
+void JOBJ_SetFlagsAll(void *jobj, u32 flags);
+void JOBJ_ClearFlagsAll(void *jobj, u32 flags);
+
 /* JObj: +0x08 next sibling, +0x0C first child, +0x14 flags. Read off
  * JOBJ_GetChild's own walk rather than assumed. */
 #define ROOMS_JOBJ_NEXT  0x08
