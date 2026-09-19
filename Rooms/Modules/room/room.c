@@ -351,10 +351,10 @@ static int s_have_state;
 
 /* What the fighters on the band were built from.
  *
- * RoomScenePrep reads the same three bytes and orders the models from them, so
- * this is a record of what is actually on screen. When the room's answer stops
- * matching it, the picture is out of date and the only way to rebuild it is to
- * come back through that prep - see room_rebuild_band. */
+ * RoomScenePrep reads the same three bytes on the way into this scene and
+ * orders the models from them, so this is a record of what is actually on
+ * screen. Logged once, because the status line runs off the edge of the band -
+ * nothing acts on it any more. See the note above room_buttons for why. */
 static u8 s_band_char_l = ROOMS_NOT_PICKED;
 static u8 s_band_char_r = ROOMS_NOT_PICKED;
 static u8 s_band_stage = ROOMS_NOT_PICKED;
@@ -654,55 +654,26 @@ static void room_go_to_watch(void)
     Scene_ExitMinor();
 }
 
-/* Rebuild the band around what the pair actually picked.
+/* ⛔ The band is NOT rebuilt while the room is open. There was a
+ * room_rebuild_band here that re-entered the room scene when the picks
+ * changed, and it FROZE the room: 2026-09-18, three rebuilds inside five
+ * seconds and the third never came back - "room scene load" with no "splash
+ * built" after it, and the log stops there.
  *
- * The models are FILES, ordered in RoomScenePrep before the scene loads, and
- * the draft happens long after that - everyone else is already sitting in the
- * room while two of them choose. So the band is rebuilt by re-entering the room
- * scene, which runs that prep again with the picks in hand.
+ * ⚠️ The reasoning that put it there was that a scene change frees the scene
+ * heap, so rebuilding costs nothing that accumulates. Two worked and the third
+ * did not, which is what a leak looks like - the same shape as
+ * FN_LoadMatchState, which allocated on every call and took this room down at
+ * thirty-six seconds.
  *
- * ⚠️ A scene change rather than building another splash on top of this one.
- * Melee frees the scene heap on the way out, so this costs nothing that
- * accumulates - and the room has already been killed once by a call that
- * allocated every time it ran (FN_LoadMatchState, thirty-six seconds).
+ * It also cost the queue. Every reload restarts this module and clears its
+ * statics, so a Start press before one was simply forgotten.
  *
- * ⚠️ Only on a COMPLETE draft, or a complete clearing of one. Picks arrive one
- * at a time - a character, the other character, then the stage - and rebuilding
- * on each would reload the room three times while somebody chooses.
+ * RoomScenePrep still reads the picks, so the band is right for anyone
+ * ENTERING the room. Making it update while sitting there needs the two
+ * fighter models swapped in place, without a scene change - not another
+ * reload.
  */
-static void room_rebuild_band(void)
-{
-    u8 l = s_state_buf[ROOMS_STATE_HOST_CHAR];
-    u8 r = s_state_buf[ROOMS_STATE_GUEST_CHAR];
-    u8 st = s_state_buf[ROOMS_STATE_STAGE];
-    int complete = (l != ROOMS_NOT_PICKED && r != ROOMS_NOT_PICKED &&
-                    st != ROOMS_NOT_PICKED);
-    int empty = (l == ROOMS_NOT_PICKED && r == ROOMS_NOT_PICKED &&
-                 st == ROOMS_NOT_PICKED);
-
-    if (!s_band_known)
-        return;
-    if (!complete && !empty)
-        return;
-    if (l == s_band_char_l && r == s_band_char_r && st == s_band_stage)
-        return;
-
-    {
-        char line[80];
-        char *p = line;
-        p = room_put(p, "[Rooms] the band is out of date - rebuilding for ");
-        p = room_put_i(p, l);
-        p = room_put(p, "/");
-        p = room_put_i(p, r);
-        p = room_put(p, " on ");
-        p = room_put_i(p, st);
-        *p = 0;
-        room_log(line);
-    }
-
-    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_ROOM);
-    Scene_ExitMinor();
-}
 
 static void room_buttons(void)
 {
@@ -1545,11 +1516,6 @@ void room_think(void)
              * describe it. */
             if (s_watching && (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_WATCHING))
                 room_go_to_watch();
-            /* ⚠️ Not while a watch is being handed over - that is a scene
-             * change already on its way, and asking for a second one would
-             * take the room back instead of the match. */
-            else if (!s_watching)
-                room_rebuild_band();
         }
 
         if (s_browsing != s_was_browsing || !s_screen_known)
