@@ -10,6 +10,7 @@ nothing without the tag on the other, so every entry names both.
 | Both room screens open clean - no flash of the wrong one | `works/rooms-screens-clean` (`0f4026a`) | `works/rooms-screens-clean` (`5cfbc74d6`) | 2026-09-17 |
 | A third person in the room watches the live match, re-simulated from the players' own inputs | `works/rooms-spectate-live` (`962983e`) | `works/rooms-spectate-live` (`709e8959a`) | 2026-09-18 |
 | Hold B leaves a room, hold Z leaves the queue, and a room outlives its owner | `works/rooms-leave` (`ea900c7`) | `works/rooms-leave` (`52dc15214`) | 2026-09-19 |
+| The band follows the draft LIVE - the fighters and stage change for everyone sitting in the room | `works/rooms-band-live` | `works/rooms-band-live` | 2026-09-19 |
 
 ## rooms-draft-over-direct
 
@@ -199,3 +200,35 @@ strands everybody in it.
   ten minutes ago, and a room owned by a ghost is one nothing can close.
   `owner_name` moves with the uuid, because the browser reads that denormalised
   column rather than joining.
+
+## rooms-band-live
+
+The two fighters and the stage on the band are the ones being played, and they
+change while you are sitting there - not only for somebody who walks in after
+the draft. RoomScenePrep asks Dolphin what the pair picked and orders those
+models; when the picks change the room re-enters its own scene and comes back
+with them.
+
+This took three goes and I was wrong about it twice, so the wrong answers are
+worth as much as the right one:
+
+- ⛔ **26 in a character slot does NOT give an empty band.** It makes
+  `SceneLoad_ClassicModeSplash` build nothing, and the CAMERA is part of
+  nothing - "banded 0 cam", classes 20 and 21 absent, black screen, because
+  with no camera even the text has nothing to draw through. The check is on the
+  RIGHT slot (minor data +0x10) and it returns before anything is built. For an
+  empty band, build the scene in full and hide the fighters.
+- ⛔ **The freeze was NOT a heap leak.** I said it was, and used that to remove
+  the feature. Measured: the heap cursor reads the SAME address on every room
+  entry, so the scene heap is reset in full each time. What actually caused
+  three rebuilds in five seconds was the pick bug - the draft reports the field
+  it is not choosing as 0, and 0 is Captain Falcon and a real stage. Picks now
+  come from the resolved match and change once a game.
+- ⚠️ Hiding a fighter means `JOBJ_SetFlagsAll`, not the flag written into the
+  root joint. The rest of a model hangs off child joints and each is tested on
+  its own, so the root-only version hid Bowser's body and left his shell spikes
+  floating in mid air.
+
+Guards, so rebuilds cannot stack: a COMPLETE draft only, a three second
+cooldown, and nothing in the first second of a scene - a loop here would be a
+room nobody could even leave.
