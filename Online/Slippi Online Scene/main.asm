@@ -1703,12 +1703,85 @@ blr
 # Worth keeping for another reason: Game & Watch is internal 3, and he is drawn
 # flat solid black. A character as a black shape is the one way this scene can
 # put an opaque rectangle anywhere, since nothing here can draw a filled quad.
+# What the room draws when the pair have NOT settled on anything yet. Named
+# probe because that is what they were: proof that a fighter could be drawn
+# on the band at all. They are the idle look now, not the only look.
 .set ROOM_PROBE_CHAR_L, 1     # Donkey Kong
 .set ROOM_PROBE_CHAR_R, 18    # Zelda
 .set ROOM_CHAR_GAMEWATCH, 3   # flat black, if a cover is ever wanted
 .set ROOM_PROBE_STAGE, 0x1F   # Battlefield
+# What CMD_ROOM_STATE hands back. ⚠️ Mirrors the layout in
+# Rooms/Modules/include/rooms.h - change both or this reads the wrong bytes.
+.set ROOMS_STATE_SIZE,       480   # 12 header + 14 names of 32 + 20 opp code
+.set ROOMS_STATE_HOST_CHAR,  0x04
+.set ROOMS_STATE_HOST_COL,   0x05
+.set ROOMS_STATE_GUEST_CHAR, 0x06
+.set ROOMS_STATE_GUEST_COL,  0x07
+.set ROOMS_STATE_STAGE,      0x08
+.set ROOMS_NOT_PICKED,       0xFF
+
 RoomScenePrep:
-backup
+# ⚠️ 544 of free space, for the room state read below - and `restore` has to be
+# told the same number or it unwinds the wrong amount of stack.
+.set ROOM_PREP_FRAME, 544
+backup ROOM_PREP_FRAME
+
+################################################################################
+# Ask Dolphin what the pair are playing
+################################################################################
+# The band used to be two placeholders. It is built HERE, because a fighter is
+# a file read off the disc across frames and this is the scene's one chance to
+# ask for it - so the answer has to be in hand before anything below runs.
+#
+# ⚠️ The room re-enters its own scene when the picks change. That is what makes
+# this work at all: the pair draft while everyone else is already sitting in
+# the room, long after this ran, so the only way to show what they chose is to
+# come back through here. See room_think.
+#
+# A 32-byte aligned scratch inside this frame's free space - EXI transfers by
+# DMA and an unaligned buffer is a corrupt read rather than a failed one.
+addi r31, r1, 0x8 + 31
+rlwinm r31, r31, 0, 0, 26
+
+li r3, CONST_SlippiCmdRoomState
+stb r3, 0x0(r31)
+mr r3, r31
+li r4, 1
+li r5, CONST_ExiWrite
+branchl r12, FN_EXITransferBuffer
+
+# ⚠️ All of it, not just the header. Dolphin answers from a queue and a short
+# read leaves the rest of it there for whoever asks next.
+mr r3, r31
+li r4, ROOMS_STATE_SIZE
+li r5, CONST_ExiRead
+branchl r12, FN_EXITransferBuffer
+
+# ⚠️ Read into NON-VOLATILE registers, and after the calls above rather than
+# before - everything below still has two library calls to get through.
+lbz r26, ROOMS_STATE_HOST_CHAR(r31)
+lbz r27, ROOMS_STATE_HOST_COL(r31)
+lbz r28, ROOMS_STATE_GUEST_CHAR(r31)
+lbz r29, ROOMS_STATE_GUEST_COL(r31)
+lbz r30, ROOMS_STATE_STAGE(r31)
+
+# Anything not yet chosen and the placeholders stand in for all of it, rather
+# than half a real match beside half an invented one.
+cmpwi r26, ROOMS_NOT_PICKED
+beq RoomScenePrep_NO_PICKS
+cmpwi r28, ROOMS_NOT_PICKED
+beq RoomScenePrep_NO_PICKS
+cmpwi r30, ROOMS_NOT_PICKED
+bne RoomScenePrep_HAVE_PICKS
+
+RoomScenePrep_NO_PICKS:
+li r26, ROOM_PROBE_CHAR_L
+li r27, 0
+li r28, ROOM_PROBE_CHAR_R
+li r29, 0
+li r30, ROOM_PROBE_STAGE
+RoomScenePrep_HAVE_PICKS:
+
 
 # The splash reads a struct it does not initialise, so the template goes in
 # first - +0x08 through +0x0A are fields whose meaning is not known here, and
@@ -1739,26 +1812,18 @@ li r3, 1
 stb r3, 0x3(r4)             # left count
 stb r3, 0x4(r4)             # right count
 
-li r3, ROOM_PROBE_CHAR_L
-stb r3, 0x5(r4)             # left slot 0
-li r3, 0
-stb r3, 0xB(r4)             # ...its costume
+stb r26, 0x5(r4)            # left slot 0
+stb r27, 0xB(r4)            # ...its costume
 
-li r3, ROOM_PROBE_CHAR_R
-stb r3, 0x8(r4)             # right slot 0
-li r3, 0
-stb r3, 0xE(r4)             # ...its costume
+stb r28, 0x8(r4)            # right slot 0
+stb r29, 0xE(r4)            # ...its costume
 
 # Order the files.
 load r4, 0x80432078
-li r3, ROOM_PROBE_CHAR_L
-stw r3, 0x14(r4)
-li r3, 0
-stb r3, 0x18(r4)
-li r3, ROOM_PROBE_CHAR_R
-stw r3, 0x1C(r4)
-li r3, 0
-stb r3, 0x20(r4)
+stw r26, 0x14(r4)
+stb r27, 0x18(r4)
+stw r28, 0x1C(r4)
+stb r29, 0x20(r4)
 
 # And the stage, which was left out of the first version of this on purpose -
 # fewer things in flight while the fighters were the question.
@@ -1766,9 +1831,9 @@ stb r3, 0x20(r4)
 # NOW LOADING is not decoration. It is the splash saying it is still waiting for
 # files, which it has been, because the room ordered two fighters and nothing
 # else. The splash's own prep asks for the stage here too, out of the stage
-# select data; the room has no match yet, so Battlefield stands in.
-li r3, ROOM_PROBE_STAGE
-stw r3, 0xC(r4)
+# select data; the room asks Dolphin instead, and falls back to Battlefield
+# when the pair have not chosen one.
+stw r30, 0xC(r4)
 
 # Queue the loads. The three calls are the splash prep's, in its order; only
 # the first of them has a name in the symbol file.
@@ -1778,7 +1843,7 @@ branchl r12,0x80018c2c
 li  r3,4
 branchl r12,0x80017700
 
-restore
+restore ROOM_PREP_FRAME
 blr
 
 # The draft, and what it needs before it can be entered.
