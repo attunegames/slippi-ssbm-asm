@@ -1719,7 +1719,8 @@ blr
 
 # What CMD_ROOM_STATE hands back. ⚠️ Mirrors the layout in
 # Rooms/Modules/include/rooms.h - change both or this reads the wrong bytes.
-.set ROOMS_STATE_SIZE,       480   # 12 header + 14 names of 32 + 20 opp code
+.set ROOMS_STATE_SIZE,       510   # 12 header + 14 names of 32 + 20 opp code
+                                   #  + 14 crowns + 8 room code + 8 passcode
 .set ROOMS_STATE_HOST_CHAR,  0x04
 .set ROOMS_STATE_HOST_COL,   0x05
 .set ROOMS_STATE_GUEST_CHAR, 0x06

@@ -104,9 +104,32 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
  * Setting X to 470 put the word at screen x 498 and ran it off the right edge
  * at 0.85, so both come down. NOW LOADING sits at about screen row 231, and
  * canvas Y carries the 104 the splash is raised by, so 335 lands on it. */
-#define ROOM_STATE_X   430.0f
-#define ROOM_STATE_Y   335.0f
-#define ROOM_STATE_SZ  0.55f
+/* ⚠️ The stats line that used to live here is GONE. "Q0 L1 #0 P255/255 ST255"
+ * sat across NOW LOADING, ran off the right-hand edge so the numbers after the
+ * first were cut off anyway, and said nothing a player wanted. What the room is
+ * doing is now shown by the two columns underneath.
+ *
+ * What takes its place is the STAGE, on the bottom edge of the picture and
+ * between the two fighters. Same row NOW LOADING uses - screen 231, and every
+ * canvas Y here carries the 104 the splash is raised by, so 335. */
+#define ROOM_STAGE_X   230.0f
+#define ROOM_STAGE_Y   335.0f
+#define ROOM_STAGE_SZ  0.55f
+
+/* The white VS, between the two names. The RED one is the splash's own artwork
+ * and stays hidden - this is the small white one that sits between the players
+ * on Slippi's versus screen. */
+#define ROOM_VS_X      305.0f
+#define ROOM_VS_SZ     0.70f
+
+/* The room's own name, top left under the title: ROOM QAFK PASS 5143.
+ * A private room shows stars until somebody holds R or L, so a code is not
+ * left sitting on a stream. */
+#define ROOM_CODE_X     40.0f
+#define ROOM_CODE_Y    176.0f
+#define ROOM_CODE_SZ    0.50f
+#define ROOM_HINT_Y    198.0f
+#define ROOM_HINT_SZ    0.40f
 
 /* And the two names, on the plate where DK and Zelda were - which is where the
  * Slippi usernames go. Placeholders until a room has players in it. */
@@ -114,11 +137,21 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
  * and both were sitting too far right of where DK and Zelda were. */
 #define ROOM_NAME_L_X   60.0f
 #define ROOM_NAME_R_X  420.0f
-#define ROOM_NAME_Y    400.0f
+/* ⚠️ Up from 400. They were sitting well below the picture with a band of
+ * nothing between, and belong just under the fighters' feet. */
+#define ROOM_NAME_Y    366.0f
 #define ROOM_NAME_SZ   0.70f
 
 static void *s_text;
-static int   s_state_line = -1;
+static int   s_stage_line = -1;  /* the stage, under the fighters     */
+static int   s_vs_line = -1;     /* the white VS between the names    */
+static int   s_code_line = -1;   /* ROOM QAFK PASS 5143               */
+static int   s_hint_line = -1;   /* Press R or L to show              */
+static int   s_head_queue = -1;
+static int   s_head_lobby = -1;
+static int   s_lobby_line[ROOMS_STATE_MAX_LOBBY];
+static int   s_queue_crown[ROOMS_STATE_MAX_QUEUE];
+static int   s_queue_num[ROOMS_STATE_MAX_QUEUE];
 static int   s_name_l = -1;
 static int   s_name_r = -1;
 static int   s_queue_line[ROOMS_STATE_MAX_QUEUE];
@@ -141,13 +174,45 @@ static int   s_next_line = -1;   /* gray, offering practice          */
 #define ROOM_ACT_STEP     26.0f
 #define ROOM_ACT_SZ       0.45f
 
-/* The queue, down the left of the plate, under the players. Six lines because
- * that is what the reply carries; a seventh person is in the room and in the
- * queue, just not on the screen yet. */
-#define ROOM_QUEUE_X      60.0f
-#define ROOM_QUEUE_Y     430.0f
+/* Two columns under the picture: who is waiting, and who is just here.
+ *
+ *     Queue              Lobby
+ *   2♛ Alpha             Charlie
+ *     Bravo              Delta
+ *
+ * Six lines each, because that is what the reply carries; a seventh person is
+ * in the room and in the queue, just not on the screen yet.
+ *
+ * ⚠️ The crown sits in its OWN subtext, ahead of the name, with the count drawn
+ * on TOP of it rather than beside it - a number and a symbol side by side eat
+ * twice the width and push the names out of line. Same trick the action lines
+ * use for their symbols, and for the same reason a subtext's colour is fixed
+ * when it is created. */
+#define ROOM_QUEUE_X      88.0f
+#define ROOM_QUEUE_Y     406.0f
 #define ROOM_QUEUE_STEP   22.0f
 #define ROOM_QUEUE_SZ      0.45f
+
+#define ROOM_LOBBY_X     330.0f
+#define ROOM_LOBBY_Y     ROOM_QUEUE_Y
+#define ROOM_LOBBY_STEP  ROOM_QUEUE_STEP
+#define ROOM_LOBBY_SZ    ROOM_QUEUE_SZ
+
+/* The two headings, a line above their columns. */
+#define ROOM_HEAD_Y      (ROOM_QUEUE_Y - 24.0f)
+#define ROOM_HEAD_SZ      0.50f
+
+/* The crown and its number, both at this X, one over the other. */
+#define ROOM_CROWN_X      60.0f
+#define ROOM_CROWN_SZ     0.45f
+#define ROOM_CROWN_NUM_X  66.0f
+#define ROOM_CROWN_NUM_SZ 0.34f
+
+/* ⚠️ This font has no ASCII star or asterisk - they draw nothing, which is why
+ * the room's existing symbols are Shift-JIS full-width punctuation. This is the
+ * black star, 0x81 0x99, the nearest thing to a crown that is likely to exist.
+ * If it comes out blank, the candidates are in room_draw_crowns. */
+#define SYM_CROWN "\x81\x99"
 static int   s_line = -1;
 static int   s_said_hello;
 static int   s_frames;
@@ -380,46 +445,109 @@ static void room_fetch_state(void)
 /* One line saying what the room is doing, which is the thing a test needs to
  * see. Numbers rather than prose while this is being proved out: "3 queued,
  * you are 2nd" is a sentence, but "Q3 L0 #2" cannot be misread. */
-static void room_draw_status(void)
+/* The stage, on the bottom edge of the picture and between the two fighters.
+ *
+ * ⚠️ A NAME, not the id. The reply carries a number and nothing in Melee will
+ * hand back the string for it from here, so the table is ours. Ids are the same
+ * space the match block uses - 0x1F is Battlefield.
+ *
+ * Blank when nothing is being played, so an idle room shows a clean picture
+ * rather than the name of a stage nobody is on. */
+static const char *room_stage_name(u8 id)
+{
+    switch (id)
+    {
+    case 0x02: return "Peach's Castle";
+    case 0x03: return "Rainbow Cruise";
+    case 0x04: return "Kongo Jungle";
+    case 0x05: return "Jungle Japes";
+    case 0x06: return "Great Bay";
+    case 0x07: return "Temple";
+    case 0x08: return "Brinstar";
+    case 0x09: return "Brinstar Depths";
+    case 0x0A: return "Yoshi's Story";
+    case 0x0B: return "Yoshi's Island";
+    case 0x0C: return "Fountain of Dreams";
+    case 0x0D: return "Green Greens";
+    case 0x0E: return "Corneria";
+    case 0x0F: return "Venom";
+    case 0x10: return "Pokemon Stadium";
+    case 0x11: return "Poke Floats";
+    case 0x12: return "Mute City";
+    case 0x13: return "Big Blue";
+    case 0x14: return "Onett";
+    case 0x15: return "Fourside";
+    case 0x16: return "Icicle Mountain";
+    case 0x18: return "Mushroom Kingdom";
+    case 0x19: return "Mushroom Kingdom II";
+    case 0x1B: return "Flat Zone";
+    case 0x1C: return "Dream Land";
+    case 0x1D: return "Yoshi's Island 64";
+    case 0x1E: return "Kongo Jungle 64";
+    case 0x1F: return "Battlefield";
+    case 0x20: return "Final Destination";
+    default:   return "";
+    }
+}
+
+/* The stage and the white VS, both of which belong to a match in progress and
+ * neither of which should sit over an empty picture. */
+static void room_draw_match(void)
 {
     const u8 *st = s_state_buf;
+    int live = (st[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
+    const char *stage = live ? room_stage_name(st[ROOMS_STATE_STAGE]) : "";
+
+    if (s_stage_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_stage_line, "%s", stage);
+    if (s_vs_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_vs_line, "%s", live ? "VS" : "");
+}
+
+/* ROOM QAFK PASS 5143, top left.
+ *
+ * ⚠️ A private room hides both until somebody holds R or L. The code and the
+ * passcode together are everything needed to walk into a room, and a room
+ * screen is exactly the thing that ends up on a stream.
+ *
+ * A PUBLIC room has no passcode - the schema allows one or the other, never
+ * both - so it shows its code plainly and says nothing about a pass. */
+static void room_draw_code(void)
+{
+    const u8 *st = s_state_buf;
+    int private_room = (st[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PRIVATE) != 0;
+    int show = (rooms_pad_held() & (PAD_TRIGGER_L | PAD_TRIGGER_R)) != 0;
+    const char *code = (const char *)st + ROOMS_STATE_CODE;
+    const char *pass = (const char *)st + ROOMS_STATE_PASS;
     char line[48];
     char *p = line;
 
-    if (!(st[ROOMS_STATE_FLAGS] & ROOMS_FLAG_VALID))
+    if (!(st[ROOMS_STATE_FLAGS] & ROOMS_FLAG_VALID) || !code[0])
     {
-        /* ⚠️ Blank, not "no room". Being in a room and having HEARD from it are
-         * different things, and making one costs two network calls before the
-         * first tick can answer - so this line said "no room" for half a second
-         * on a room you were watching being made. Nothing is the honest thing
-         * to say while the answer is still coming; the line fills itself in. */
+        /* Blank rather than "no room" - making one takes two network calls
+         * before the first tick can answer, and the line fills itself in. */
         line[0] = 0;
+        if (s_code_line >= 0)
+            Text_UpdateSubtextContents(s_text, s_code_line, "%s", "");
+        if (s_hint_line >= 0)
+            Text_UpdateSubtextContents(s_text, s_hint_line, "%s", "");
+        return;
     }
-    else
+
+    p = room_put(p, "ROOM ");
+    p = room_put(p, (private_room && !show) ? "****" : code);
+    if (pass[0])
     {
-        *p++ = 'Q';
-        p = room_put_i(p, st[ROOMS_STATE_QUEUE_N]);
-        p = room_put(p, "  L");
-        p = room_put_i(p, st[ROOMS_STATE_LOBBY_N]);
-        p = room_put(p, "  #");
-        p = room_put_i(p, st[ROOMS_STATE_POSITION]);
-
-        /* The two the band is about, and whether they are actually playing -
-         * which is the difference between an arranged pair and a live match,
-         * and what decides whether the band shows fighters at all. */
-        if (st[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING)
-            p = room_put(p, "  LIVE");
-        p = room_put(p, "  P");
-        p = room_put_i(p, st[ROOMS_STATE_HOST_CHAR]);
-        p = room_put(p, "/");
-        p = room_put_i(p, st[ROOMS_STATE_GUEST_CHAR]);
-        p = room_put(p, "  ST");
-        p = room_put_i(p, st[ROOMS_STATE_STAGE]);
-        *p = 0;
+        p = room_put(p, "  PASS ");
+        p = room_put(p, (private_room && !show) ? "****" : pass);
     }
+    *p = 0;
 
-    if (s_state_line >= 0)
-        Text_UpdateSubtextContents(s_text, s_state_line, "%s", line);
+    if (s_code_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_code_line, "%s", line);
+    if (s_hint_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_hint_line, "%s",
+                                   private_room && !show ? "Press R or L to show" : "");
 }
 
 /* The two the room is playing, on the plate where the character names were.
@@ -435,20 +563,52 @@ static void room_draw_players(void)
                                    rooms_state_name(s_state_buf, 1));
 }
 
-/* The queue, down the left. Names 2 upwards are the queue, in the order the
- * room will actually pair them - pd_tick sorts it the same way it picks, on
- * purpose, so this list and the next match cannot disagree. */
+/* One row of a column: the name, and a crown with its count drawn over it.
+ *
+ * ⚠️ The count sits ON the crown, not beside it. A symbol and a number side by
+ * side take twice the width and push every name out of line - and the number is
+ * the thing being read, so it goes on top.
+ *
+ * Nobody with no crowns gets one. A row of empty crowns says "these people have
+ * all won nothing", which is noise; an absent one says nothing at all. */
+static void room_draw_row(int name_line, int crown_line, int num_line, int slot)
+{
+    const char *name = rooms_state_name(s_state_buf, slot);
+    u8 crowns = s_state_buf[ROOMS_STATE_CROWNS + slot];
+
+    if (name_line >= 0)
+        Text_UpdateSubtextContents(s_text, name_line, "%s", name);
+
+    if (crown_line >= 0)
+        Text_UpdateSubtextContents(s_text, crown_line, "%s",
+                                   (name[0] && crowns) ? SYM_CROWN : "");
+    if (num_line >= 0)
+    {
+        char n[8];
+        char *p = n;
+
+        if (name[0] && crowns)
+            p = room_put_i(p, crowns);
+        *p = 0;
+        Text_UpdateSubtextContents(s_text, num_line, "%s", n);
+    }
+}
+
+/* The queue down the left, the lobby to its right.
+ *
+ * Names 2 upwards are the queue, in the order the room will actually pair them
+ * - pd_tick sorts it the same way it picks, on purpose, so this list and the
+ * next match cannot disagree - and the six after that are the lobby. */
 static void room_draw_queue(void)
 {
     int i;
 
     for (i = 0; i < ROOMS_STATE_MAX_QUEUE; i++)
-    {
-        if (s_queue_line[i] < 0)
-            continue;
-        Text_UpdateSubtextContents(s_text, s_queue_line[i], "%s",
-                                   rooms_state_name(s_state_buf, 2 + i));
-    }
+        room_draw_row(s_queue_line[i], s_queue_crown[i], s_queue_num[i], 2 + i);
+
+    for (i = 0; i < ROOMS_STATE_MAX_LOBBY; i++)
+        room_draw_row(s_lobby_line[i], -1, -1,
+                      2 + ROOMS_STATE_MAX_QUEUE + i);
 }
 
 /* ------------------------------------------------------------------ START --
@@ -1104,15 +1264,37 @@ static void room_blank_room(void)
 {
     int i;
 
-    if (s_state_line >= 0)
-        Text_UpdateSubtextContents(s_text, s_state_line, "%s", "");
+    /* Everything the room draws and the browser does not. ⚠️ The headings and
+     * the crowns as well - a "Queue" with nothing under it over a list of
+     * public rooms reads as a broken screen. */
+    if (s_stage_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_stage_line, "%s", "");
+    if (s_vs_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_vs_line, "%s", "");
+    if (s_code_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_code_line, "%s", "");
+    if (s_hint_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_hint_line, "%s", "");
+    if (s_head_queue >= 0)
+        Text_UpdateSubtextContents(s_text, s_head_queue, "%s", "");
+    if (s_head_lobby >= 0)
+        Text_UpdateSubtextContents(s_text, s_head_lobby, "%s", "");
     if (s_name_l >= 0)
         Text_UpdateSubtextContents(s_text, s_name_l, "%s", "");
     if (s_name_r >= 0)
         Text_UpdateSubtextContents(s_text, s_name_r, "%s", "");
     for (i = 0; i < ROOMS_STATE_MAX_QUEUE; i++)
+    {
         if (s_queue_line[i] >= 0)
             Text_UpdateSubtextContents(s_text, s_queue_line[i], "%s", "");
+        if (s_queue_crown[i] >= 0)
+            Text_UpdateSubtextContents(s_text, s_queue_crown[i], "%s", "");
+        if (s_queue_num[i] >= 0)
+            Text_UpdateSubtextContents(s_text, s_queue_num[i], "%s", "");
+    }
+    for (i = 0; i < ROOMS_STATE_MAX_LOBBY; i++)
+        if (s_lobby_line[i] >= 0)
+            Text_UpdateSubtextContents(s_text, s_lobby_line[i], "%s", "");
 
     /* The action lines belong to the room, not the browser: there is no queue
      * to join until you are in one. */
@@ -1461,9 +1643,27 @@ void room_load(void *scene)
 
     /* Outlined rather than plain: this font has no bold, and an outline is the
      * nearest thing to one that it does have. */
-    s_state_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_OUTLINE, 0,
-                                    "", ROOM_STATE_SZ,
-                                    ROOM_STATE_X, ROOM_STATE_Y);
+    /* The stage, on the bottom edge of the picture, and the white VS between
+     * the two names. Outlined like the splash's own lettering. */
+    s_stage_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_OUTLINE, 0,
+                                    "", ROOM_STAGE_SZ,
+                                    ROOM_STAGE_X, ROOM_STAGE_Y);
+    s_vs_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_OUTLINE, 0,
+                                 "", ROOM_VS_SZ, ROOM_VS_X, ROOM_NAME_Y);
+
+    /* ROOM QAFK PASS 5143, and how to reveal it when it is starred out. */
+    s_code_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0,
+                                   "", ROOM_CODE_SZ, ROOM_CODE_X, ROOM_CODE_Y);
+    s_hint_line = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0,
+                                   "", ROOM_HINT_SZ, ROOM_CODE_X, ROOM_HINT_Y);
+
+    /* The two column headings. */
+    s_head_queue = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0,
+                                    "Queue", ROOM_HEAD_SZ,
+                                    ROOM_QUEUE_X, ROOM_HEAD_Y);
+    s_head_lobby = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0,
+                                    "Lobby", ROOM_HEAD_SZ,
+                                    ROOM_LOBBY_X, ROOM_HEAD_Y);
     s_name_l = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0,
                                 "", ROOM_NAME_SZ,
                                 ROOM_NAME_L_X, ROOM_NAME_Y);
@@ -1475,9 +1675,27 @@ void room_load(void *scene)
         int i;
 
         for (i = 0; i < ROOMS_STATE_MAX_QUEUE; i++)
+        {
+            float y = ROOM_QUEUE_Y + (float)i * ROOM_QUEUE_STEP;
+
             s_queue_line[i] = FG_CreateSubtext(
                 s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0, "", ROOM_QUEUE_SZ,
-                ROOM_QUEUE_X, ROOM_QUEUE_Y + (float)i * ROOM_QUEUE_STEP);
+                ROOM_QUEUE_X, y);
+            /* ⚠️ The crown FIRST, the number after it, so the number is drawn
+             * over the crown rather than under it. Subtexts go down in the
+             * order they are made. */
+            s_queue_crown[i] = FG_CreateSubtext(
+                s_text, &COL_GOLD, ROOMS_SUBTEXT_PLAIN, 0, "", ROOM_CROWN_SZ,
+                ROOM_CROWN_X, y);
+            s_queue_num[i] = FG_CreateSubtext(
+                s_text, &COL_WHITE, ROOMS_SUBTEXT_OUTLINE, 0, "",
+                ROOM_CROWN_NUM_SZ, ROOM_CROWN_NUM_X, y);
+        }
+
+        for (i = 0; i < ROOMS_STATE_MAX_LOBBY; i++)
+            s_lobby_line[i] = FG_CreateSubtext(
+                s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0, "", ROOM_LOBBY_SZ,
+                ROOM_LOBBY_X, ROOM_LOBBY_Y + (float)i * ROOM_LOBBY_STEP);
     }
 
     s_join_sym = FG_CreateSubtext(s_text, &COL_WAIT, ROOMS_SUBTEXT_PLAIN, 0, "",
@@ -1655,7 +1873,8 @@ void room_think(void)
                 }
             }
 
-            room_draw_status();
+            room_draw_match();
+            room_draw_code();
             room_draw_players();
             room_draw_queue();
 

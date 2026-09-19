@@ -304,6 +304,10 @@ void Preload_Update(void);
 #define PAD_START  0x1000
 #define PAD_B      0x0200
 #define PAD_Z      0x0010
+/* The triggers, for holding to reveal a private room's code. Same bitfield as
+ * the rest: R above L, both below Z. */
+#define PAD_TRIGGER_R 0x0020
+#define PAD_TRIGGER_L 0x0040
 #define PAD_A      0x0100
 #define PAD_Y      0x0800
 
@@ -391,7 +395,20 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
  * way, so the module copies bytes and never has to know about encodings. */
 #define ROOMS_STATE_OPPCODE     ROOMS_STATE_NAMES_END
 #define ROOMS_STATE_OPPCODE_LEN 20
-#define ROOMS_STATE_SIZE        (ROOMS_STATE_NAMES_END + ROOMS_STATE_OPPCODE_LEN)
+
+/* How many crowns each of those names has, in the SAME order and the same
+ * count - the two playing, then the queue, then the lobby - so one index
+ * reads both. One byte each. */
+#define ROOMS_STATE_CROWNS      (ROOMS_STATE_OPPCODE + ROOMS_STATE_OPPCODE_LEN)
+
+/* The room's own code, and the passcode of a private one. Fixed width and
+ * blank padded. The passcode is empty for a public room, which has none. */
+#define ROOMS_STATE_CODE        (ROOMS_STATE_CROWNS + ROOMS_STATE_NAMES)
+#define ROOMS_STATE_CODE_LEN    8
+#define ROOMS_STATE_PASS        (ROOMS_STATE_CODE + ROOMS_STATE_CODE_LEN)
+#define ROOMS_STATE_PASS_LEN    8
+
+#define ROOMS_STATE_SIZE        (ROOMS_STATE_PASS + ROOMS_STATE_PASS_LEN)
 
 #define ROOMS_STATE_FLAGS     0x00
 #define ROOMS_STATE_QUEUE_N   0x01
@@ -431,6 +448,10 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
  * ⚠ Not "we asked to watch". Handing Melee a match Dolphin cannot yet describe
  * means arriving with no characters, no stage and no seed. */
 #define ROOMS_FLAG_WATCHING 0x20
+
+/* Unlisted, and so it has a passcode. The corner stars the code and the
+ * passcode out until somebody holds R or L. */
+#define ROOMS_FLAG_PRIVATE  0x40
 #define ROOMS_NOT_PICKED   0xFF
 
 /* Melee's own "nobody", which SceneLoad_ClassicModeSplash checks for and then
