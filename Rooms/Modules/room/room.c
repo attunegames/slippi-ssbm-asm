@@ -164,6 +164,8 @@ static int   s_done_sym = -1;    /* green -, once you are in it      */
 static int   s_done_line = -1;   /* green, saying so                 */
 static int   s_next_sym = -1;    /* blue +, what you can do next     */
 static int   s_next_line = -1;   /* gray, offering practice          */
+static int   s_spec_sym = -1;   /* Y to spectate                    */
+static int   s_spec_line = -1;
 static int   s_leaveq_sym = -1;  /* hold Z, out of the queue         */
 static int   s_leaveq_line = -1;
 static int   s_leaver_sym = -1;  /* hold B, out of the room          */
@@ -241,9 +243,12 @@ static int   s_rule_queue = -1;
 #define ROOM_RULE        "\x81\x7C\x81\x7C\x81\x7C\x81\x7C"
 
 /* The crown and its number, both at this X, one over the other. */
-#define ROOM_CROWN_X      60.0f
+/* ⚠️ Left of the QUEUE column, which moved to the middle when Lobby took the
+ * left. These stayed at 60 and drew a lonely number under "Lobby", a hundred
+ * and seventy units from the name it belonged to. */
+#define ROOM_CROWN_X     (ROOM_QUEUE_X - 24.0f)
 #define ROOM_CROWN_SZ     0.45f
-#define ROOM_CROWN_NUM_X  66.0f
+#define ROOM_CROWN_NUM_X (ROOM_QUEUE_X - 18.0f)
 #define ROOM_CROWN_NUM_SZ 0.34f
 
 /* ⚠️ This font has no ASCII star or asterisk - they draw nothing, which is why
@@ -251,6 +256,14 @@ static int   s_rule_queue = -1;
  * black star, 0x81 0x99, the nearest thing to a crown that is likely to exist.
  * If it comes out blank, the candidates are in room_draw_crowns. */
 #define SYM_CROWN "\x81\x99"
+
+/* TEMPORARY. Which of these this font actually HAS.
+ *
+ * The crown drew nothing while the number beside it drew fine, so the black
+ * star is not in here - the same as ASCII star, asterisk and underscore. Each
+ * candidate is tagged with a letter; whichever letters have a shape after them
+ * are real. Delete this once one is chosen. */
+#define SYM_CANDIDATES "a\x81\x99 b\x81\x9C c\x81\x9F d\x81\xA1 e\x81\xA3 f\x81\xA6 g\x81\x98 h\x81\x9B"
 static int   s_said_hello;
 static int   s_frames;
 
@@ -584,7 +597,8 @@ static void room_draw_code(void)
         Text_UpdateSubtextContents(s_text, s_code_line, "%s", line);
     if (s_hint_line >= 0)
         Text_UpdateSubtextContents(s_text, s_hint_line, "%s",
-                                   private_room && !show ? "Hold R or L to show" : "");
+                                   private_room && !show ? "Hold R or L to show"
+                                                         : SYM_CANDIDATES);
 }
 
 /* The two the room is playing, on the plate where the character names were.
@@ -726,29 +740,44 @@ static int s_spin_frame;
 static void room_show_actions(void)
 {
     int playing = (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
+    /* ⚠️ The ROOM's answer, not s_queued. That is a local flag and this module
+     * is reloaded whenever the band is rebuilt, so it comes back as zero while
+     * the room still has you queued - and the screen goes on offering a queue
+     * you are already standing in. Position is 1-based; 0 means not queued. */
+    int queued = s_state_buf[ROOMS_STATE_POSITION] != 0;
 
     /* Row one changes with you: offering the queue, or saying you are in it. */
     if (s_join_sym >= 0)
         Text_UpdateSubtextContents(s_text, s_join_sym, "%s",
-                                   s_queued ? "" : SYM_TODO);
+                                   queued ? "" : SYM_TODO);
     if (s_join_line >= 0)
         Text_UpdateSubtextContents(s_text, s_join_line, "%s",
-                                   s_queued ? "" : STR_JOIN);
+                                   queued ? "" : STR_JOIN);
     if (s_done_sym >= 0)
         Text_UpdateSubtextContents(s_text, s_done_sym, "%s",
-                                   s_queued ? SYM_DONE : "");
+                                   queued ? SYM_DONE : "");
     if (s_done_line >= 0)
         Text_UpdateSubtextContents(s_text, s_done_line, "%s",
-                                   s_queued ? STR_IN_QUEUE : "");
+                                   queued ? STR_IN_QUEUE : "");
 
-    /* Row two: spectating. ⚠️ Always, not only while a match is on. It is
-     * something you can do in this room, and a line that appears and vanishes
-     * with the state of somebody else's game reads as a glitch. */
+    /* Row two: practice, which is what START does once you are already in the
+     * queue. ⚠️ Its own row - it used to share row one with "In the Queue" and
+     * the two drew on top of each other. */
     if (s_next_sym >= 0)
         Text_UpdateSubtextContents(s_text, s_next_sym, "%s",
-                                   playing ? SYM_NEXT : "");
+                                   queued ? SYM_NEXT : "");
     if (s_next_line >= 0)
-        Text_UpdateSubtextContents(s_text, s_next_line, "%s", STR_WATCH);
+        Text_UpdateSubtextContents(s_text, s_next_line, "%s",
+                                   queued ? STR_PRACTICE : "");
+
+    /* Row three: spectating. ⚠️ Always, not only while a match is on. It is
+     * something you can do in this room, and a line that appears and vanishes
+     * with the state of somebody else's game reads as a glitch. */
+    if (s_spec_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_spec_sym, "%s",
+                                   playing ? SYM_NEXT : "");
+    if (s_spec_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_spec_line, "%s", STR_WATCH);
 
     /* Rows three and four: the two ways out.
      *
@@ -764,7 +793,7 @@ static void room_show_actions(void)
         Text_UpdateSubtextContents(s_text, s_leaveq_sym, "%s", "");
     if (s_leaveq_line >= 0)
         Text_UpdateSubtextContents(s_text, s_leaveq_line, "%s",
-                                   s_queued ? STR_LEAVE_Q : "");
+                                   queued ? STR_LEAVE_Q : "");
     if (s_leaver_sym >= 0)
         Text_UpdateSubtextContents(s_text, s_leaver_sym, "%s", "");
     if (s_leaver_line >= 0)
@@ -1820,19 +1849,27 @@ void room_load(void *scene)
                                    ROOM_ACT_SZ, ROOM_ACT_X,
                                    ROOM_ACT_Y + ROOM_ACT_STEP);
 
-    /* The two ways out, rows three and four. */
+    /* Spectating, row three. */
+    s_spec_sym = FG_CreateSubtext(s_text, &COL_WAIT, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                  ROOM_ACT_SZ, ROOM_ACT_SYM_X,
+                                  ROOM_ACT_Y + 2.0f * ROOM_ACT_STEP);
+    s_spec_line = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                   ROOM_ACT_SZ, ROOM_ACT_X,
+                                   ROOM_ACT_Y + 2.0f * ROOM_ACT_STEP);
+
+    /* The two ways out, rows four and five. */
     s_leaveq_sym = FG_CreateSubtext(s_text, &COL_WAIT, ROOMS_SUBTEXT_PLAIN, 0, "",
                                     ROOM_ACT_SZ, ROOM_ACT_SYM_X,
-                                    ROOM_ACT_Y + 2.0f * ROOM_ACT_STEP);
+                                    ROOM_ACT_Y + 3.0f * ROOM_ACT_STEP);
     s_leaveq_line = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
                                      ROOM_ACT_SZ, ROOM_ACT_X,
-                                     ROOM_ACT_Y + 2.0f * ROOM_ACT_STEP);
+                                     ROOM_ACT_Y + 3.0f * ROOM_ACT_STEP);
     s_leaver_sym = FG_CreateSubtext(s_text, &COL_WAIT, ROOMS_SUBTEXT_PLAIN, 0, "",
                                     ROOM_ACT_SZ, ROOM_ACT_SYM_X,
-                                    ROOM_ACT_Y + 3.0f * ROOM_ACT_STEP);
+                                    ROOM_ACT_Y + 4.0f * ROOM_ACT_STEP);
     s_leaver_line = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
                                      ROOM_ACT_SZ, ROOM_ACT_X,
-                                     ROOM_ACT_Y + 3.0f * ROOM_ACT_STEP);
+                                     ROOM_ACT_Y + 4.0f * ROOM_ACT_STEP);
 
     /* The rules under the two headings. ⚠️ Created AFTER the headings so they
      * draw over nothing - subtexts go down in the order they are made. */
