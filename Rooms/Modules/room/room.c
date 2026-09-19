@@ -129,9 +129,9 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
  * room needed - they know where they are - so it is gone and this has its
  * place, in the dark of the picture above the left fighter's head. */
 #define ROOM_CODE_X     40.0f
-#define ROOM_CODE_Y    112.0f
+#define ROOM_CODE_Y     84.0f
 #define ROOM_CODE_SZ    0.50f
-#define ROOM_HINT_Y    134.0f
+#define ROOM_HINT_Y    106.0f
 #define ROOM_HINT_SZ    0.38f
 
 /* And the two names, on the plate where DK and Zelda were - which is where the
@@ -225,16 +225,20 @@ static int   s_rule_queue = -1;
 #define ROOM_QUEUE_STEP  ROOM_COL_STEP
 #define ROOM_QUEUE_SZ    ROOM_COL_SZ
 
-/* The headings, a line above their columns, with a rule under each. This font
- * has no underline, so the rule is a row of underscores in its own subtext -
- * which also lets it be the heading's colour rather than the names'. */
+/* The headings, a line above their columns, with a rule under each.
+ *
+ * ⚠️ The rule is a row of FULL-WIDTH MINUS SIGNS, not underscores. An ASCII
+ * underscore draws nothing here - the same way `>` and `*` do - so the first
+ * version was invisible and looked like a placement problem. This is the very
+ * character SYM_DONE already draws as the green dash beside "In the Queue",
+ * which is the only proof that matters: it is on screen today. */
 #define ROOM_HEAD_Y      (ROOM_COL_Y - 30.0f)
 #define ROOM_HEAD_SZ      0.50f
 /* ⚠️ 14 under the column, not 22. At 22 it sat eight units below a heading
  * drawn at size 0.5 - which is inside the letters, not under them. */
 #define ROOM_RULE_Y      (ROOM_COL_Y - 12.0f)
 #define ROOM_RULE_SZ      0.50f
-#define ROOM_RULE        "________"
+#define ROOM_RULE        "\x81\x7C\x81\x7C\x81\x7C\x81\x7C"
 
 /* The crown and its number, both at this X, one over the other. */
 #define ROOM_CROWN_X      60.0f
@@ -694,13 +698,13 @@ static void room_draw_queue(void)
  * thing available - so the screen always has something on it, which a room that
  * opens in the state it is already in would never manage.
  */
-#define STR_JOIN     "Press START to Join the Queue"
+#define STR_JOIN     "START to Join the Queue"
 #define STR_IN_QUEUE "In the Queue"
 #define STR_PRACTICE "Press START to Practice"
 /* Takes the practice line's place while a match is on. There are three slots,
  * and while somebody is actually playing, watching is the more useful offer of
  * the two - practice is still there the rest of the time. */
-#define STR_WATCH    "Press Y to Spectate"
+#define STR_WATCH    "Y to Spectate"
 #define STR_LEAVE_Q  "Hold Z to Leave the Queue"
 #define STR_LEAVE_R  "Hold B to Leave the Room"
 
