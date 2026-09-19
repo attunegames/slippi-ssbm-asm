@@ -1525,10 +1525,22 @@ void room_think(void)
          * fighters back with everything else. And every poll rather than on a
          * change, because the models are not there on the frame the scene
          * loads - this catches them when they turn up, the same way the
-         * re-band catches the camera. */
+         * re-band catches the camera.
+         *
+         * ⚠️ Shown only when what is LOADED is what is being PLAYED. The models
+         * are chosen once, by RoomScenePrep, on the way into this scene - so
+         * somebody sitting in the room when a match starts has the wrong two
+         * fighters loaded, and "the picks are known, show them" put Donkey Kong
+         * and Zelda up as though that were the match. An empty band is honest;
+         * the wrong fighters are not. Anyone ENTERING now gets the right ones. */
         if (!s_browsing)
-            room_show_fighters(s_state_buf[ROOMS_STATE_HOST_CHAR] != ROOMS_NOT_PICKED &&
-                               s_state_buf[ROOMS_STATE_GUEST_CHAR] != ROOMS_NOT_PICKED);
+        {
+            const u8 l = s_state_buf[ROOMS_STATE_HOST_CHAR];
+            const u8 r = s_state_buf[ROOMS_STATE_GUEST_CHAR];
+
+            room_show_fighters(l != ROOMS_NOT_PICKED && r != ROOMS_NOT_PICKED &&
+                               l == s_band_char_l && r == s_band_char_r);
+        }
         s_screen_known = 1;
         s_was_browsing = s_browsing;
     }
