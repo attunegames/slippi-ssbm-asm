@@ -967,6 +967,54 @@ static void room_show_band(int show)
     }
 }
 
+/* The two fighters, on and off, without touching anything else on the band.
+ *
+ * An idle room should not claim two people are about to play, but it still
+ * needs its picture: the camera, the backdrop and the text all come from a
+ * splash that was built in full.
+ *
+ * ⛔ The one-byte version of this does not work. Writing 26 into the character
+ * slots makes SceneLoad_ClassicModeSplash build nothing at all - and the camera
+ * is part of nothing. The log said "banded 0 cam", classes 20 and 21 were
+ * missing entirely, and the room was black: with no camera even the text has
+ * nothing to draw through. So the scene is built exactly as it always was and
+ * the two models are covered afterwards.
+ *
+ * Same flag the browser uses to put the whole band away, on the same GObjs -
+ * narrowed to the fighters by their draw callback, which is the only reliable
+ * way to tell them from the rest of the tree.
+ */
+static void room_show_fighters(int show)
+{
+    static const int classes[] = {3, 8, ROOM_CLASS_SPLASH};
+    void **heads = rooms_gobj_heads();
+    unsigned int c;
+
+    if (!heads)
+        return;
+
+    for (c = 0; c < sizeof(classes) / sizeof(classes[0]); c++)
+    {
+        void *g;
+
+        for (g = heads[classes[c]]; g;
+             g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+        {
+            u32 fn = *(const u32 *)((const char *)g + ROOMS_GOBJ_DRAWFN);
+            void *jobj = *(void **)((char *)g + ROOMS_GOBJ_OBJECT);
+            u32 *flags;
+
+            if (!jobj || fn != ROOM_DRAW_FIGHTER)
+                continue;
+            flags = (u32 *)((char *)jobj + ROOMS_JOBJ_FLAGS);
+            if (show)
+                *flags &= ~(u32)ROOM_JOBJ_HIDDEN;
+            else
+                *flags |= (u32)ROOM_JOBJ_HIDDEN;
+        }
+    }
+}
+
 static void room_blank_browser(void)
 {
     int i;
@@ -1537,6 +1585,15 @@ void room_think(void)
 
         if (s_browsing != s_was_browsing || !s_screen_known)
             room_show_band(!s_browsing);
+
+        /* ⚠️ AFTER room_show_band, which owns the whole band and would put the
+         * fighters back with everything else. And every poll rather than on a
+         * change, because the models are not there on the frame the scene
+         * loads - this catches them when they turn up, the same way the
+         * re-band catches the camera. */
+        if (!s_browsing)
+            room_show_fighters(s_state_buf[ROOMS_STATE_HOST_CHAR] != ROOMS_NOT_PICKED &&
+                               s_state_buf[ROOMS_STATE_GUEST_CHAR] != ROOMS_NOT_PICKED);
         s_screen_known = 1;
         s_was_browsing = s_browsing;
     }

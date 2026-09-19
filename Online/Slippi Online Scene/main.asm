@@ -1704,16 +1704,16 @@ blr
 # flat solid black. A character as a black shape is the one way this scene can
 # put an opaque rectangle anywhere, since nothing here can draw a filled quad.
 
-# Nobody on the band until somebody has actually chosen.
+# What gets BUILT when nobody has chosen yet. Not what gets SHOWN - an idle
+# room draws no fighters, and room_show_fighters hides these two by flag once
+# they exist.
 #
-# ⚠️ 26 is not a character. Written into a character slot it makes
-# SceneLoad_ClassicModeSplash build NOTHING, which is the room's empty state in
-# one byte - there is no separate "draw no fighters" path to find.
-#
-# This used to be Donkey Kong and Zelda, named probe because that is what they
-# were: proof that a fighter could be drawn on the band at all. They had done
-# that job, and an idle room should not claim two people are about to play.
-.set ROOM_NO_CHAR, 26
+# ⛔ Do NOT use 26 here to build nothing instead. It does build nothing, which
+# is the trouble: the camera goes with it. "banded 0 cam", no classes 20 or 21,
+# and the room is black - the text cannot draw either, because there is nothing
+# left to draw it through. The scene has to be built in full and then covered.
+.set ROOM_EMPTY_CHAR_L, 1     # Donkey Kong
+.set ROOM_EMPTY_CHAR_R, 18    # Zelda
 .set ROOM_CHAR_GAMEWATCH, 3   # flat black, if a cover is ever wanted
 .set ROOM_EMPTY_STAGE, 0x1F  # Battlefield, as the empty backdrop
 
@@ -1782,9 +1782,9 @@ cmpwi r30, ROOMS_NOT_PICKED
 bne RoomScenePrep_HAVE_PICKS
 
 RoomScenePrep_NO_PICKS:
-li r26, ROOM_NO_CHAR
+li r26, ROOM_EMPTY_CHAR_L
 li r27, 0
-li r28, ROOM_NO_CHAR
+li r28, ROOM_EMPTY_CHAR_R
 li r29, 0
 # ⚠️ A stage is still ordered even with nobody on it. It is the backdrop, and
 # more to the point NOW LOADING is the splash saying it is still waiting for
