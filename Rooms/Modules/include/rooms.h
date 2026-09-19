@@ -158,6 +158,14 @@ void SceneLoad_DebugMenu(void);
  * works by luck on a fresh entry and not at all after something else has run. */
 void SceneLoad_ClassicModeSplash(void *scene);
 
+/* Melee's own allocator. Used ONLY to find out where the heap's cursor is: ask
+ * for a few bytes, note the address, give them straight back. If that address
+ * climbs each time the room scene is built, the scene heap is not being reset
+ * between builds - which is the question left open when rebuilding the band
+ * froze the room on its third go. See the note above room_buttons. */
+void *HSD_MemAlloc(int size);
+void HSD_Free(void *p);
+
 /* Melee's character select, and its hand.
  *
  * The hand is a GObj the character select's load creates, driven every frame by

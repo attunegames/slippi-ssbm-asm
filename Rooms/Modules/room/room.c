@@ -1281,6 +1281,24 @@ void room_load(void *scene)
         room_log("[Rooms] splash built");
 
         room_count_cams();
+
+        /* Where the heap's cursor sits, once per scene build. ⚠️ This is the
+         * open question from the rebuild that froze the room: two builds
+         * worked and the third never returned, and "the scene change frees the
+         * heap" was an assumption nobody measured. If this address climbs
+         * build over build, it does not. */
+        {
+            char line[64];
+            char *p = line;
+            void *probe = HSD_MemAlloc(32);
+
+            p = room_put(p, "[Rooms] heap cursor ");
+            p = room_put_x(p, (u32)probe);
+            *p = 0;
+            room_log(line);
+            if (probe)
+                HSD_Free(probe);
+        }
     }
     else
     {
