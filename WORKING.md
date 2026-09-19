@@ -9,6 +9,7 @@ nothing without the tag on the other, so every entry names both.
 | The whole room loop: pair, draft, play, report, ROTATE, pair the next two | `works/rooms-queue-rotation` | `works/rooms-queue-rotation` (`65bd21418`) | 2026-09-17 |
 | Both room screens open clean - no flash of the wrong one | `works/rooms-screens-clean` (`0f4026a`) | `works/rooms-screens-clean` (`5cfbc74d6`) | 2026-09-17 |
 | A third person in the room watches the live match, re-simulated from the players' own inputs | `works/rooms-spectate-live` (`962983e`) | `works/rooms-spectate-live` (`709e8959a`) | 2026-09-18 |
+| Hold B leaves a room, hold Z leaves the queue, and a room outlives its owner | `works/rooms-leave` (`ea900c7`) | `works/rooms-leave` (`52dc15214`) | 2026-09-19 |
 
 ## rooms-draft-over-direct
 
@@ -167,3 +168,34 @@ silence or a crash:
 NOT yet true at this tag: the watcher shows no player names, and the splash
 puts both players on the same team. Both are cosmetic - the match itself
 plays.
+
+## rooms-leave
+
+Hold B for a second to leave a room, hold Z to step out of the queue without
+leaving. B works on the public list too. Verified 2026-09-19 including the part
+that matters most: the owner walking out no longer closes the room - it passes
+to whoever has been in it longest of those still there, and the browser shows
+them as the host.
+
+⚠️ Needs `Rooms/05-ownership.sql` run by hand against Supabase. The build does
+not apply it, and without it the owner leaving still deletes the room and
+strands everybody in it.
+
+- ⚠️ HELD, not pressed. Melee keeps both: +0x00 of the pad struct is what is
+  down now, +0x08 is what went down this frame. A hold counter built on the
+  second never gets past one.
+- ⚠️ Leaving to the menu is both halves in this order - clear the pending
+  MINOR, write the major through `MenuController_WriteToPendingMajor_1to_0xC`,
+  and only then end the minor. `Scene_ProcessMajor` looks at the major flag
+  only between minors, so ending the minor first lands you back where you
+  started. This was the old build's eight-attempt wall; it is ported, not
+  rediscovered.
+- ⚠️ The leave command carries a byte saying whether there was a room to leave
+  at all. Walking off the list of PUBLIC rooms is not leaving one, and the old
+  build's note records that treating it as such drops the client out of the
+  room it was already sitting in.
+- ⚠️ Only a LIVE member may inherit, on the same presence window the room list
+  filters by - `joined_at` alone hands the room to someone who stopped talking
+  ten minutes ago, and a room owned by a ghost is one nothing can close.
+  `owner_name` moves with the uuid, because the browser reads that denormalised
+  column rather than joining.
