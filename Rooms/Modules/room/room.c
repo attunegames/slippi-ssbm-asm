@@ -129,9 +129,9 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
  * room needed - they know where they are - so it is gone and this has its
  * place, in the dark of the picture above the left fighter's head. */
 #define ROOM_CODE_X     40.0f
-#define ROOM_CODE_Y    144.0f
+#define ROOM_CODE_Y    112.0f
 #define ROOM_CODE_SZ    0.50f
-#define ROOM_HINT_Y    166.0f
+#define ROOM_HINT_Y    134.0f
 #define ROOM_HINT_SZ    0.38f
 
 /* And the two names, on the plate where DK and Zelda were - which is where the
@@ -181,8 +181,8 @@ static int   s_rule_queue = -1;
  *
  * Top-aligned with the two headings rather than with the names under them, so
  * the three columns start on the same line. */
-#define ROOM_ACT_SYM_X   404.0f
-#define ROOM_ACT_X       424.0f
+#define ROOM_ACT_SYM_X   356.0f
+#define ROOM_ACT_X       376.0f
 #define ROOM_ACT_Y       ROOM_HEAD_Y
 #define ROOM_ACT_STEP     22.0f
 #define ROOM_ACT_SZ       0.34f
@@ -230,7 +230,9 @@ static int   s_rule_queue = -1;
  * which also lets it be the heading's colour rather than the names'. */
 #define ROOM_HEAD_Y      (ROOM_COL_Y - 30.0f)
 #define ROOM_HEAD_SZ      0.50f
-#define ROOM_RULE_Y      (ROOM_COL_Y - 22.0f)
+/* ⚠️ 14 under the column, not 22. At 22 it sat eight units below a heading
+ * drawn at size 0.5 - which is inside the letters, not under them. */
+#define ROOM_RULE_Y      (ROOM_COL_Y - 12.0f)
 #define ROOM_RULE_SZ      0.50f
 #define ROOM_RULE        "________"
 
@@ -735,25 +737,32 @@ static void room_show_actions(void)
         Text_UpdateSubtextContents(s_text, s_done_line, "%s",
                                    s_queued ? STR_IN_QUEUE : "");
 
-    /* Row two: watching, which only exists while a match is on. */
+    /* Row two: spectating. ⚠️ Always, not only while a match is on. It is
+     * something you can do in this room, and a line that appears and vanishes
+     * with the state of somebody else's game reads as a glitch. */
     if (s_next_sym >= 0)
         Text_UpdateSubtextContents(s_text, s_next_sym, "%s",
                                    playing ? SYM_NEXT : "");
     if (s_next_line >= 0)
-        Text_UpdateSubtextContents(s_text, s_next_line, "%s",
-                                   playing ? STR_WATCH : "");
+        Text_UpdateSubtextContents(s_text, s_next_line, "%s", STR_WATCH);
 
-    /* Rows three and four: the two ways out. ⚠️ Shown whether or not they apply
-     * this second - they are how you LEAVE, and a way out that appears only
-     * once you have guessed it exists is not a way out. Leaving the queue is
-     * greyed rather than hidden when you are not in one. */
+    /* Rows three and four: the two ways out.
+     *
+     * ⚠️ No symbol on either. The symbols ahead of the rows above mean
+     * something - what is still to do, what is done, what is next - and a mark
+     * against "hold B to leave" would be claiming one of those about an action
+     * that is simply always available. Grey text and nothing else, the same
+     * grey as the two headings, because that is how Slippi writes a hint.
+     *
+     * Leaving the QUEUE only appears when there is a queue to leave. Leaving
+     * the ROOM is always there - it is the way out. */
     if (s_leaveq_sym >= 0)
-        Text_UpdateSubtextContents(s_text, s_leaveq_sym, "%s",
-                                   s_queued ? SYM_DONE : SYM_TODO);
+        Text_UpdateSubtextContents(s_text, s_leaveq_sym, "%s", "");
     if (s_leaveq_line >= 0)
-        Text_UpdateSubtextContents(s_text, s_leaveq_line, "%s", STR_LEAVE_Q);
+        Text_UpdateSubtextContents(s_text, s_leaveq_line, "%s",
+                                   s_queued ? STR_LEAVE_Q : "");
     if (s_leaver_sym >= 0)
-        Text_UpdateSubtextContents(s_text, s_leaver_sym, "%s", SYM_DONE);
+        Text_UpdateSubtextContents(s_text, s_leaver_sym, "%s", "");
     if (s_leaver_line >= 0)
         Text_UpdateSubtextContents(s_text, s_leaver_line, "%s", STR_LEAVE_R);
 
