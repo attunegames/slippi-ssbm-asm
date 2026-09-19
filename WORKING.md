@@ -114,6 +114,16 @@ their pads, and re-simulates the game. No `.slp` stream, no replay, and the
 online major is never left - so the return bug that killed the replay
 version cannot happen here.
 
+⚠️ **What this tag actually proves: it RUNS.** The watcher connects, is told
+the right characters, stage and seed, catches up invisibly and holds a steady
+few frames behind. Nobody compared the PERCENTAGES against a player's screen,
+so "stays in sync" was never established - and 2026-09-19 turned up a reason to
+doubt it: `MatchmakeResult::items` had no initialiser and a watcher never fills
+the struct in, so items were spawning on the watcher and not on the players.
+Items pull the shared RNG. Spotted by eye, not by any log. Fixed in dolphin
+`84ec25f95`; a full game watched end to end with the damage matching is still
+the test that would earn this tag its name.
+
 ⚠️ Confirmed on the TEST RIG, which needs `lanForTesting`. Three clients
 behind one router cannot reach each other at their shared public address -
 the packets hairpin and are dropped - so the watcher falls back to a LAN
