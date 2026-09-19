@@ -129,9 +129,9 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
  * room needed - they know where they are - so it is gone and this has its
  * place, in the dark of the picture above the left fighter's head. */
 #define ROOM_CODE_X     40.0f
-#define ROOM_CODE_Y     84.0f
+#define ROOM_CODE_Y     96.0f
 #define ROOM_CODE_SZ    0.50f
-#define ROOM_HINT_Y    106.0f
+#define ROOM_HINT_Y    118.0f
 #define ROOM_HINT_SZ    0.38f
 
 /* And the two names, on the plate where DK and Zelda were - which is where the
@@ -257,13 +257,6 @@ static int   s_rule_queue = -1;
  * If it comes out blank, the candidates are in room_draw_crowns. */
 #define SYM_CROWN "\x81\x99"
 
-/* TEMPORARY. Which of these this font actually HAS.
- *
- * The crown drew nothing while the number beside it drew fine, so the black
- * star is not in here - the same as ASCII star, asterisk and underscore. Each
- * candidate is tagged with a letter; whichever letters have a shape after them
- * are real. Delete this once one is chosen. */
-#define SYM_CANDIDATES "a\x81\x99 b\x81\x9C c\x81\x9F d\x81\xA1 e\x81\xA3 f\x81\xA6 g\x81\x98 h\x81\x9B"
 static int   s_said_hello;
 static int   s_frames;
 
@@ -597,8 +590,7 @@ static void room_draw_code(void)
         Text_UpdateSubtextContents(s_text, s_code_line, "%s", line);
     if (s_hint_line >= 0)
         Text_UpdateSubtextContents(s_text, s_hint_line, "%s",
-                                   private_room && !show ? "Hold R or L to show"
-                                                         : SYM_CANDIDATES);
+                                   private_room && !show ? "Hold R or L to show" : "");
 }
 
 /* The two the room is playing, on the plate where the character names were.
@@ -789,15 +781,15 @@ static void room_show_actions(void)
      *
      * Leaving the QUEUE only appears when there is a queue to leave. Leaving
      * the ROOM is always there - it is the way out. */
+    if (s_leaver_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_leaver_sym, "%s", "");
+    if (s_leaver_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_leaver_line, "%s", STR_LEAVE_R);
     if (s_leaveq_sym >= 0)
         Text_UpdateSubtextContents(s_text, s_leaveq_sym, "%s", "");
     if (s_leaveq_line >= 0)
         Text_UpdateSubtextContents(s_text, s_leaveq_line, "%s",
                                    queued ? STR_LEAVE_Q : "");
-    if (s_leaver_sym >= 0)
-        Text_UpdateSubtextContents(s_text, s_leaver_sym, "%s", "");
-    if (s_leaver_line >= 0)
-        Text_UpdateSubtextContents(s_text, s_leaver_line, "%s", STR_LEAVE_R);
 
     s_spin_frame = 0;
 }
@@ -916,6 +908,7 @@ static void room_go_to_draft(void)
  */
 static int s_watching;
 static int s_was_playing = -1; /* forces the first decision */
+static int s_was_queued = -1;  /* likewise                   */
 
 static void room_watch(void)
 {
@@ -1858,16 +1851,16 @@ void room_load(void *scene)
                                    ROOM_ACT_Y + 2.0f * ROOM_ACT_STEP);
 
     /* The two ways out, rows four and five. */
-    s_leaveq_sym = FG_CreateSubtext(s_text, &COL_WAIT, ROOMS_SUBTEXT_PLAIN, 0, "",
-                                    ROOM_ACT_SZ, ROOM_ACT_SYM_X,
-                                    ROOM_ACT_Y + 3.0f * ROOM_ACT_STEP);
-    s_leaveq_line = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
-                                     ROOM_ACT_SZ, ROOM_ACT_X,
-                                     ROOM_ACT_Y + 3.0f * ROOM_ACT_STEP);
     s_leaver_sym = FG_CreateSubtext(s_text, &COL_WAIT, ROOMS_SUBTEXT_PLAIN, 0, "",
                                     ROOM_ACT_SZ, ROOM_ACT_SYM_X,
-                                    ROOM_ACT_Y + 4.0f * ROOM_ACT_STEP);
+                                    ROOM_ACT_Y + 3.0f * ROOM_ACT_STEP);
     s_leaver_line = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                     ROOM_ACT_SZ, ROOM_ACT_X,
+                                     ROOM_ACT_Y + 3.0f * ROOM_ACT_STEP);
+    s_leaveq_sym = FG_CreateSubtext(s_text, &COL_WAIT, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                    ROOM_ACT_SZ, ROOM_ACT_SYM_X,
+                                    ROOM_ACT_Y + 4.0f * ROOM_ACT_STEP);
+    s_leaveq_line = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
                                      ROOM_ACT_SZ, ROOM_ACT_X,
                                      ROOM_ACT_Y + 4.0f * ROOM_ACT_STEP);
 
@@ -2026,13 +2019,21 @@ void room_think(void)
                 room_blank_browser();
                 room_show_actions();
             }
-            /* The offer changes when a match starts or ends: watching while
-             * one is on, practice the rest of the time. */
+            /* The offer changes when a match starts or ends, and when you join
+             * or leave the queue.
+             *
+             * ⚠️ The queue half was missing, which is why pressing Start left
+             * the screen still offering a queue you had just joined. Both are
+             * the ROOM's answer rather than anything this module remembers -
+             * see room_show_actions. */
             {
                 int playing = (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
-                if (playing != s_was_playing)
+                int queued = s_state_buf[ROOMS_STATE_POSITION] != 0;
+
+                if (playing != s_was_playing || queued != s_was_queued)
                 {
                     s_was_playing = playing;
+                    s_was_queued = queued;
                     room_show_actions();
                 }
             }
