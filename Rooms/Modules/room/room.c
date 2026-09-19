@@ -654,6 +654,52 @@ static void room_go_to_watch(void)
     Scene_ExitMinor();
 }
 
+/* The two ways out, both on a HOLD rather than a press.
+ *
+ * B leaves the room altogether, Z steps back out of the queue. Held, because
+ * both are easy to hit by accident on a screen where the only other controls
+ * are Start and Y - and losing your place in a queue to a stray B is a worse
+ * mistake than having to hold it for a moment.
+ *
+ * ⚠️ rooms_pad_held, not rooms_pad_pressed. Pressed fires on the frame the
+ * button goes down and is gone the next one, so a counter built on it never
+ * gets past 1.
+ */
+
+/* ⚠️ Declared up here rather than down with the browser's own statics, because
+ * room_leave_room needs it and that sits above them. Which screen is showing
+ * decides whether there was a room to leave at all. */
+static int s_browsing;
+
+#define ROOM_HOLD_FRAMES 60      /* one second at 60fps */
+
+static int s_hold_b;
+static int s_hold_z;
+
+static void room_leave_room(void)
+{
+    u8 *cmd = rooms_exi_buf;
+
+    room_log("[Rooms] leaving the room");
+
+    /* ⚠️ The byte says whether there was a room to leave. Walking off the list
+     * of public rooms is not leaving one - you were never in it - and the old
+     * build's note records that saying otherwise drops the client out of the
+     * room it was already in. */
+    cmd[0] = CONST_SlippiCmdRoomLeave;
+    cmd[1] = (u8)!s_browsing;
+    FN_EXITransferBuffer(cmd, 2, CONST_ExiWrite);
+
+    /* Out to the menu. ⚠️ Both halves, in this order: the pending MINOR is
+     * cleared so nothing of ours is next, the major is written through
+     * MenuController_WriteToPendingMajor_1to_0xC, and only then does the minor
+     * end - Scene_ProcessMajor only looks at the major flag between minors, so
+     * ending the minor first lands you back where you started. */
+    SCENE_CTRL.pending_minor = 0;
+    MenuController_WriteToPendingMajor_1to_0xC(SCENE_MAJOR_MAIN_MENU);
+    Scene_ExitMinor();
+}
+
 /* Rebuild the band around what the pair actually picked.
  *
  * The models are FILES, ordered in RoomScenePrep before the scene loads, and
