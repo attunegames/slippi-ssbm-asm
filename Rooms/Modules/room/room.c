@@ -113,9 +113,12 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
  * beneath it acting as the line the text is written on. ⚠️ Not on the boundary
  * itself, which is where it started - straddling the edge put it half in the
  * blue and half over the players' names. */
-#define ROOM_STAGE_X   230.0f
+#define ROOM_STAGE_X   214.0f
 #define ROOM_STAGE_Y   317.0f
 #define ROOM_STAGE_SZ  0.55f
+/* The longest name this can be handed - "Mushroom Kingdom II". Everything
+ * shorter is padded to sit under the middle of it. */
+#define ROOM_STAGE_MAX_CHARS 19
 
 /* The white VS, between the two names. The RED one is the splash's own artwork
  * and stays hidden - this is the small white one that sits between the players
@@ -553,8 +556,27 @@ static void room_draw_match(void)
     int live = (st[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
     const char *stage = live ? room_stage_name(st[ROOMS_STATE_STAGE]) : "";
 
+    /* ⚠️ Centred by PADDING, because there is no other way to do it here. A
+     * subtext's position is fixed when it is made and nothing in reach moves
+     * one afterwards, and there is no centred mode - so the line starts where
+     * the LONGEST stage name would start, and shorter names are pushed right by
+     * half the difference. Left alone, "Final Destination" ran into NOW LOADING
+     * while "Onett" sat far off to the left. */
     if (s_stage_line >= 0)
-        Text_UpdateSubtextContents(s_text, s_stage_line, "%s", stage);
+    {
+        char padded[40];
+        char *p = padded;
+        int len = 0;
+        int i;
+
+        while (stage[len])
+            len++;
+        for (i = 0; i < (ROOM_STAGE_MAX_CHARS - len) / 2 && i < 12; i++)
+            *p++ = ' ';
+        p = room_put(p, stage);
+        *p = 0;
+        Text_UpdateSubtextContents(s_text, s_stage_line, "%s", padded);
+    }
     if (s_vs_line >= 0)
         Text_UpdateSubtextContents(s_text, s_vs_line, "%s", live ? "VS" : "");
 }
