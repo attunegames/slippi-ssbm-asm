@@ -1989,6 +1989,28 @@ li r3, 0
 stb r3, GPDO_TIEBREAK_GAME_NUM(REG_ROOM_GPD)
 stb r3, GPDO_COLOR_BAN_ACTIVE(REG_ROOM_GPD)
 
+# EXPERIMENT. Who bans first.
+#
+# GPDO_PREV_WINNER is the previous game's winner, and Melee counterpick rules
+# say the winner bans - so this should be the byte that decides it. Nothing in
+# this repo READS it; only GameSetup.dat does, and that is a shipped binary with
+# no source here, so it cannot be read the way the DOL can. Zeroing it with the
+# rest of the struct is why port 0 has always banned first.
+#
+# Hardcoded to 1 to find out, because the alternative was guessing and paying
+# for a 40-minute Dolphin build to find out the guess was wrong. If the OTHER
+# player bans after this, the byte is confirmed and the real version can be
+# built: the room's rule is that the longest-standing member stands in for the
+# winner, for a first game and for a game whose winner has left, and Dolphin
+# already knows which of the pair that is - State::is_host. It needs a byte in
+# the room state payload to say so, which is the Dolphin change this is meant
+# to de-risk.
+#
+# â ï¸ REMOVE THIS once the answer is in. Left alone it hands the ban to
+# whoever is port 1, which is no more correct than port 0 was.
+li r3, 1
+stb r3, GPDO_PREV_WINNER(REG_ROOM_GPD)
+
 RoomSceneDecide_EXIT:
 restore
 blr
