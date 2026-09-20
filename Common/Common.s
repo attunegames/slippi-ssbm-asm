@@ -549,6 +549,7 @@ add \reg, r3, r4
 # resume at 0xD1.
 .set CONST_SlippiCmdRoomCreate,0xC5
 .set CONST_SlippiCmdRoomSetQueued,0xC6
+.set CONST_SlippiCmdRoomStageDraft,0xCD
 .set CONST_SlippiCmdRoomList,0xC7
 .set CONST_SlippiCmdRoomJoin,0xC8
 # Ask for the room, then read the reply back. The layout of that reply is

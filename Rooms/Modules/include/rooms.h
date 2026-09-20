@@ -352,6 +352,7 @@ void Preload_Update(void);
 #define PAD_TRIGGER_L 0x0040
 #define PAD_A      0x0100
 #define PAD_Y      0x0800
+#define PAD_X      0x0400
 
 /* Melee puts the control stick's direction into the same word as the buttons,
  * so a menu can read a flick without touching the analog values at all.
@@ -502,6 +503,18 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
  * the lobby having pressed nothing - so 1 means both "first in the queue"
  * and "not in it", and the screen told people in the lobby they were queued. */
 #define ROOMS_FLAG_QUEUED   0x80
+
+/* The room's own settings, and whether the reader may change them.
+ *
+ * A room's stage is RANDOM unless its owner turns the draft on. The draft still
+ * runs either way - it is where characters are chosen - and a random room just
+ * borrows the tiebreak mode that skips the stage half. See main.asm.
+ *
+ * ⚠️ The owner bit is a HINT, not a permission. The server decides who may
+ * change this; all the screen does with it is decide whether to offer. */
+#define ROOMS_STATE_SETTINGS 0x0A
+#define ROOMS_SETTING_DRAFT  0x01
+#define ROOMS_SETTING_OWNER  0x02
 #define ROOMS_NOT_PICKED   0xFF
 
 /* Melee's own "nobody", which SceneLoad_ClassicModeSplash checks for and then

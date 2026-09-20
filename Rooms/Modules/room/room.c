@@ -204,6 +204,8 @@ static int   s_spec_sym = -1;   /* Y to spectate                    */
 static int   s_spec_line = -1;
 static int   s_leaveq_sym = -1;  /* hold Z, out of the queue         */
 static int   s_leaveq_line = -1;
+static int   s_stage_sym = -1;   /* X, the owner's stage setting     */
+static int   s_stage_line = -1;
 static int   s_leaver_sym = -1;  /* hold B, out of the room          */
 static int   s_leaver_line = -1;
 static int   s_rule_lobby = -1;  /* the line under each heading      */
@@ -735,6 +737,13 @@ static void room_draw_queue(void)
 #define STR_WATCH    "Y to Spectate"
 #define STR_LEAVE_Q  "Hold Z to Leave the Queue"
 #define STR_LEAVE_R  "Hold B to Leave the Room"
+/* The stage setting. Two ways of saying it: the owner is offered the change,
+ * everybody else is told what the room does, because a rule you cannot see is
+ * one you find out about the hard way. */
+#define STR_STAGE_ON   "X for Random Stages"
+#define STR_STAGE_OFF  "X for Stage Draft"
+#define STR_STAGE_IS_D "Stages are Drafted"
+#define STR_STAGE_IS_R "Stages are Random"
 
 /* Shift-JIS, because this font has no ASCII for them: × is what is still to do,
  * − is done, + is what you can do next. */
@@ -768,10 +777,22 @@ static int room_is_queued(void)
     return (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_QUEUED) != 0;
 }
 
+/* Does this room draft its stages, and are we the one who may say so. */
+static int room_drafts_stages(void)
+{
+    return (s_state_buf[ROOMS_STATE_SETTINGS] & ROOMS_SETTING_DRAFT) != 0;
+}
+
+static int room_is_owner(void)
+{
+    return (s_state_buf[ROOMS_STATE_SETTINGS] & ROOMS_SETTING_OWNER) != 0;
+}
+
 static void room_show_actions(void)
 {
     int playing = (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
     int queued = room_is_queued();
+    int drafts = room_drafts_stages();
 
     /* Row one changes with you: offering the queue, or saying you are in it. */
     if (s_join_sym >= 0)
@@ -826,6 +847,15 @@ static void room_show_actions(void)
         Text_UpdateSubtextContents(s_text, s_leaveq_line, "%s",
                                    queued ? STR_LEAVE_Q : "");
 
+    /* Row six: what this room does about stages. */
+    if (s_stage_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_stage_sym, "%s", "");
+    if (s_stage_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_stage_line, "%s",
+                                   room_is_owner()
+                                       ? (drafts ? STR_STAGE_ON : STR_STAGE_OFF)
+                                       : (drafts ? STR_STAGE_IS_D : STR_STAGE_IS_R));
+
     s_spin_frame = 0;
 }
 
@@ -841,6 +871,19 @@ static void room_spin(void)
                                    (s_spin_frame / SPINNER_FRAMES) ? SYM_TODO
                                                                    : SYM_NEXT);
     s_spin_frame = (s_spin_frame + 1) % (2 * SPINNER_FRAMES);
+}
+
+/* The owner asking for the stage draft to go on or off. Same shape as the
+ * queue: say it to Dolphin and let the answer come back on a tick. */
+static void room_set_stage_draft(int on)
+{
+    u8 *cmd = rooms_exi_buf;
+
+    cmd[0] = CONST_SlippiCmdRoomStageDraft;
+    cmd[1] = (u8)(on ? 1 : 0);
+    FN_EXITransferBuffer(cmd, 2, CONST_ExiWrite);
+    room_log(on ? "[Rooms] asked for the stage draft"
+                : "[Rooms] asked for random stages");
 }
 
 /* Telling Dolphin is what actually joins the queue - it goes on the next tick,
@@ -1112,6 +1155,12 @@ static void room_buttons(void)
 
     if ((pressed & PAD_Y) && (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING))
         room_watch();
+
+    /* X: the owner turning the stage draft on or off. Nothing changes here - the
+     * request goes to Dolphin, the SERVER decides whether it may, and the next
+     * tick brings back whatever the truth turned out to be. */
+    if ((pressed & PAD_X) && room_is_owner())
+        room_set_stage_draft(!room_drafts_stages());
 
     /* Hold B: out of the room. */
     s_hold_b = (held & PAD_B) ? s_hold_b + 1 : 0;
@@ -1490,6 +1539,10 @@ static void room_blank_room(void)
         Text_UpdateSubtextContents(s_text, s_leaveq_sym, "%s", "");
     if (s_leaveq_line >= 0)
         Text_UpdateSubtextContents(s_text, s_leaveq_line, "%s", "");
+    if (s_stage_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_stage_sym, "%s", "");
+    if (s_stage_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_stage_line, "%s", "");
     if (s_leaver_sym >= 0)
         Text_UpdateSubtextContents(s_text, s_leaver_sym, "%s", "");
     if (s_leaver_line >= 0)
@@ -1924,6 +1977,13 @@ void room_load(void *scene)
     s_leaveq_line = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
                                      ROOM_ACT_SZ, ROOM_ACT_X,
                                      ROOM_ACT_Y + 4.0f * ROOM_ACT_STEP);
+    /* Row six: the stage setting. */
+    s_stage_sym = FG_CreateSubtext(s_text, &COL_WAIT, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                   ROOM_ACT_SZ, ROOM_ACT_SYM_X,
+                                   ROOM_ACT_Y + 5.0f * ROOM_ACT_STEP);
+    s_stage_line = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                    ROOM_ACT_SZ, ROOM_ACT_X,
+                                    ROOM_ACT_Y + 5.0f * ROOM_ACT_STEP);
 
     /* The rules under the two headings. ⚠️ Created AFTER the headings so they
      * draw over nothing - subtexts go down in the order they are made. */
