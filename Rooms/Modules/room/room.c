@@ -123,8 +123,13 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
 #define ROOM_VS_SZ     0.70f
 
 /* The room's own name, top left under the title: ROOM QAFK PASS 5143.
- * A private room shows stars until somebody holds R or L, so a code is not
- * left sitting on a stream. */
+ * A private room is masked until somebody holds L or R, so a code is not left
+ * sitting on a stream.
+ *
+ * ⚠️ The mask is full-width multiplication signs, NOT asterisks. An asterisk
+ * draws nothing here - the same as the star, the underscore and `>` - so the
+ * first version rendered as "ROOM   PASS" with two empty gaps and looked like
+ * the code had failed to arrive. */
 /* ⚠️ Where the "Rooms" title used to be. The title said nothing a player in a
  * room needed - they know where they are - so it is gone and this has its
  * place, in the dark of the picture above the left fighter's head. */
@@ -577,12 +582,12 @@ static void room_draw_code(void)
         return;
     }
 
-    p = room_put(p, "Room ");
-    p = room_put(p, (private_room && !show) ? "****" : code);
+    p = room_put(p, "ROOM ");
+    p = room_put(p, (private_room && !show) ? "\x81\x7E\x81\x7E\x81\x7E\x81\x7E" : code);
     if (pass[0])
     {
-        p = room_put(p, "  Pass ");
-        p = room_put(p, (private_room && !show) ? "****" : pass);
+        p = room_put(p, "  PASS ");
+        p = room_put(p, (private_room && !show) ? "\x81\x7E\x81\x7E\x81\x7E\x81\x7E" : pass);
     }
     *p = 0;
 
@@ -590,7 +595,7 @@ static void room_draw_code(void)
         Text_UpdateSubtextContents(s_text, s_code_line, "%s", line);
     if (s_hint_line >= 0)
         Text_UpdateSubtextContents(s_text, s_hint_line, "%s",
-                                   private_room && !show ? "Hold R or L to show" : "");
+                                   private_room && !show ? "Hold L or R to show" : "");
 }
 
 /* The two the room is playing, on the plate where the character names were.
@@ -736,14 +741,27 @@ static int s_queued;
 static int s_spin_frame;
 
 /* Two lines in the same place, one blanked. That is how the colour changes. */
+/* Are we in the queue?
+ *
+ * ⚠️ Not s_queued, which is local to this module and comes back as zero every
+ * time the band is rebuilt and reloads us - the screen went on offering a queue
+ * you were already standing in.
+ *
+ * ⚠️ And not POSITION either, which was the first fix and was also wrong.
+ * pd_tick computes it as "how many are ahead of me, plus one", so a lobby
+ * member who has pressed nothing gets 1 - the same as whoever is first in the
+ * queue. It can never mean "not queued", whatever the field has always claimed.
+ *
+ * Dolphin sends a flag for it instead, from the queue state it holds itself. */
+static int room_is_queued(void)
+{
+    return (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_QUEUED) != 0;
+}
+
 static void room_show_actions(void)
 {
     int playing = (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
-    /* ⚠️ The ROOM's answer, not s_queued. That is a local flag and this module
-     * is reloaded whenever the band is rebuilt, so it comes back as zero while
-     * the room still has you queued - and the screen goes on offering a queue
-     * you are already standing in. Position is 1-based; 0 means not queued. */
-    int queued = s_state_buf[ROOMS_STATE_POSITION] != 0;
+    int queued = room_is_queued();
 
     /* Row one changes with you: offering the queue, or saying you are in it. */
     if (s_join_sym >= 0)
@@ -803,7 +821,10 @@ static void room_show_actions(void)
 
 static void room_spin(void)
 {
-    if (s_queued || s_join_sym < 0)
+    /* ⚠️ room_is_queued, not s_queued. The spinner animates the symbol in front
+     * of the JOIN offer, and with the local flag cleared by a reload it kept
+     * animating over the top of "In the Queue". */
+    if (room_is_queued() || s_join_sym < 0)
         return;
     if (s_spin_frame % SPINNER_FRAMES == 0)
         Text_UpdateSubtextContents(s_text, s_join_sym, "%s",
@@ -2035,7 +2056,7 @@ void room_think(void)
              * see room_show_actions. */
             {
                 int playing = (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
-                int queued = s_state_buf[ROOMS_STATE_POSITION] != 0;
+                int queued = room_is_queued();
 
                 if (playing != s_was_playing || queued != s_was_queued)
                 {

@@ -452,6 +452,14 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
 /* Unlisted, and so it has a passcode. The corner stars the code and the
  * passcode out until somebody holds R or L. */
 #define ROOMS_FLAG_PRIVATE  0x40
+
+/* We have asked to be in the queue.
+ *
+ * ⚠️ A flag, because POSITION cannot answer it. pd_tick computes position as
+ * "how many are ahead of me, plus one", which is 1 for somebody standing in
+ * the lobby having pressed nothing - so 1 means both "first in the queue"
+ * and "not in it", and the screen told people in the lobby they were queued. */
+#define ROOMS_FLAG_QUEUED   0x80
 #define ROOMS_NOT_PICKED   0xFF
 
 /* Melee's own "nobody", which SceneLoad_ClassicModeSplash checks for and then
