@@ -14,9 +14,9 @@ Deployed to `Desktop/rooms-lan-test/{Alpha,Bravo,Charlie}` on 2026-09-20.
 | asm | the tag | `test/random-stages` |
 | dolphin | the tag | `test/random-stages` |
 
-    Alpha    exe 3cc3d45f  codeset 1f6a1a6e  module d4728b1c
-    Bravo    exe 3cc3d45f  codeset 1f6a1a6e  module d4728b1c
-    Charlie  exe 3cc3d45f  codeset 1f6a1a6e  module d4728b1c
+    Alpha    exe fc1603ea  codeset 1f6a1a6e  module d4728b1c
+    Bravo    exe fc1603ea  codeset 1f6a1a6e  module d4728b1c
+    Charlie  exe fc1603ea  codeset 1f6a1a6e  module d4728b1c
 
 ⚠️ Those three hashes are the first eight of the md5 of `Slippi Dolphin.exe`,
 `Sys/GameSettings/GALE01r2.ini` and `Sys/GameFiles/GALE01/SlippiRoom.dat`. All
@@ -25,7 +25,25 @@ to spend an evening testing a build nobody made.
 
 ## What to test
 
-### 1. A second draft in the same room drives its stages
+### 1. The draft drives the RIGHT side
+
+The drive used to work out who bans first from its own copy of the rule the
+room publishes as ROOM_STATE_BAN_FIRST, and the two could disagree. One
+client announced `driving draft step 0` and auto-pressed into a screen that
+was waiting for its OPPONENT to ban, while the draft sat on the other client
+waiting for a human. Fourteen minutes later somebody banned by hand and
+nothing lined up again. Two of five games failed that way in one session.
+
+It now asks the draft instead: the draft polls each client about the step it
+is NOT performing, so the other one is ours. The log line says what it
+concluded and on what evidence:
+
+    [Rooms] driving draft step N, sweep M (draft asked about K)
+
+⚠️ If N and K are ever the SAME number, the inference itself is wrong and
+that is a different bug from the one this replaced.
+
+### 2. A second draft in the same room drives its stages
 
 The one that matters. Game one already worked - the cursor swept along the
 stage row by itself, banned, confirmed, and the pick did the same. Game TWO
@@ -40,7 +58,7 @@ not a protocol disagreement - the fresh client had no stale step to believe.
 Play at least three matches in a row so the rotation brings a third person in.
 Every draft after the first is new ground.
 
-### 2. Pressing X is acknowledged
+### 3. Pressing X is acknowledged
 
 The room's sixth action line. The owner sees `X for Stage Draft` or
 `X for Random Stages`; everybody else is told what the room does.
@@ -54,7 +72,7 @@ The room's sixth action line. The owner sees `X for Stage Draft` or
   line come back unchanged, because the server never answers a request it
   refuses.
 
-### 3. The ban order in game two
+### 4. The ban order in game two
 
 The drive code and the room's own `ROOM_STATE_BAN_FIRST` byte use the identical
 rule - the PAIRING's host bans first - so they cannot disagree with each other.
@@ -62,7 +80,7 @@ rule - the PAIRING's host bans first - so they cannot disagree with each other.
 on the wrong side in a later game, that is a different bug from the one above,
 and which side did it is the useful half of the report.
 
-### 4. A character keeps its COLOUR between games
+### 5. A character keeps its COLOUR between games
 
 New in this build, and the one thing here with no earlier test behind it.
 Play the same fighter twice in a row and the costume should come back with
@@ -81,7 +99,7 @@ player who is choosing one. The case it can get wrong is deliberately
 picking costume 0 when the last one was not 0 - if that snaps back to the
 old colour, this is why.
 
-### 5. A pairing that will not connect does not freeze the room
+### 6. A pairing that will not connect does not freeze the room
 
 Hard to trigger on purpose, because it depends on Slippi's own servers.
 Seen once: the server took one client's connection and never answered its
@@ -100,7 +118,32 @@ wait forever - the retry is meant to rescue it by giving it a partner. If
 that does not happen in practice, that side needs its own answer, and
 interrupting a live search is not as safe as restarting a failed one.
 
-### 6. Turning the draft back on still gives a normal draft
+### 7. The rotation, after a crown
+
+Server-side, already applied to the live database - no build involved.
+
+Beat everyone in the room and the next game should be the OTHER TWO. It was
+not: pd_result sent the champion to the back with now() and then the loser to
+the back with now(), and now() in PostgreSQL is the TRANSACTION's clock, so
+both landed on the same microsecond. Confirmed in the table:
+
+    Bravo    (loser)     queued_at 18:25:52.021941
+    MrBirdMD (champion)  queued_at 18:25:52.021941   crowns 1
+
+The champion now goes a second behind.
+
+### 8. A disconnected game does not brick the room
+
+Also server-side. A pairing that reached 'ready' and never finished was never
+reaped, and pd_tick will not pair anyone who is already in one - so both
+players dropped out of the rotation silently and permanently. Found live:
+PX8M had all three players present with two of them locked out.
+
+Now given up on after fifteen minutes. ⚠️ That is the recovery time, so a
+room that loses a game will look stuck for a quarter of an hour before it
+heals itself. Making a new room is still the faster answer.
+
+### 9. Turning the draft back on still gives a normal draft
 
 The safety net. All of the driving is gated on the room setting, so if the
 automatic play misbehaves, pressing X gives a working room immediately.
