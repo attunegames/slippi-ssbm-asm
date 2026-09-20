@@ -11,7 +11,7 @@ Deployed to `Desktop/rooms-lan-test/{Alpha,Bravo,Charlie}` on 2026-09-20.
 
 | | commit | tag |
 |---|---|---|
-| asm | `fc725e4` | `test/random-stages` |
+| asm | the tag | `test/random-stages` |
 | dolphin | `68c3aa4a2` | `test/random-stages` |
 
     Alpha    exe 28dc2c8a  codeset 1f6a1a6e  module 080d6a91
