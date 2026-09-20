@@ -249,7 +249,7 @@ static int   s_rule_queue = -1;
 #define ROOM_CROWN_X     (ROOM_QUEUE_X - 24.0f)
 #define ROOM_CROWN_SZ     0.45f
 #define ROOM_CROWN_NUM_X (ROOM_QUEUE_X - 18.0f)
-#define ROOM_CROWN_NUM_SZ 0.34f
+#define ROOM_CROWN_NUM_SZ 0.45f
 
 /* ⚠️ This font has no ASCII star or asterisk - they draw nothing, which is why
  * the room's existing symbols are Shift-JIS full-width punctuation. This is the
@@ -622,9 +622,16 @@ static void room_draw_row(int name_line, int crown_line, int num_line, int slot)
     if (name_line >= 0)
         Text_UpdateSubtextContents(s_text, name_line, "%s", name);
 
+    /* ⚠️ The count on its own, in gold. There is no crown: this font has no
+     * star, no asterisk and no underscore, and a probe of eight Shift-JIS
+     * candidates drew a blank after every one of them. A number in the
+     * winner's colour says the same thing and is a glyph that certainly
+     * exists, which the symbol never was.
+     *
+     * crown_line is kept and left empty rather than removed, so putting a
+     * symbol back is a one-line change if the font is ever properly mapped. */
     if (crown_line >= 0)
-        Text_UpdateSubtextContents(s_text, crown_line, "%s",
-                                   (name[0] && crowns) ? SYM_CROWN : "");
+        Text_UpdateSubtextContents(s_text, crown_line, "%s", "");
     if (num_line >= 0)
     {
         char n[8];
@@ -1816,7 +1823,7 @@ void room_load(void *scene)
                 s_text, &COL_GOLD, ROOMS_SUBTEXT_PLAIN, 0, "", ROOM_CROWN_SZ,
                 ROOM_CROWN_X, y);
             s_queue_num[i] = FG_CreateSubtext(
-                s_text, &COL_WHITE, ROOMS_SUBTEXT_OUTLINE, 0, "",
+                s_text, &COL_GOLD, ROOMS_SUBTEXT_PLAIN, 0, "",
                 ROOM_CROWN_NUM_SZ, ROOM_CROWN_NUM_X, y);
         }
 
