@@ -1177,6 +1177,13 @@
    "Tags": ""
   },
   {
+   "InjectionAddress": "80186EE0",
+   "Name": "Required: Slippi Online",
+   "Codetype": "Auto",
+   "Annotation": "Online/Menus/Room/SilenceSplashVoice.asm",
+   "Tags": ""
+  },
+  {
    "InjectionAddress": "8025B8A4",
    "Name": "Required: Slippi Online",
    "Codetype": "Auto",
