@@ -1610,12 +1610,16 @@ RoomSlpCSS_SKIP:
 # Check if this is a tiebreak. If it is a tiebreak, we dont want to invalidate since the same
 # characters will be loaded
 #
-# â ï¸ NOT IN A ROOM, where the tiebreak flag does not mean a tiebreak. A
+# ⚠️ NOT IN A ROOM, where the tiebreak flag does not mean a tiebreak. A
 # random-stage room sets it to borrow the draft's characters-only mode, and the
 # characters there change every single pairing - which is the exact case the
 # comment above says crashes if the cache is not invalidated.
-getMinorMajor r3
-cmpwi r3, SCENE_ONLINE_ROOM
+#
+# ⚠️ The MODE, not the scene. This runs while the draft's scene is up,
+# not the room's, so asking where we are would answer "the draft" and never
+# match.
+lbz r3, OFST_R13_ONLINE_MODE(r13)
+cmpwi r3, ONLINE_MODE_ROOMS
 beq SKIP_PRELOAD_TIEBREAK_CHECK
 lbz r3, GPDO_TIEBREAK_GAME_NUM(REG_GPD)
 cmpwi r3, 0
@@ -2018,14 +2022,14 @@ stb r3, GPDO_COLOR_BAN_ACTIVE(REG_ROOM_GPD)
 # struct is why port 0 banned every time, and why whoever made the room watched
 # their opponent ban.
 #
-# â ï¸ The PORT, which is why it comes from Dolphin rather than being worked
+# ⚠️ The PORT, which is why it comes from Dolphin rather than being worked
 # out here. The port is decided fresh every pairing, and the room's own idea of
 # who should ban is a NAME, not a port. Dolphin has both: pd_pairings picks its
 # host as the first still in the queue, tie-broken by who joined the room first,
 # so it is the winner who stayed - or, for a first game and for one whose winner
 # has left, the longest-standing member.
 #
-# â ï¸ A 32-byte aligned buffer inside this frame's free space. EXI transfers
+# ⚠️ A 32-byte aligned buffer inside this frame's free space. EXI transfers
 # by DMA and an unaligned one is a corrupt read rather than a failed one.
 addi r30, r1, 0x8 + 31
 rlwinm r30, r30, 0, 0, 26
@@ -2067,7 +2071,7 @@ stb r3, GPDO_PREV_WINNER(REG_ROOM_GPD)
 # game: same set, fresh characters, a stage nobody strikes for. Which is exactly
 # the shape wanted here, so the room borrows it.
 #
-# â ï¸ The stage still has to come from somewhere, and it already does:
+# ⚠️ The stage still has to come from somewhere, and it already does:
 # Dolphin picks a random legal one for every pairing before the draft runs.
 # Nothing overwrites it once the draft stops choosing.
 lbz r3, ROOMS_STATE_SETTINGS(r30)
