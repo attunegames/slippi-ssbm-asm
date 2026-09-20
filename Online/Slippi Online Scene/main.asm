@@ -1646,7 +1646,24 @@ beq GamePrepSceneDecide_ExecNormal
 li r3, 1
 bl FN_ReportSetCompletion
 
-# Go back to CSS
+# Go back to CSS - or, in a room, back to the ROOM.
+#
+# ⚠️ The character select is not a place a Rooms player belongs. They never
+# passed through it on the way here: a room goes room -> draft -> game. Sent
+# there after an opponent walks out, they land on a screen with nothing to do
+# and an error on it, and the only way out is the redirect in CSSSceneDecide
+# firing when they leave - so the error is seen every time.
+#
+# The room is where they came from and where the queue still is.
+lbz r3, OFST_R13_ONLINE_MODE(r13)
+cmpwi r3, ONLINE_MODE_ROOMS
+bne GamePrepSceneDecide_DiscToCSS
+load r4, 0x80479d30
+li r3, MINOR_ROOM + 1
+stb r3, 0x5(r4)
+b GamePrepSceneDecide_RestoreAndExit
+
+GamePrepSceneDecide_DiscToCSS:
 load r4, 0x80479d30
 li r3, 0x01
 stb r3, 0x5(r4)
