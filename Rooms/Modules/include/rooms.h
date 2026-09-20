@@ -247,6 +247,43 @@ void JOBJ_RemoveAnimAll(void *jobj);
  * they hang off child joints and each joint is tested on its own way down.
  * These two walk the tree - confirmed in the DOL, they follow the child pointer
  * and OR the flag in at every joint. */
+/* ------------------------------------------------- loading somebody else's file
+ *
+ * The two halves Slippi already uses to reach slpCSS.dat, in SceneLoadCSS.asm:
+ * one takes a filename off the disc and hands back the archive, the other takes
+ * the archive and one of the public symbols its own directory lists.
+ *
+ * ⚠️ A file loaded here comes out of the SCENE heap, so it goes away with the
+ * scene - which is what the room wants, and also why it has to be asked for
+ * again every time the room is re-entered.
+ */
+void *File_Load(const char *name);
+void *Archive_GetPublicAddress(void *archive, const char *symbol);
+
+/* A joint DESCRIPTOR, as it sits in a file, is not a joint. The layouts differ -
+ * a descriptor keeps its flags at +0x04 and its child at +0x08, a live one keeps
+ * next at +0x08 and flags at +0x14 - so one has to be built from the other. */
+void *JOBJ_LoadJoint(const void *desc);
+
+/* And a joint only draws if something owns it.
+ *
+ * GObj_Create takes FIVE arguments and its THIRD is the class - the wrapper at
+ * 0x803901F0 that everything else calls passes 0 for the first and last, which
+ * is why the splash's GObj_Create(11, 3, 0) comes out as class 3. The room asks
+ * for the same thing the splash does, so its picture sits with the splash's.
+ *
+ * The link helper is the three-argument one the character select uses; the
+ * four-argument GObj_AddGXLink underneath it also wants a priority, and what
+ * the right priority is here is not written down anywhere. */
+void *GObj_Create(int a, int b, int c, int d, int e);
+void GObj_AddObject(void *gobj, u8 kind, void *obj);
+void GObj_AddGXLinkDefaultPri(void *gobj, void *draw, u8 link);
+
+/* ⚠️ GObj_AddObject checks this byte and refuses 0xFF, and what it means for a
+ * joint is not written down anywhere reachable. So it is READ off a GObj that is
+ * already drawing one rather than guessed - see room_gobj_template. */
+#define ROOMS_GOBJ_KIND  0x06
+
 void JOBJ_SetFlagsAll(void *jobj, u32 flags);
 void JOBJ_ClearFlagsAll(void *jobj, u32 flags);
 

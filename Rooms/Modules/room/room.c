@@ -1352,6 +1352,173 @@ static void room_show_band(int show)
     }
 }
 
+/* ------------------------------------------------------ the stage's picture --
+ *
+ * What the stage NAME used to be. Read out of the files rather than guessed at;
+ * the whole route is in the commit that added melee_xref.py and dat_textures.py.
+ *
+ * The art is the stage select's own, in MnSlMap.usd under its single public
+ * symbol. The icons are twenty-six 64x56 paletted images in one run, and the
+ * quad that shows one is the joint descriptor at +0x96528 from that root: two
+ * DObjs, a frame and the picture. Pointing the second one's texture at a
+ * different image descriptor is the whole of changing which stage it shows.
+ *
+ * ⚠️ The order is the STAGE SELECT's, not stage-id order - Icicle Mountain sits
+ * after the two Mushroom Kingdoms - so this table is written out in full rather
+ * than computed from the id. A first pass assumed id order and had Battlefield
+ * and Final Destination labelled as Dream Land and Yoshi's Island 64.
+ *
+ * ⚠️ The three PAST stages are missing on purpose, not by oversight: Dream Land
+ * (0x1C), Yoshi's Island 64 (0x1D) and Kongo Jungle 64 (0x1E) are 48x48 and live
+ * somewhere else in the file. A stage with no entry here draws NO picture, which
+ * is the right way round - a blank space says nothing, a wrong picture lies. */
+#define ROOM_MAP_FILE    "MnSlMap.usd"
+#define ROOM_MAP_SYMBOL  "MnSelectStageDataTable"
+#define ROOM_ICON_JOBJ   0x096528   /* the quad, as a joint descriptor */
+#define ROOM_ICON_DOBJ   0x096498   /* its second DObj - the picture itself */
+#define ROOM_DOBJ_MOBJ   0x08       /* DObj +0x08 is its material          */
+#define ROOM_MOBJ_TOBJ   0x08       /* MObj +0x08 is its texture           */
+#define ROOM_TOBJ_IMAGE  0x4C       /* TObj +0x4C is the image descriptor  */
+
+struct room_icon
+{
+    u8  stage;
+    u32 image;                      /* offset of the descriptor, from the root */
+};
+
+static const struct room_icon s_icons[] = {
+    {0x02, 0x096180}, {0x03, 0x0966c4}, {0x04, 0x096894}, {0x05, 0x0966dc},
+    {0x06, 0x0968ac}, {0x07, 0x0966f4}, {0x08, 0x0968c4}, {0x09, 0x09670c},
+    {0x0A, 0x0968dc}, {0x0B, 0x096724}, {0x0C, 0x0968f4}, {0x0D, 0x09673c},
+    {0x0E, 0x09690c}, {0x0F, 0x096754}, {0x10, 0x096924}, {0x11, 0x09676c},
+    {0x12, 0x09693c}, {0x13, 0x096784}, {0x14, 0x096954}, {0x15, 0x09679c},
+    {0x18, 0x09696c}, {0x19, 0x0967b4}, {0x16, 0x097b50}, {0x1B, 0x097ec0},
+    {0x1F, 0x0976c0}, {0x20, 0x0976d8},
+};
+
+static void *s_icon_gobj;
+static u8    s_icon_stage = ROOMS_NOT_PICKED;
+
+/* The kind byte and the render link, taken off a GObj that is ALREADY drawing a
+ * joint on this screen rather than guessed.
+ *
+ * ⚠️ GObj_AddObject reads the kind and refuses 0xFF, and nothing in reach says
+ * what a joint's kind is. The splash is right there doing it, so the room copies
+ * what the splash already got right - and copying the link with it is what puts
+ * the picture under the same camera as everything else on the band. */
+static int room_gobj_template(u8 *kind, u8 *link)
+{
+    static const int classes[] = {3, ROOM_CLASS_SPLASH};
+    void **heads = rooms_gobj_heads();
+    unsigned int c;
+
+    if (!heads)
+        return 0;
+
+    for (c = 0; c < sizeof(classes) / sizeof(classes[0]); c++)
+    {
+        void *g;
+
+        for (g = heads[classes[c]]; g;
+             g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
+        {
+            u32 fn = *(const u32 *)((const char *)g + ROOMS_GOBJ_DRAWFN);
+            void *obj = *(void **)((char *)g + ROOMS_GOBJ_OBJECT);
+            u8 k = *(const u8 *)((const char *)g + ROOMS_GOBJ_KIND);
+
+            if (!obj || !room_draws_jobj(fn) || k == 0xFF)
+                continue;
+            *kind = k;
+            *link = *(const u8 *)((const char *)g + ROOMS_GOBJ_LINK);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Build the picture for `stage`, or take it away when there is no picture to
+ * show. Called from the band, so it follows the fighters. */
+static void room_show_stage(u8 stage)
+{
+    void *arc, *root, *desc, *dobj, *mobj, *tobj, *jobj;
+    u32 image = 0;
+    unsigned int i;
+    u8 kind = 0, link = 0;
+
+    if (stage == s_icon_stage)
+        return;
+    s_icon_stage = stage;
+
+    /* Nothing is destroyed on the way out - the scene heap goes with the scene,
+     * and the room re-enters its own scene to change what the band shows, so
+     * hiding is enough and freeing would be freeing somebody else's memory. */
+    if (s_icon_gobj)
+    {
+        void *obj = *(void **)((char *)s_icon_gobj + ROOMS_GOBJ_OBJECT);
+        if (obj)
+            JOBJ_SetFlagsAll(obj, ROOM_JOBJ_HIDDEN);
+    }
+
+    for (i = 0; i < sizeof(s_icons) / sizeof(s_icons[0]); i++)
+        if (s_icons[i].stage == stage)
+            image = s_icons[i].image;
+    if (!image)
+    {
+        room_log("[Rooms] no picture for this stage");
+        return;
+    }
+
+    arc = File_Load(ROOM_MAP_FILE);
+    if (!arc)
+    {
+        room_log("[Rooms] " ROOM_MAP_FILE " did not load");
+        return;
+    }
+    root = Archive_GetPublicAddress(arc, ROOM_MAP_SYMBOL);
+    if (!root)
+    {
+        room_log("[Rooms] no " ROOM_MAP_SYMBOL " in that file");
+        return;
+    }
+
+    /* Point the quad's picture at this stage before the joint is built from it:
+     * the descriptor is what JOBJ_LoadJoint reads. */
+    dobj = (char *)root + ROOM_ICON_DOBJ;
+    mobj = *(void **)((char *)dobj + ROOM_DOBJ_MOBJ);
+    if (!mobj)
+        return;
+    tobj = *(void **)((char *)mobj + ROOM_MOBJ_TOBJ);
+    if (!tobj)
+        return;
+    *(void **)((char *)tobj + ROOM_TOBJ_IMAGE) = (char *)root + image;
+
+    desc = (char *)root + ROOM_ICON_JOBJ;
+    jobj = JOBJ_LoadJoint(desc);
+    if (!jobj)
+    {
+        room_log("[Rooms] the stage quad would not build");
+        return;
+    }
+
+    if (!room_gobj_template(&kind, &link))
+    {
+        room_log("[Rooms] nothing on screen to copy a GObj from");
+        return;
+    }
+
+    /* Class 3, the same class and the same way round as the splash's own
+     * artwork - see the note above ROOMS_GOBJ_HEADS. */
+    s_icon_gobj = GObj_Create(0, 11, 3, 0, 0);
+    if (!s_icon_gobj)
+    {
+        room_log("[Rooms] no GObj for the stage picture");
+        return;
+    }
+    GObj_AddObject(s_icon_gobj, kind, jobj);
+    GObj_AddGXLinkDefaultPri(s_icon_gobj, (void *)ROOM_DRAW_JOBJ_A, link);
+    room_log("[Rooms] stage picture up");
+}
+
 /* The two fighters, on and off, without touching anything else on the band.
  *
  * An idle room should not claim two people are about to play, but it still
@@ -2061,6 +2228,11 @@ void room_think(void)
             *p = 0;
             room_log(line);
         }
+
+        /* The stage's picture follows the band. The browser has no band, so it
+         * gets no picture either - ROOMS_NOT_PICKED is the "take it away" value
+         * as well as the "nobody has chosen" one. */
+        room_show_stage(s_browsing ? (u8)ROOMS_NOT_PICKED : s_band_stage);
 
         if (s_browsing)
         {
