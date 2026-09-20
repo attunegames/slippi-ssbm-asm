@@ -117,14 +117,17 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
 #define ROOM_STAGE_Y   317.0f
 #define ROOM_STAGE_SZ  0.55f
 
-/* The middle of the SCREEN, in canvas units, and the size of a letter.
+/* The size of a letter, and the middle of the band.
  *
- * Both MEASURED, off a screen capture of a running room, rather than assumed -
- * the earlier numbers here were eyeballed and the VS sat 36 pixels right of
- * centre. The room's black render area ran x 2938..3771 on that capture, so the
- * middle of it is 3354; the two names, placed at canvas 60 and 420, put their
- * first letters at 3106 and 3490, which fixes a canvas unit at 1.0667 pixels
- * and lands the middle of the screen on canvas 293.
+ * MEASURED off a screen capture of a running room rather than assumed: the two
+ * names, placed at canvas 60 and 420, put their first letters at screen x 3106
+ * and 3490, which fixes a canvas unit at 1.0667 pixels.
+ *
+ * ⚠️ The centre is the middle of the VS, NOT the middle of the screen. Those
+ * are two different places and the VS is the one that matters - it is what the
+ * eye lines everything else up against. A version of this moved the VS onto the
+ * screen's centre instead and made things worse: the VS had been right all
+ * along and only the stage was out.
  *
  * ⚠️ The font is MONOSPACE for letters but its SPACE IS HALF A CELL.
  * "MrBirdMD" advanced 23.86px a letter at size 0.70 - a cell is 32 canvas units
@@ -132,17 +135,18 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
  * landed half a cell early. That is what the old centring kept getting wrong:
  * it counted a space as a whole character, so a two-word stage name was pushed
  * half a cell right for every space in it. */
-#define ROOM_CENTRE_X   293.0f
 #define ROOM_CELL_UNITS  32.0f
 
 /* The white VS, between the two names. The RED one is the splash's own artwork
  * and stays hidden - this is the small white one that sits between the players
  * on Slippi's versus screen.
  *
- * ⚠️ Sits so the two letters STRADDLE the middle of the screen, which is
- * why this is not ROOM_CENTRE_X itself: half of "VS" is one cell wide. */
+ * ⚠️ DO NOT MOVE THIS. It is where the band lines up from, and everything
+ * else is placed against the middle of it. */
 #define ROOM_VS_SZ     0.70f
-#define ROOM_VS_X      (ROOM_CENTRE_X - ROOM_CELL_UNITS * ROOM_VS_SZ)
+#define ROOM_VS_X      305.0f
+/* The middle of the VS, which is one cell in from where it starts. */
+#define ROOM_CENTRE_X  (ROOM_VS_X + ROOM_CELL_UNITS * ROOM_VS_SZ)
 
 /* The room's own name, top left under the title: ROOM QAFK PASS 5143.
  * A private room is masked until somebody holds L or R, so a code is not left
