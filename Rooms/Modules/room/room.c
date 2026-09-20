@@ -1466,6 +1466,22 @@ static void room_blank_room(void)
         Text_UpdateSubtextContents(s_text, s_next_sym, "%s", "");
     if (s_next_line >= 0)
         Text_UpdateSubtextContents(s_text, s_next_line, "%s", "");
+    /* ⚠️ And the three rows added after this function was written. They were
+     * not in it, so "Y to Spectate" and "Hold B to Leave the Room" sat over the
+     * list of public rooms - offering to spectate a match in a room the reader
+     * is not in, and to leave one they have not joined. */
+    if (s_spec_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_spec_sym, "%s", "");
+    if (s_spec_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_spec_line, "%s", "");
+    if (s_leaveq_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_leaveq_sym, "%s", "");
+    if (s_leaveq_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_leaveq_line, "%s", "");
+    if (s_leaver_sym >= 0)
+        Text_UpdateSubtextContents(s_text, s_leaver_sym, "%s", "");
+    if (s_leaver_line >= 0)
+        Text_UpdateSubtextContents(s_text, s_leaver_line, "%s", "");
 }
 
 static void room_browse_buttons(void)
