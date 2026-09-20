@@ -515,6 +515,19 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
 #define ROOMS_STATE_SETTINGS 0x0A
 #define ROOMS_SETTING_DRAFT  0x01
 #define ROOMS_SETTING_OWNER  0x02
+
+/* What Slippi's matchmaking is doing about the pairing we asked for.
+ *
+ * ⚠️ This byte was padding, and its absence was a real bug rather than a
+ * missing nicety. room_start_match sends CMD_FIND_OPPONENT and then waits for
+ * ROOMS_FLAG_CONNECTED - which is only ever set on SUCCESS. A search that
+ * failed said nothing at all, so the room sat on a dead pairing with both
+ * names up on the band, no way forward, no way back and nothing on screen to
+ * say why. Seen for real: Slippi's server took the connection and never
+ * answered the create-ticket, and both rooms waited for an hour. */
+#define ROOMS_STATE_MM       0x0B
+#define ROOMS_MM_FAILED      0x01
+#define ROOMS_MM_SEARCHING   0x02
 #define ROOMS_NOT_PICKED   0xFF
 
 /* Melee's own "nobody", which SceneLoad_ClassicModeSplash checks for and then

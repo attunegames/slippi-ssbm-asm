@@ -755,6 +755,10 @@ static void room_draw_queue(void)
  * again. */
 #define STR_STAGE_TO_D "Turning the Stage Draft on"
 #define STR_STAGE_TO_R "Turning on Random Stages"
+/* Row one, when the pairing did not come off. It is the queue's own row and
+ * this is a fact about the queue: the match it paired you for never started. */
+#define STR_MM_RETRY   "Connecting - trying again"
+#define STR_MM_FAILED  "Slippi could not connect us"
 
 /* Shift-JIS, because this font has no ASCII for them: × is what is still to do,
  * − is done, + is what you can do next. */
@@ -777,6 +781,16 @@ static int s_spin_frame;
 static int s_stage_want = -1;
 static int s_stage_wait;
 #define ROOM_STAGE_WAIT_FRAMES 300  /* five seconds, then stop claiming it */
+
+/* How many times Slippi has been asked to connect this pairing, and whether
+ * we have stopped asking. ⚠️ Asking again is safe NOW: FindMatch joins the
+ * previous search's thread before starting another, and by the time a search
+ * has errored that thread has already left its loop. It was not always safe -
+ * assigning over a joinable std::thread took both clients down at the same
+ * instant with no log line at all. */
+static int s_mm_tries;
+static int s_mm_gave_up;
+#define ROOM_MM_MAX_TRIES 3
 
 /* Two lines in the same place, one blanked. That is how the colour changes. */
 /* Are we in the queue?
@@ -817,9 +831,15 @@ static void room_show_actions(void)
     if (s_join_sym >= 0)
         Text_UpdateSubtextContents(s_text, s_join_sym, "%s",
                                    queued ? "" : SYM_TODO);
+    /* ⚠️ The pairing has first claim on this row. While a match is being
+     * connected there is no queue to offer anyway - you are already past it -
+     * and a failure that says nothing reads as a frozen game. */
     if (s_join_line >= 0)
         Text_UpdateSubtextContents(s_text, s_join_line, "%s",
-                                   queued ? "" : STR_JOIN);
+                                   s_mm_gave_up ? STR_MM_FAILED
+                                   : s_mm_tries  ? STR_MM_RETRY
+                                   : queued      ? ""
+                                                 : STR_JOIN);
     if (s_done_sym >= 0)
         Text_UpdateSubtextContents(s_text, s_done_sym, "%s",
                                    queued ? SYM_DONE : "");
@@ -2232,6 +2252,31 @@ void room_think(void)
 
             /* Paired: ask Slippi to connect us. Then WAIT - the draft is only
              * enterable once it actually has. */
+            /* Slippi gave up on the pairing we handed it. Hand it over again.
+             *
+             * ⚠️ Bounded, and it says so on the screen. The failure this was
+             * written for was ONE-SIDED - one client's create-ticket went
+             * unanswered while the other's ticket sat open waiting for an
+             * assignment that could never come - so asking again is usually all
+             * it takes. When it is not, the room has to stop pretending rather
+             * than retry into a server that is down. */
+            if (s_match_started && !s_draft_entered && !s_mm_gave_up &&
+                (s_state_buf[ROOMS_STATE_MM] & ROOMS_MM_FAILED))
+            {
+                if (s_mm_tries < ROOM_MM_MAX_TRIES)
+                {
+                    s_mm_tries++;
+                    s_match_started = 0;   /* the line below asks again */
+                    room_log("[Rooms] Slippi could not connect us - asking again");
+                }
+                else
+                {
+                    s_mm_gave_up = 1;
+                    room_log("[Rooms] Slippi could not connect us");
+                }
+                room_show_actions();
+            }
+
             if (!s_match_started &&
                 (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_READY))
                 room_start_match();
