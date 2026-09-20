@@ -151,6 +151,11 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
 #define ROOM_NAME_Y    348.0f
 #define ROOM_NAME_SZ   0.70f
 
+/* Their crown counts, left of each name. Gold, like the queue's. */
+#define ROOM_ACTIVE_NUM_L_X (ROOM_NAME_L_X - 26.0f)
+#define ROOM_ACTIVE_NUM_R_X (ROOM_NAME_R_X - 26.0f)
+#define ROOM_ACTIVE_NUM_SZ   0.50f
+
 static void *s_text;
 static int   s_stage_line = -1;  /* the stage, under the fighters     */
 static int   s_vs_line = -1;     /* the white VS between the names    */
@@ -163,6 +168,7 @@ static int   s_queue_crown[ROOMS_STATE_MAX_QUEUE];
 static int   s_queue_num[ROOMS_STATE_MAX_QUEUE];
 static int   s_name_l = -1;
 static int   s_name_r = -1;
+static int   s_active_num[2] = {-1, -1}; /* their crown counts */
 static int   s_queue_line[ROOMS_STATE_MAX_QUEUE];
 static int   s_join_sym = -1;    /* blue x, while it is still to do  */
 static int   s_join_line = -1;   /* white, offering the queue        */
@@ -604,12 +610,32 @@ static void room_draw_code(void)
  * leaves the unused ones empty, so there is nothing to test for here. */
 static void room_draw_players(void)
 {
+    int i;
+
     if (s_name_l >= 0)
         Text_UpdateSubtextContents(s_text, s_name_l, "%s",
                                    rooms_state_name(s_state_buf, 0));
     if (s_name_r >= 0)
         Text_UpdateSubtextContents(s_text, s_name_r, "%s",
                                    rooms_state_name(s_state_buf, 1));
+
+    /* ⚠️ Their crowns too. These were drawn only down the queue, so a champion
+     * was invisible for exactly as long as they were playing - which is when
+     * anybody is looking at them. */
+    for (i = 0; i < 2; i++)
+    {
+        u8 crowns = s_state_buf[ROOMS_STATE_CROWNS + i];
+        const char *name = rooms_state_name(s_state_buf, i);
+        char n[8];
+        char *p = n;
+
+        if (s_active_num[i] < 0)
+            continue;
+        if (name[0] && crowns)
+            p = room_put_i(p, crowns);
+        *p = 0;
+        Text_UpdateSubtextContents(s_text, s_active_num[i], "%s", n);
+    }
 }
 
 /* One row of a column: the name, and a crown with its count drawn over it.
@@ -1440,6 +1466,10 @@ static void room_blank_room(void)
         Text_UpdateSubtextContents(s_text, s_name_l, "%s", "");
     if (s_name_r >= 0)
         Text_UpdateSubtextContents(s_text, s_name_r, "%s", "");
+    if (s_active_num[0] >= 0)
+        Text_UpdateSubtextContents(s_text, s_active_num[0], "%s", "");
+    if (s_active_num[1] >= 0)
+        Text_UpdateSubtextContents(s_text, s_active_num[1], "%s", "");
     for (i = 0; i < ROOMS_STATE_MAX_QUEUE; i++)
     {
         if (s_queue_line[i] >= 0)
@@ -1503,14 +1533,14 @@ static void room_browse_buttons(void)
 
     /* Out the same way a room is left. ⚠️ Not the same thing underneath: the
      * byte room_leave_room sends says we were only looking at the list, so
-     * nobody's membership is touched. There was no way off this screen either
-     * until now. */
-    s_hold_b = (rooms_pad_held() & PAD_B) ? s_hold_b + 1 : 0;
-    if (s_hold_b == ROOM_HOLD_FRAMES)
-    {
-        s_hold_b = 0;
+     * nobody's membership is touched.
+     *
+     * ⚠️ A PRESS here, not a hold. Holding is for leaving a room, where a
+     * mistake costs you your place in a queue - stepping off a list of rooms
+     * costs nothing, and B is what anybody will press. Deliberately unlabelled:
+     * backing out of a list is not a thing that needs explaining. */
+    if (pressed & PAD_B)
         room_leave_room();
-    }
 }
 
 #define ROOM_MAX_TEXT 8
@@ -1843,6 +1873,13 @@ void room_load(void *scene)
     s_name_r = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0,
                                 "", ROOM_NAME_SZ,
                                 ROOM_NAME_R_X, ROOM_NAME_Y);
+
+    s_active_num[0] = FG_CreateSubtext(s_text, &COL_GOLD, ROOMS_SUBTEXT_PLAIN, 0,
+                                       "", ROOM_ACTIVE_NUM_SZ,
+                                       ROOM_ACTIVE_NUM_L_X, ROOM_NAME_Y);
+    s_active_num[1] = FG_CreateSubtext(s_text, &COL_GOLD, ROOMS_SUBTEXT_PLAIN, 0,
+                                       "", ROOM_ACTIVE_NUM_SZ,
+                                       ROOM_ACTIVE_NUM_R_X, ROOM_NAME_Y);
 
     {
         int i;
