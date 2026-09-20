@@ -748,6 +748,13 @@ static void room_draw_queue(void)
 #define STR_STAGE_OFF  "X for Stage Draft"
 #define STR_STAGE_IS_D "Stages are Drafted"
 #define STR_STAGE_IS_R "Stages are Random"
+/* ⚠️ And what the line says in between. The change is not this
+ * module to make - it goes to Dolphin, the SERVER decides, and the answer
+ * comes back on a tick - so there was a gap where pressing X did nothing
+ * visible and the only sensible thing to do with the button was press it
+ * again. */
+#define STR_STAGE_TO_D "Turning the Stage Draft on"
+#define STR_STAGE_TO_R "Turning on Random Stages"
 
 /* Shift-JIS, because this font has no ASCII for them: × is what is still to do,
  * − is done, + is what you can do next. */
@@ -762,6 +769,14 @@ static void room_draw_queue(void)
 
 static int s_queued;
 static int s_spin_frame;
+
+/* What we last asked the stage setting to become, and how long ago. -1 is
+ * nothing outstanding. ⚠️ It is a WANT, not a belief: the room does not
+ * change because we said so, and if the server refuses, the line goes back
+ * to saying whatever is actually true. */
+static int s_stage_want = -1;
+static int s_stage_wait;
+#define ROOM_STAGE_WAIT_FRAMES 300  /* five seconds, then stop claiming it */
 
 /* Two lines in the same place, one blanked. That is how the colour changes. */
 /* Are we in the queue?
@@ -851,12 +866,18 @@ static void room_show_actions(void)
         Text_UpdateSubtextContents(s_text, s_leaveq_line, "%s",
                                    queued ? STR_LEAVE_Q : "");
 
-    /* Row six: what this room does about stages. */
+    /* Row six: what this room does about stages - or, while the server has not
+     * answered yet, that we asked. The symbol slot is the blue one and
+     * room_spin animates it, so the line MOVES on the frame X goes down. */
     if (s_stage_sym >= 0)
-        Text_UpdateSubtextContents(s_text, s_stage_sym, "%s", "");
+        Text_UpdateSubtextContents(s_text, s_stage_sym, "%s",
+                                   s_stage_want >= 0 ? SYM_NEXT : "");
     if (s_stage_line >= 0)
         Text_UpdateSubtextContents(s_text, s_stage_line, "%s",
-                                   room_is_owner()
+                                   s_stage_want >= 0
+                                       ? (s_stage_want ? STR_STAGE_TO_D
+                                                       : STR_STAGE_TO_R)
+                                   : room_is_owner()
                                        ? (drafts ? STR_STAGE_ON : STR_STAGE_OFF)
                                        : (drafts ? STR_STAGE_IS_D : STR_STAGE_IS_R));
 
@@ -865,15 +886,24 @@ static void room_show_actions(void)
 
 static void room_spin(void)
 {
-    /* ⚠️ room_is_queued, not s_queued. The spinner animates the symbol in front
-     * of the JOIN offer, and with the local flag cleared by a reload it kept
-     * animating over the top of "In the Queue". */
-    if (room_is_queued() || s_join_sym < 0)
-        return;
+    int phase = (s_spin_frame / SPINNER_FRAMES) & 1;
+
     if (s_spin_frame % SPINNER_FRAMES == 0)
-        Text_UpdateSubtextContents(s_text, s_join_sym, "%s",
-                                   (s_spin_frame / SPINNER_FRAMES) ? SYM_TODO
-                                                                   : SYM_NEXT);
+    {
+        /* ⚠️ room_is_queued, not s_queued. This animates the symbol in front
+         * of the JOIN offer, and with the local flag cleared by a reload it
+         * kept animating over the top of "In the Queue". */
+        if (!room_is_queued() && s_join_sym >= 0)
+            Text_UpdateSubtextContents(s_text, s_join_sym, "%s",
+                                       phase ? SYM_TODO : SYM_NEXT);
+
+        /* And the stage setting, while the server has not answered. ⚠️ The
+         * whole point of the acknowledgement is that it MOVES - a line that
+         * appears and then sits there still reads like a frozen screen. */
+        if (s_stage_want >= 0 && s_stage_sym >= 0)
+            Text_UpdateSubtextContents(s_text, s_stage_sym, "%s",
+                                       phase ? SYM_TODO : SYM_NEXT);
+    }
     s_spin_frame = (s_spin_frame + 1) % (2 * SPINNER_FRAMES);
 }
 
@@ -994,6 +1024,7 @@ static void room_go_to_draft(void)
 static int s_watching;
 static int s_was_playing = -1; /* forces the first decision */
 static int s_was_queued = -1;  /* likewise                   */
+static int s_was_drafts = -1;  /* and the stage setting      */
 
 static void room_watch(void)
 {
@@ -1162,9 +1193,27 @@ static void room_buttons(void)
 
     /* X: the owner turning the stage draft on or off. Nothing changes here - the
      * request goes to Dolphin, the SERVER decides whether it may, and the next
-     * tick brings back whatever the truth turned out to be. */
-    if ((pressed & PAD_X) && room_is_owner())
-        room_set_stage_draft(!room_drafts_stages());
+     * tick brings back whatever the truth turned out to be.
+     *
+     * ⚠️ So the LINE says we asked, on the frame we ask. The round trip is
+     * long enough to read as a dead button, and a dead button gets pressed
+     * again - which sent a second request that undid the first.
+     *
+     * ⚠️ And it gives up. A request the server refuses - anyone who is not
+     * the owner - is never answered at all, and a line that says "Turning on
+     * Random Stages" forever is a worse lie than the silence was. */
+    if (s_stage_want >= 0 && ++s_stage_wait > ROOM_STAGE_WAIT_FRAMES)
+    {
+        s_stage_want = -1;
+        room_show_actions();
+    }
+    else if ((pressed & PAD_X) && room_is_owner() && s_stage_want < 0)
+    {
+        s_stage_want = !room_drafts_stages();
+        s_stage_wait = 0;
+        room_set_stage_draft(s_stage_want);
+        room_show_actions();
+    }
 
     /* Hold B: out of the room. */
     s_hold_b = (held & PAD_B) ? s_hold_b + 1 : 0;
@@ -2154,11 +2203,24 @@ void room_think(void)
             {
                 int playing = (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
                 int queued = room_is_queued();
+                int drafts = room_drafts_stages();
+                /* The answer we were waiting on, whichever way it went. */
+                int answered = (s_stage_want >= 0 && drafts == s_stage_want);
 
-                if (playing != s_was_playing || queued != s_was_queued)
+                if (answered)
+                    s_stage_want = -1;
+
+                /* ⚠️ THE SETTING TOO. Without it the sixth line was only ever
+                 * rewritten when somebody joined the queue or a match began, so
+                 * the room had already changed and the screen went on saying the
+                 * old thing until something unrelated happened. That, more than
+                 * the round trip, is what made X feel dead. */
+                if (answered || playing != s_was_playing ||
+                    queued != s_was_queued || drafts != s_was_drafts)
                 {
                     s_was_playing = playing;
                     s_was_queued = queued;
+                    s_was_drafts = drafts;
                     room_show_actions();
                 }
             }
