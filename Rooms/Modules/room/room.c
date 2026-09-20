@@ -1354,58 +1354,86 @@ static void room_show_band(int show)
 
 /* ------------------------------------------------------ the stage's picture --
  *
- * What the stage NAME used to be. Read out of the files rather than guessed at;
- * the whole route is in the commit that added melee_xref.py and dat_textures.py.
+ * ⚠️ NOT by offset, and the first version's silence is why. Slippi does not
+ * ship a replacement for MnSlMap.usd - it ships a VCDIFF PATCH beside it, and
+ * Dolphin applies that to the copy off the disc before the game sees it. So the
+ * file on the disc is 636811 bytes and the one the game loads is 659327, its
+ * public root is not at offset 0, and every offset read out of the disc copy
+ * pointed into the middle of something else. The load succeeded, the walk found
+ * a null material, and the whole thing returned without a word.
  *
- * The art is the stage select's own, in MnSlMap.usd under its single public
- * symbol. The icons are twenty-six 64x56 paletted images in one run, and the
- * quad that shows one is the joint descriptor at +0x96528 from that root: two
- * DObjs, a frame and the picture. Pointing the second one's texture at a
- * different image descriptor is the whole of changing which stage it shows.
+ * So this WALKS instead. The stage select's own icon plates are joints hanging
+ * off its data table, and each one carries two textures: a 64x56 frame and the
+ * 64x56 paletted stage picture. Finding one by that shape survives the patch,
+ * and survives Slippi changing the patch again.
  *
- * ⚠️ The order is the STAGE SELECT's, not stage-id order - Icicle Mountain sits
- * after the two Mushroom Kingdoms - so this table is written out in full rather
- * than computed from the id. A first pass assumed id order and had Battlefield
- * and Final Destination labelled as Dream Land and Yoshi's Island 64.
- *
- * ⚠️ The three PAST stages are missing on purpose, not by oversight: Dream Land
- * (0x1C), Yoshi's Island 64 (0x1D) and Kongo Jungle 64 (0x1E) are 48x48 and live
- * somewhere else in the file. A stage with no entry here draws NO picture, which
- * is the right way round - a blank space says nothing, a wrong picture lies. */
+ * Rooms/tools/vcdiff.py applies the patch, for reading the real file offline.
+ */
 #define ROOM_MAP_FILE    "MnSlMap.usd"
 #define ROOM_MAP_SYMBOL  "MnSelectStageDataTable"
-#define ROOM_ICON_JOBJ   0x096528   /* the quad, as a joint descriptor */
-#define ROOM_ICON_DOBJ   0x096498   /* its second DObj - the picture itself */
-#define ROOM_DOBJ_MOBJ   0x08       /* DObj +0x08 is its material          */
-#define ROOM_MOBJ_TOBJ   0x08       /* MObj +0x08 is its texture           */
-#define ROOM_TOBJ_IMAGE  0x4C       /* TObj +0x4C is the image descriptor  */
+#define ROOM_ICON_W      64
+#define ROOM_ICON_H      56
+#define ROOM_TABLE_QUADS 24         /* {JObj*, AnimJoint*, MatAnim*, ShapeAnim*} */
 
-struct room_icon
-{
-    u8  stage;
-    u32 image;                      /* offset of the descriptor, from the root */
-};
-
-static const struct room_icon s_icons[] = {
-    {0x02, 0x096180}, {0x03, 0x0966c4}, {0x04, 0x096894}, {0x05, 0x0966dc},
-    {0x06, 0x0968ac}, {0x07, 0x0966f4}, {0x08, 0x0968c4}, {0x09, 0x09670c},
-    {0x0A, 0x0968dc}, {0x0B, 0x096724}, {0x0C, 0x0968f4}, {0x0D, 0x09673c},
-    {0x0E, 0x09690c}, {0x0F, 0x096754}, {0x10, 0x096924}, {0x11, 0x09676c},
-    {0x12, 0x09693c}, {0x13, 0x096784}, {0x14, 0x096954}, {0x15, 0x09679c},
-    {0x18, 0x09696c}, {0x19, 0x0967b4}, {0x16, 0x097b50}, {0x1B, 0x097ec0},
-    {0x1F, 0x0976c0}, {0x20, 0x0976d8},
-};
+#define ROOM_JD_FLAGS    0x04       /* a joint DESCRIPTOR, not a live joint: */
+#define ROOM_JD_CHILD    0x08       /* child at +0x08, next at +0x0C,        */
+#define ROOM_JD_NEXT     0x0C       /* and its display object at +0x10       */
+#define ROOM_JD_DOBJ     0x10
+#define ROOM_DOBJ_NEXT   0x04
+#define ROOM_DOBJ_MOBJ   0x08
+#define ROOM_MOBJ_TOBJ   0x08
+#define ROOM_TOBJ_NEXT   0x04
+#define ROOM_TOBJ_IMAGE  0x4C
+#define ROOM_IMG_W       0x04       /* u16 */
+#define ROOM_IMG_H       0x06       /* u16 */
 
 static void *s_icon_gobj;
 static u8    s_icon_stage = ROOMS_NOT_PICKED;
 
+/* The first joint under `jd` whose material carries a picture the size of a
+ * stage icon. Depth-limited rather than trusting the tree to be well formed -
+ * this is somebody else's file and a bad pointer here is a crash. */
+static void *room_find_icon(void *jd, int depth)
+{
+    while (jd && depth < 12)
+    {
+        void *dobj = *(void **)((char *)jd + ROOM_JD_DOBJ);
+        void *kid;
+
+        while (dobj)
+        {
+            void *mobj = *(void **)((char *)dobj + ROOM_DOBJ_MOBJ);
+            if (mobj)
+            {
+                void *tobj = *(void **)((char *)mobj + ROOM_MOBJ_TOBJ);
+                while (tobj)
+                {
+                    void *img = *(void **)((char *)tobj + ROOM_TOBJ_IMAGE);
+                    if (img &&
+                        *(u16 *)((char *)img + ROOM_IMG_W) == ROOM_ICON_W &&
+                        *(u16 *)((char *)img + ROOM_IMG_H) == ROOM_ICON_H)
+                        return jd;
+                    tobj = *(void **)((char *)tobj + ROOM_TOBJ_NEXT);
+                }
+            }
+            dobj = *(void **)((char *)dobj + ROOM_DOBJ_NEXT);
+        }
+
+        kid = room_find_icon(*(void **)((char *)jd + ROOM_JD_CHILD), depth + 1);
+        if (kid)
+            return kid;
+        jd = *(void **)((char *)jd + ROOM_JD_NEXT);
+    }
+    return 0;
+}
+
 /* The kind byte and the render link, taken off a GObj that is ALREADY drawing a
  * joint on this screen rather than guessed.
  *
- * ⚠️ GObj_AddObject reads the kind and refuses 0xFF, and nothing in reach says
- * what a joint's kind is. The splash is right there doing it, so the room copies
- * what the splash already got right - and copying the link with it is what puts
- * the picture under the same camera as everything else on the band. */
+ * ⚠️ GObj_AddObject reads the kind and refuses 0xFF, and nothing in reach
+ * says what a joint's kind is. The splash is right there doing it, so the room
+ * copies what the splash already got right - and copying the link with it is
+ * what puts the picture under the same camera as the rest of the band. */
 static int room_gobj_template(u8 *kind, u8 *link)
 {
     static const int classes[] = {3, ROOM_CLASS_SPLASH};
@@ -1436,12 +1464,16 @@ static int room_gobj_template(u8 *kind, u8 *link)
     return 0;
 }
 
-/* Build the picture for `stage`, or take it away when there is no picture to
- * show. Called from the band, so it follows the fighters. */
+/* Put a stage picture on the band, or take it away.
+ *
+ * ⚠️ This draws WHATEVER icon the plate it finds is carrying, not the one
+ * for `stage`. Choosing needs a stage-to-image table and the patched file lays
+ * its images and palettes out in two arrays that do not line up the way the
+ * stock file's did - so that is a separate problem, and getting a picture on
+ * screen at the right size and in the right place is worth settling first. */
 static void room_show_stage(u8 stage)
 {
-    void *arc, *root, *desc, *dobj, *mobj, *tobj, *jobj;
-    u32 image = 0;
+    void *arc, *root, *icon, *jobj;
     unsigned int i;
     u8 kind = 0, link = 0;
 
@@ -1450,23 +1482,15 @@ static void room_show_stage(u8 stage)
     s_icon_stage = stage;
 
     /* Nothing is destroyed on the way out - the scene heap goes with the scene,
-     * and the room re-enters its own scene to change what the band shows, so
-     * hiding is enough and freeing would be freeing somebody else's memory. */
+     * and the room re-enters its own scene to change what the band shows. */
     if (s_icon_gobj)
     {
         void *obj = *(void **)((char *)s_icon_gobj + ROOMS_GOBJ_OBJECT);
         if (obj)
             JOBJ_SetFlagsAll(obj, ROOM_JOBJ_HIDDEN);
     }
-
-    for (i = 0; i < sizeof(s_icons) / sizeof(s_icons[0]); i++)
-        if (s_icons[i].stage == stage)
-            image = s_icons[i].image;
-    if (!image)
-    {
-        room_log("[Rooms] no picture for this stage");
+    if (stage == ROOMS_NOT_PICKED)
         return;
-    }
 
     arc = File_Load(ROOM_MAP_FILE);
     if (!arc)
@@ -1481,33 +1505,33 @@ static void room_show_stage(u8 stage)
         return;
     }
 
-    /* Point the quad's picture at this stage before the joint is built from it:
-     * the descriptor is what JOBJ_LoadJoint reads. */
-    dobj = (char *)root + ROOM_ICON_DOBJ;
-    mobj = *(void **)((char *)dobj + ROOM_DOBJ_MOBJ);
-    if (!mobj)
-        return;
-    tobj = *(void **)((char *)mobj + ROOM_MOBJ_TOBJ);
-    if (!tobj)
-        return;
-    *(void **)((char *)tobj + ROOM_TOBJ_IMAGE) = (char *)root + image;
-
-    desc = (char *)root + ROOM_ICON_JOBJ;
-    jobj = JOBJ_LoadJoint(desc);
-    if (!jobj)
+    /* The table is a header word and then the quads. */
+    icon = 0;
+    for (i = 0; i < ROOM_TABLE_QUADS && !icon; i++)
     {
-        room_log("[Rooms] the stage quad would not build");
+        void *quad = ((void **)((char *)root + 0x10))[i * 4];
+        if (quad)
+            icon = room_find_icon(quad, 0);
+    }
+    if (!icon)
+    {
+        room_log("[Rooms] no stage plate in " ROOM_MAP_FILE);
         return;
     }
 
+    jobj = JOBJ_LoadJoint(icon);
+    if (!jobj)
+    {
+        room_log("[Rooms] the stage plate would not build");
+        return;
+    }
     if (!room_gobj_template(&kind, &link))
     {
         room_log("[Rooms] nothing on screen to copy a GObj from");
         return;
     }
 
-    /* Class 3, the same class and the same way round as the splash's own
-     * artwork - see the note above ROOMS_GOBJ_HEADS. */
+    /* Class 3, the same as the splash's own artwork - see ROOMS_GOBJ_HEADS. */
     s_icon_gobj = GObj_Create(0, 11, 3, 0, 0);
     if (!s_icon_gobj)
     {
