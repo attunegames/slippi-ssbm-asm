@@ -223,8 +223,12 @@ static int   s_rule_queue = -1;
  * the three columns start on the same line. */
 #define ROOM_ACT_SYM_X   356.0f
 #define ROOM_ACT_X       376.0f
-#define ROOM_ACT_Y       ROOM_HEAD_Y
-#define ROOM_ACT_STEP     22.0f
+/* ⚠️ UP a little, and a row TIGHTER, because this canvas ends at about
+ * y=480. Six rows from the headings at 22 apart put the last one at 504 -
+ * off the bottom - and the stage setting was simply never on screen. It was
+ * being written every frame; there was nowhere for it to land. */
+#define ROOM_ACT_Y       (ROOM_HEAD_Y - 14.0f)
+#define ROOM_ACT_STEP     19.0f
 #define ROOM_ACT_SZ       0.34f
 
 /* Two columns under the picture: who is waiting, and who is just here.
