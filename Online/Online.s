@@ -100,6 +100,14 @@
 .set SCENE_ONLINE_VS, 0x0408
 # The room, minor 6 of this major. Slippi's own VS-screen hacks gate on the
 # scene, and the room borrows that screen, so they have to know about it.
+.set SCENE_ONLINE_GAMESETUP, 0x0508
+# What Dolphin says the pad should do in a random-stage room's draft.
+.set ROOM_DRIVE_NOTHING, 0
+.set ROOM_DRIVE_SWEEP,   1
+.set ROOM_DRIVE_PRESS,   2
+.set ROOM_PAD_A,         0x0100
+.set PAD_DPAD_RIGHT,     0x0002
+
 .set SCENE_ONLINE_ROOM, 0x0608
 
 ################################################################################

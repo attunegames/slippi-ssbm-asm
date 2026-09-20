@@ -24,6 +24,80 @@
 backup
 
 ################################################################################
+# Rooms: answering the draft's stage questions
+################################################################################
+# A room whose stages are random still goes through the draft, because that is
+# where characters are chosen. Only the stage half answers itself.
+#
+# ⚠️ It has to be ANSWERED, not skipped. The draft asks each of its two stage
+# questions - a ban then a pick, steps 0 and 1 - of one player only, and only
+# ever of that player's own client. Nothing Dolphin can reply makes the screen
+# stop asking. So the cursor is swept and A is pressed, which is what a player
+# would have done.
+#
+# ⚠️ HERE because this is right after PAD_Read, so what is written lands
+# upstream of everything that reads a pad - including the pressed-edge the
+# cursor needs. The three instructions around it are already injected into.
+#
+# ⚠️ Dolphin decides WHEN, down to the frame, and nothing is kept here: it
+# watches the draft complete each step through CMD_GP_COMPLETE_STEP, so start
+# and stop are messages rather than a timer that could run on into character
+# select and pick somebody a fighter.
+getMinorMajor r3
+cmpwi r3, SCENE_ONLINE_GAMESETUP
+bne ROOM_DRIVE_DONE
+lbz r3, OFST_R13_ONLINE_MODE(r13)
+cmpwi r3, ONLINE_MODE_ROOMS
+bne ROOM_DRIVE_DONE
+
+# A 32-byte aligned scratch in this frame's free space - EXI moves by DMA.
+addi r31, sp, 0x8 + 31
+rlwinm r31, r31, 0, 0, 26
+li r3, CONST_SlippiCmdRoomDraftDrive
+stb r3, 0x0(r31)
+mr r3, r31
+li r4, 1
+li r5, CONST_ExiWrite
+branchl r12, FN_EXITransferBuffer
+mr r3, r31
+li r4, 1
+li r5, CONST_ExiRead
+branchl r12, FN_EXITransferBuffer
+lbz r30, 0x0(r31)
+cmpwi r30, ROOM_DRIVE_NOTHING
+beq ROOM_DRIVE_DONE
+
+# Which buttons that means. The d-pad AND the stick, because which of the two
+# walks this cursor is not known and pressing both costs nothing.
+cmpwi r30, ROOM_DRIVE_PRESS
+beq ROOM_DRIVE_PRESS_A
+li r29, PAD_DPAD_RIGHT
+li r28, 100
+b ROOM_DRIVE_WRITE
+ROOM_DRIVE_PRESS_A:
+li r29, ROOM_PAD_A
+li r28, 0
+
+# Into the raw pad the read above just filled: four ports of PADStatus, which
+# is buttons at +0 and the stick at +2, twelve bytes apart, starting 0x2C into
+# the caller's frame. All four, because the room does not own a port - whoever
+# is sitting there is playing.
+ROOM_DRIVE_WRITE:
+lwz r27, 0(sp)
+addi r27, r27, 0x2C
+li r26, 4
+mtctr r26
+ROOM_DRIVE_PORT:
+lhz r25, 0x0(r27)
+or r25, r25, r29
+sth r25, 0x0(r27)
+stb r28, 0x2(r27)
+addi r27, r27, 0xC
+bdnz ROOM_DRIVE_PORT
+
+ROOM_DRIVE_DONE:
+
+################################################################################
 # Short Circuit Conditions
 ################################################################################
 
