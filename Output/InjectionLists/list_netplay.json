@@ -890,6 +890,13 @@
    "Tags": ""
   },
   {
+   "InjectionAddress": "8025FE84",
+   "Name": "Required: Slippi Online",
+   "Codetype": "Auto",
+   "Annotation": "Online/Menus/CSS/KeepRoomCostume.asm",
+   "Tags": ""
+  },
+  {
    "InjectionAddress": "80264534",
    "Name": "Required: Slippi Online",
    "Codetype": "Auto",

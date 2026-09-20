@@ -11,12 +11,12 @@ Deployed to `Desktop/rooms-lan-test/{Alpha,Bravo,Charlie}` on 2026-09-20.
 
 | | commit | tag |
 |---|---|---|
-| asm | `ce3bd16` | `test/random-stages` (adds this file on top, no code) |
+| asm | `fc725e4` | `test/random-stages` |
 | dolphin | `68c3aa4a2` | `test/random-stages` |
 
-    Alpha    exe 28dc2c8a  codeset 4c8fca78  module 080d6a91
-    Bravo    exe 28dc2c8a  codeset 4c8fca78  module 080d6a91
-    Charlie  exe 28dc2c8a  codeset 4c8fca78  module 080d6a91
+    Alpha    exe 28dc2c8a  codeset 1f6a1a6e  module 080d6a91
+    Bravo    exe 28dc2c8a  codeset 1f6a1a6e  module 080d6a91
+    Charlie  exe 28dc2c8a  codeset 1f6a1a6e  module 080d6a91
 
 ⚠️ Those three hashes are the first eight of the md5 of `Slippi Dolphin.exe`,
 `Sys/GameSettings/GALE01r2.ini` and `Sys/GameFiles/GALE01/SlippiRoom.dat`. All
@@ -62,7 +62,26 @@ rule - the PAIRING's host bans first - so they cannot disagree with each other.
 on the wrong side in a later game, that is a different bug from the one above,
 and which side did it is the useful half of the report.
 
-### 4. Turning the draft back on still gives a normal draft
+### 4. A character keeps its COLOUR between games
+
+New in this build, and the one thing here with no earlier test behind it.
+Play the same fighter twice in a row and the costume should come back with
+it - not just the fighter.
+
+Melee already takes the costume out of the match block at scene load, which
+is why this always looked like it should work. What was throwing it away is
+four instructions after the character is applied: the cursor starts the
+screen on a default fighter, the one that arrives is whatever was played
+last, they differ, and the costume set correctly a moment earlier is wiped.
+The character survives because it is applied from the block. Only the
+colour is lost.
+
+⚠️ It only fills in a cursor that has NO costume yet, so it cannot fight a
+player who is choosing one. The case it can get wrong is deliberately
+picking costume 0 when the last one was not 0 - if that snaps back to the
+old colour, this is why.
+
+### 5. Turning the draft back on still gives a normal draft
 
 The safety net. All of the driving is gated on the room setting, so if the
 automatic play misbehaves, pressing X gives a working room immediately.
@@ -77,8 +96,5 @@ the other is worse than not rewinding at all.
 
 ## Known bad, and not part of this test
 
-* **A character's COLOUR is not kept between games.** The character is. The fix
-  that exists injects into the character select, and a room goes room -> draft
-  -> game and never visits it, so that fix has never run.
 * `lanForTesting` is still in the build and must come out before any beta.
 * Spectating has never been tried over the real internet.
