@@ -182,7 +182,6 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
 #define ROOM_ACTIVE_NUM_SZ   0.50f
 
 static void *s_text;
-static int   s_stage_line = -1;  /* the stage, under the fighters     */
 static int   s_vs_line = -1;     /* the white VS between the names    */
 static int   s_code_line = -1;   /* ROOM QAFK PASS 5143               */
 static int   s_hint_line = -1;   /* Press R or L to show              */
@@ -525,103 +524,18 @@ static void room_fetch_state(void)
 /* One line saying what the room is doing, which is the thing a test needs to
  * see. Numbers rather than prose while this is being proved out: "3 queued,
  * you are 2nd" is a sentence, but "Q3 L0 #2" cannot be misread. */
-/* The stage, on the bottom edge of the picture and between the two fighters.
+/* The white VS, which belongs to a match in progress and should not sit over an
+ * empty picture.
  *
- * ⚠️ A NAME, not the id. The reply carries a number and nothing in Melee will
- * hand back the string for it from here, so the table is ours. Ids are the same
- * space the match block uses - 0x1F is Battlefield.
- *
- * Blank when nothing is being played, so an idle room shows a clean picture
- * rather than the name of a stage nobody is on. */
-static const char *room_stage_name(u8 id)
-{
-    switch (id)
-    {
-    case 0x02: return "Peach's Castle";
-    case 0x03: return "Rainbow Cruise";
-    case 0x04: return "Kongo Jungle";
-    case 0x05: return "Jungle Japes";
-    case 0x06: return "Great Bay";
-    case 0x07: return "Temple";
-    case 0x08: return "Brinstar";
-    case 0x09: return "Brinstar Depths";
-    case 0x0A: return "Yoshi's Story";
-    case 0x0B: return "Yoshi's Island";
-    case 0x0C: return "Fountain of Dreams";
-    case 0x0D: return "Green Greens";
-    case 0x0E: return "Corneria";
-    case 0x0F: return "Venom";
-    case 0x10: return "Pokemon Stadium";
-    case 0x11: return "Poke Floats";
-    case 0x12: return "Mute City";
-    case 0x13: return "Big Blue";
-    case 0x14: return "Onett";
-    case 0x15: return "Fourside";
-    case 0x16: return "Icicle Mountain";
-    case 0x18: return "Mushroom Kingdom";
-    case 0x19: return "Mushroom Kingdom II";
-    case 0x1B: return "Flat Zone";
-    case 0x1C: return "Dream Land";
-    case 0x1D: return "Yoshi's Island 64";
-    case 0x1E: return "Kongo Jungle 64";
-    case 0x1F: return "Battlefield";
-    case 0x20: return "Final Destination";
-    default:   return "";
-    }
-}
-
-/* How many leading spaces put `s` across the middle of the screen, for a line
- * whose subtext was created at `anchor`.
- *
- * ⚠️ A space is HALF a cell - see ROOM_CELL_UNITS - so it is both the unit
- * this counts in and the reason the width has to be added up character by
- * character instead of taken from the length.
- *
- * The anchor is the leftmost this line can start, so a name too wide to centre
- * gets no padding rather than a negative amount of it. */
-static int room_centre_pad(const char *s, float anchor, float size)
-{
-    float cell = ROOM_CELL_UNITS * size;
-    float half = cell * 0.5f;
-    float width = 0.0f;
-    int i, n;
-
-    for (i = 0; s[i]; i++)
-        width += (s[i] == ' ') ? half : cell;
-
-    n = (int)((((ROOM_CENTRE_X - width * 0.5f) - anchor) / half) + 0.5f);
-    return n < 0 ? 0 : n;
-}
-
-/* The stage and the white VS, both of which belong to a match in progress and
- * neither of which should sit over an empty picture. */
+ * ⚠️ The stage used to be written here as a NAME and is not any more. A name
+ * was never what was wanted - it is going back as the stage's own picture, off
+ * MnSlMap.usd, in the same place. room_stage_name and room_centre_pad went with
+ * it rather than being left unused, because the module builds with -Werror. */
 static void room_draw_match(void)
 {
     const u8 *st = s_state_buf;
     int live = (st[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
-    const char *stage = live ? room_stage_name(st[ROOMS_STATE_STAGE]) : "";
 
-    /* ⚠️ Centred by PADDING, because there is no other way to do it here. A
-     * subtext's position is fixed when it is made and nothing in reach moves
-     * one afterwards, and there is no centred mode. So the line is anchored far
-     * enough left for the longest name there is and shorter ones are pushed
-     * right with spaces - but by the WIDTH they actually take, counting a space
-     * as the half cell it is, not by their character count. */
-    if (s_stage_line >= 0)
-    {
-        char padded[48];
-        char *p = padded;
-        /* An idle room writes a genuinely EMPTY line rather than the spaces
-         * centring an empty string would ask for. */
-        int pad = stage[0] ? room_centre_pad(stage, ROOM_STAGE_X, ROOM_STAGE_SZ) : 0;
-        int i;
-
-        for (i = 0; i < pad && i < 24; i++)
-            *p++ = ' ';
-        p = room_put(p, stage);
-        *p = 0;
-        Text_UpdateSubtextContents(s_text, s_stage_line, "%s", padded);
-    }
     if (s_vs_line >= 0)
         Text_UpdateSubtextContents(s_text, s_vs_line, "%s", live ? "VS" : "");
 }
@@ -1513,8 +1427,6 @@ static void room_blank_room(void)
     /* Everything the room draws and the browser does not. ⚠️ The headings and
      * the crowns as well - a "Queue" with nothing under it over a list of
      * public rooms reads as a broken screen. */
-    if (s_stage_line >= 0)
-        Text_UpdateSubtextContents(s_text, s_stage_line, "%s", "");
     if (s_vs_line >= 0)
         Text_UpdateSubtextContents(s_text, s_vs_line, "%s", "");
     if (s_code_line >= 0)
@@ -1913,11 +1825,9 @@ void room_load(void *scene)
 
     /* Outlined rather than plain: this font has no bold, and an outline is the
      * nearest thing to one that it does have. */
-    /* The stage, on the bottom edge of the picture, and the white VS between
-     * the two names. Outlined like the splash's own lettering. */
-    s_stage_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_OUTLINE, 0,
-                                    "", ROOM_STAGE_SZ,
-                                    ROOM_STAGE_X, ROOM_STAGE_Y);
+    /* The white VS between the two names, outlined like the splash's own
+     * lettering. The stage no longer has a line here - it is going back as a
+     * picture, not a name. */
     s_vs_line = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_OUTLINE, 0,
                                  "", ROOM_VS_SZ, ROOM_VS_X, ROOM_NAME_Y);
 
