@@ -12,11 +12,11 @@ Deployed to `Desktop/rooms-lan-test/{Alpha,Bravo,Charlie}` on 2026-09-20.
 | | commit | tag |
 |---|---|---|
 | asm | the tag | `test/random-stages` |
-| dolphin | `68c3aa4a2` | `test/random-stages` |
+| dolphin | the tag | `test/random-stages` |
 
-    Alpha    exe 28dc2c8a  codeset 1f6a1a6e  module 080d6a91
-    Bravo    exe 28dc2c8a  codeset 1f6a1a6e  module 080d6a91
-    Charlie  exe 28dc2c8a  codeset 1f6a1a6e  module 080d6a91
+    Alpha    exe 3cc3d45f  codeset 1f6a1a6e  module d4728b1c
+    Bravo    exe 3cc3d45f  codeset 1f6a1a6e  module d4728b1c
+    Charlie  exe 3cc3d45f  codeset 1f6a1a6e  module d4728b1c
 
 ⚠️ Those three hashes are the first eight of the md5 of `Slippi Dolphin.exe`,
 `Sys/GameSettings/GALE01r2.ini` and `Sys/GameFiles/GALE01/SlippiRoom.dat`. All
@@ -81,7 +81,26 @@ player who is choosing one. The case it can get wrong is deliberately
 picking costume 0 when the last one was not 0 - if that snaps back to the
 old colour, this is why.
 
-### 5. Turning the draft back on still gives a normal draft
+### 5. A pairing that will not connect does not freeze the room
+
+Hard to trigger on purpose, because it depends on Slippi's own servers.
+Seen once: the server took one client's connection and never answered its
+create-ticket, while the other client's ticket sat open waiting for an
+assignment that could never come. Both rooms waited an HOUR with the two
+names up on the band and nothing on screen.
+
+If it happens again the queue's own row should now read
+`Connecting - trying again`, up to three times, and then
+`Slippi could not connect us`. The log says
+`Slippi could not connect us - asking again` each time.
+
+⚠️ This only covers the side that gets an ERROR. The side whose ticket is
+accepted and never assigned has no timeout in Slippi at all and can still
+wait forever - the retry is meant to rescue it by giving it a partner. If
+that does not happen in practice, that side needs its own answer, and
+interrupting a live search is not as safe as restarting a failed one.
+
+### 6. Turning the draft back on still gives a normal draft
 
 The safety net. All of the driving is gated on the room setting, so if the
 automatic play misbehaves, pressing X gives a working room immediately.
