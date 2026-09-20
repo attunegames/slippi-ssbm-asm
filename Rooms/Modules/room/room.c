@@ -527,10 +527,12 @@ static void room_fetch_state(void)
 /* The white VS, which belongs to a match in progress and should not sit over an
  * empty picture.
  *
- * ⚠️ The stage used to be written here as a NAME and is not any more. A name
- * was never what was wanted - it is going back as the stage's own picture, off
- * MnSlMap.usd, in the same place. room_stage_name and room_centre_pad went with
- * it rather than being left unused, because the module builds with -Werror. */
+ * ⚠️ The stage is not shown here at all any more, as a name or as a picture.
+ * The picture got as far as building and linking - the log said so - but it
+ * drew somewhere the splash's camera does not look, and it was dropped rather
+ * than chased further. Rooms/tools/vcdiff.py and dat_textures.py stay: they are
+ * how any of Slippi's patched files can be read, which is worth keeping whatever
+ * happens to this screen. */
 static void room_draw_match(void)
 {
     const u8 *st = s_state_buf;
@@ -1352,227 +1354,6 @@ static void room_show_band(int show)
     }
 }
 
-/* ------------------------------------------------------ the stage's picture --
- *
- * ⚠️ NOT by offset, and the first version's silence is why. Slippi does not
- * ship a replacement for MnSlMap.usd - it ships a VCDIFF PATCH beside it, and
- * Dolphin applies that to the copy off the disc before the game sees it. So the
- * file on the disc is 636811 bytes and the one the game loads is 659327, its
- * public root is not at offset 0, and every offset read out of the disc copy
- * pointed into the middle of something else. The load succeeded, the walk found
- * a null material, and the whole thing returned without a word.
- *
- * So this WALKS instead. The stage select's own icon plates are joints hanging
- * off its data table, and each one carries two textures: a 64x56 frame and the
- * 64x56 paletted stage picture. Finding one by that shape survives the patch,
- * and survives Slippi changing the patch again.
- *
- * Rooms/tools/vcdiff.py applies the patch, for reading the real file offline.
- */
-#define ROOM_MAP_FILE    "MnSlMap.usd"
-#define ROOM_MAP_SYMBOL  "MnSelectStageDataTable"
-#define ROOM_ICON_W      64
-#define ROOM_ICON_H      56
-#define ROOM_TABLE_QUADS 24         /* {JObj*, AnimJoint*, MatAnim*, ShapeAnim*} */
-
-#define ROOM_JD_FLAGS    0x04       /* a joint DESCRIPTOR, not a live joint: */
-#define ROOM_JD_CHILD    0x08       /* child at +0x08, next at +0x0C,        */
-#define ROOM_JD_NEXT     0x0C       /* and its display object at +0x10       */
-#define ROOM_JD_DOBJ     0x10
-#define ROOM_DOBJ_NEXT   0x04
-#define ROOM_DOBJ_MOBJ   0x08
-#define ROOM_MOBJ_TOBJ   0x08
-#define ROOM_TOBJ_NEXT   0x04
-#define ROOM_TOBJ_IMAGE  0x4C
-#define ROOM_IMG_W       0x04       /* u16 */
-#define ROOM_IMG_H       0x06       /* u16 */
-
-static void *s_icon_gobj;
-static u8    s_icon_stage = ROOMS_NOT_PICKED;
-
-/* The first joint under `jd` whose material carries a picture the size of a
- * stage icon. Depth-limited rather than trusting the tree to be well formed -
- * this is somebody else's file and a bad pointer here is a crash. */
-static void *room_find_icon(void *jd, int depth)
-{
-    while (jd && depth < 12)
-    {
-        void *dobj = *(void **)((char *)jd + ROOM_JD_DOBJ);
-        void *kid;
-
-        while (dobj)
-        {
-            void *mobj = *(void **)((char *)dobj + ROOM_DOBJ_MOBJ);
-            if (mobj)
-            {
-                void *tobj = *(void **)((char *)mobj + ROOM_MOBJ_TOBJ);
-                while (tobj)
-                {
-                    void *img = *(void **)((char *)tobj + ROOM_TOBJ_IMAGE);
-                    if (img &&
-                        *(u16 *)((char *)img + ROOM_IMG_W) == ROOM_ICON_W &&
-                        *(u16 *)((char *)img + ROOM_IMG_H) == ROOM_ICON_H)
-                        return jd;
-                    tobj = *(void **)((char *)tobj + ROOM_TOBJ_NEXT);
-                }
-            }
-            dobj = *(void **)((char *)dobj + ROOM_DOBJ_NEXT);
-        }
-
-        kid = room_find_icon(*(void **)((char *)jd + ROOM_JD_CHILD), depth + 1);
-        if (kid)
-            return kid;
-        jd = *(void **)((char *)jd + ROOM_JD_NEXT);
-    }
-    return 0;
-}
-
-/* The kind byte and the render link, taken off a GObj that is ALREADY drawing a
- * joint on this screen rather than guessed.
- *
- * ⚠️ GObj_AddObject reads the kind and refuses 0xFF, and nothing in reach
- * says what a joint's kind is. The splash is right there doing it, so the room
- * copies what the splash already got right - and copying the link with it is
- * what puts the picture under the same camera as the rest of the band. */
-static int room_gobj_template(u8 *kind, u8 *link)
-{
-    static const int classes[] = {3, ROOM_CLASS_SPLASH};
-    void **heads = rooms_gobj_heads();
-    unsigned int c;
-
-    if (!heads)
-        return 0;
-
-    for (c = 0; c < sizeof(classes) / sizeof(classes[0]); c++)
-    {
-        void *g;
-
-        for (g = heads[classes[c]]; g;
-             g = *(void **)((char *)g + ROOMS_GOBJ_NEXT))
-        {
-            u32 fn = *(const u32 *)((const char *)g + ROOMS_GOBJ_DRAWFN);
-            void *obj = *(void **)((char *)g + ROOMS_GOBJ_OBJECT);
-            u8 k = *(const u8 *)((const char *)g + ROOMS_GOBJ_KIND);
-
-            if (!obj || !room_draws_jobj(fn) || k == 0xFF)
-                continue;
-            *kind = k;
-            *link = *(const u8 *)((const char *)g + ROOMS_GOBJ_LINK);
-            return 1;
-        }
-    }
-    return 0;
-}
-
-/* Put a stage picture on the band, or take it away.
- *
- * ⚠️ This draws WHATEVER icon the plate it finds is carrying, not the one
- * for `stage`. Choosing needs a stage-to-image table and the patched file lays
- * its images and palettes out in two arrays that do not line up the way the
- * stock file's did - so that is a separate problem, and getting a picture on
- * screen at the right size and in the right place is worth settling first. */
-static void room_show_stage(u8 stage)
-{
-    void *arc, *root, *icon, *jobj;
-    unsigned int i;
-    u8 kind = 0, link = 0;
-
-    if (stage == s_icon_stage)
-        return;
-    s_icon_stage = stage;
-
-    /* Nothing is destroyed on the way out - the scene heap goes with the scene,
-     * and the room re-enters its own scene to change what the band shows. */
-    if (s_icon_gobj)
-    {
-        void *obj = *(void **)((char *)s_icon_gobj + ROOMS_GOBJ_OBJECT);
-        if (obj)
-            JOBJ_SetFlagsAll(obj, ROOM_JOBJ_HIDDEN);
-    }
-    if (stage == ROOMS_NOT_PICKED)
-        return;
-
-    arc = File_Load(ROOM_MAP_FILE);
-    if (!arc)
-    {
-        room_log("[Rooms] " ROOM_MAP_FILE " did not load");
-        return;
-    }
-    root = Archive_GetPublicAddress(arc, ROOM_MAP_SYMBOL);
-    if (!root)
-    {
-        room_log("[Rooms] no " ROOM_MAP_SYMBOL " in that file");
-        return;
-    }
-
-    /* The table is a header word and then the quads. */
-    icon = 0;
-    for (i = 0; i < ROOM_TABLE_QUADS && !icon; i++)
-    {
-        void *quad = ((void **)((char *)root + 0x10))[i * 4];
-        if (quad)
-            icon = room_find_icon(quad, 0);
-    }
-    if (!icon)
-    {
-        room_log("[Rooms] no stage plate in " ROOM_MAP_FILE);
-        return;
-    }
-
-    jobj = JOBJ_LoadJoint(icon);
-    if (!jobj)
-    {
-        room_log("[Rooms] the stage plate would not build");
-        return;
-    }
-    if (!room_gobj_template(&kind, &link))
-    {
-        room_log("[Rooms] nothing on screen to copy a GObj from");
-        return;
-    }
-
-    /* Class 3, the same as the splash's own artwork - see ROOMS_GOBJ_HEADS. */
-    s_icon_gobj = GObj_Create(0, 11, 3, 0, 0);
-    if (!s_icon_gobj)
-    {
-        room_log("[Rooms] no GObj for the stage picture");
-        return;
-    }
-    GObj_AddObject(s_icon_gobj, kind, jobj);
-    GObj_AddGXLinkDefaultPri(s_icon_gobj, (void *)ROOM_DRAW_JOBJ_A, link);
-
-    /* ⚠️ The plate came up but nothing was on screen, and the transform is the
-     * only thing left that can hide it: the stage select authored this joint for
-     * ITS camera, and on the splash's it can be anywhere at all - including
-     * behind it, or scaled to nothing.
-     *
-     * So the numbers are LOGGED, as the raw words rather than as decimals there
-     * is no printf here to format, and then overwritten with something that has
-     * to be in front of the camera. Guessing at a position without knowing what
-     * the old one was would have been the same mistake as the offsets. */
-    {
-        char line[96];
-        char *p = line;
-        u32 *sc = (u32 *)((char *)jobj + ROOMS_JOBJ_SCALE);
-        u32 *tr = (u32 *)((char *)jobj + ROOMS_JOBJ_TRANS);
-        int i;
-
-        p = room_put(p, "[Rooms] plate scale ");
-        for (i = 0; i < 3; i++) { p = room_put_x(p, sc[i]); *p++ = ' '; }
-        p = room_put(p, "trans ");
-        for (i = 0; i < 3; i++) { p = room_put_x(p, tr[i]); *p++ = ' '; }
-        *p = 0;
-        room_log(line);
-
-        /* 1.0 on every axis, at the origin. Not a guess at where it belongs -
-         * just somewhere it can be SEEN, so the next screenshot can be
-         * measured the way the band's text was. */
-        sc[0] = sc[1] = sc[2] = 0x3F800000;
-        tr[0] = tr[1] = tr[2] = 0;
-    }
-    room_log("[Rooms] stage picture up");
-}
-
 /* The two fighters, on and off, without touching anything else on the band.
  *
  * An idle room should not claim two people are about to play, but it still
@@ -2282,11 +2063,6 @@ void room_think(void)
             *p = 0;
             room_log(line);
         }
-
-        /* The stage's picture follows the band. The browser has no band, so it
-         * gets no picture either - ROOMS_NOT_PICKED is the "take it away" value
-         * as well as the "nobody has chosen" one. */
-        room_show_stage(s_browsing ? (u8)ROOMS_NOT_PICKED : s_band_stage);
 
         if (s_browsing)
         {
