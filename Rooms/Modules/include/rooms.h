@@ -292,6 +292,11 @@ void JOBJ_ClearFlagsAll(void *jobj, u32 flags);
 #define ROOMS_JOBJ_NEXT  0x08
 #define ROOMS_JOBJ_CHILD 0x0C
 #define ROOMS_JOBJ_FLAGS 0x14
+/* A LIVE joint's transform. Three floats each, after the rotation quaternion
+ * at +0x1C - and nothing like the descriptor's layout, where the same numbers
+ * sit at +0x14 and +0x20 with no quaternion at all. */
+#define ROOMS_JOBJ_SCALE 0x2C
+#define ROOMS_JOBJ_TRANS 0x38
 
 /* NOW LOADING.
  *

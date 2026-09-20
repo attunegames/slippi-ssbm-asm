@@ -1540,6 +1540,36 @@ static void room_show_stage(u8 stage)
     }
     GObj_AddObject(s_icon_gobj, kind, jobj);
     GObj_AddGXLinkDefaultPri(s_icon_gobj, (void *)ROOM_DRAW_JOBJ_A, link);
+
+    /* ⚠️ The plate came up but nothing was on screen, and the transform is the
+     * only thing left that can hide it: the stage select authored this joint for
+     * ITS camera, and on the splash's it can be anywhere at all - including
+     * behind it, or scaled to nothing.
+     *
+     * So the numbers are LOGGED, as the raw words rather than as decimals there
+     * is no printf here to format, and then overwritten with something that has
+     * to be in front of the camera. Guessing at a position without knowing what
+     * the old one was would have been the same mistake as the offsets. */
+    {
+        char line[96];
+        char *p = line;
+        u32 *sc = (u32 *)((char *)jobj + ROOMS_JOBJ_SCALE);
+        u32 *tr = (u32 *)((char *)jobj + ROOMS_JOBJ_TRANS);
+        int i;
+
+        p = room_put(p, "[Rooms] plate scale ");
+        for (i = 0; i < 3; i++) { p = room_put_x(p, sc[i]); *p++ = ' '; }
+        p = room_put(p, "trans ");
+        for (i = 0; i < 3; i++) { p = room_put_x(p, tr[i]); *p++ = ' '; }
+        *p = 0;
+        room_log(line);
+
+        /* 1.0 on every axis, at the origin. Not a guess at where it belongs -
+         * just somewhere it can be SEEN, so the next screenshot can be
+         * measured the way the band's text was. */
+        sc[0] = sc[1] = sc[2] = 0x3F800000;
+        tr[0] = tr[1] = tr[2] = 0;
+    }
     room_log("[Rooms] stage picture up");
 }
 
