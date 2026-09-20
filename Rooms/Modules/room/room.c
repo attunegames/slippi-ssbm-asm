@@ -113,18 +113,36 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
  * beneath it acting as the line the text is written on. ⚠️ Not on the boundary
  * itself, which is where it started - straddling the edge put it half in the
  * blue and half over the players' names. */
-#define ROOM_STAGE_X   214.0f
+#define ROOM_STAGE_X   134.0f
 #define ROOM_STAGE_Y   317.0f
 #define ROOM_STAGE_SZ  0.55f
-/* The longest name this can be handed - "Mushroom Kingdom II". Everything
- * shorter is padded to sit under the middle of it. */
-#define ROOM_STAGE_MAX_CHARS 19
+
+/* The middle of the SCREEN, in canvas units, and the size of a letter.
+ *
+ * Both MEASURED, off a screen capture of a running room, rather than assumed -
+ * the earlier numbers here were eyeballed and the VS sat 36 pixels right of
+ * centre. The room's black render area ran x 2938..3771 on that capture, so the
+ * middle of it is 3354; the two names, placed at canvas 60 and 420, put their
+ * first letters at 3106 and 3490, which fixes a canvas unit at 1.0667 pixels
+ * and lands the middle of the screen on canvas 293.
+ *
+ * ⚠️ The font is MONOSPACE for letters but its SPACE IS HALF A CELL.
+ * "MrBirdMD" advanced 23.86px a letter at size 0.70 - a cell is 32 canvas units
+ * times the size - while every letter after the space in "Peach's Castle"
+ * landed half a cell early. That is what the old centring kept getting wrong:
+ * it counted a space as a whole character, so a two-word stage name was pushed
+ * half a cell right for every space in it. */
+#define ROOM_CENTRE_X   293.0f
+#define ROOM_CELL_UNITS  32.0f
 
 /* The white VS, between the two names. The RED one is the splash's own artwork
  * and stays hidden - this is the small white one that sits between the players
- * on Slippi's versus screen. */
-#define ROOM_VS_X      305.0f
+ * on Slippi's versus screen.
+ *
+ * ⚠️ Sits so the two letters STRADDLE the middle of the screen, which is
+ * why this is not ROOM_CENTRE_X itself: half of "VS" is one cell wide. */
 #define ROOM_VS_SZ     0.70f
+#define ROOM_VS_X      (ROOM_CENTRE_X - ROOM_CELL_UNITS * ROOM_VS_SZ)
 
 /* The room's own name, top left under the title: ROOM QAFK PASS 5143.
  * A private room is masked until somebody holds L or R, so a code is not left
@@ -548,6 +566,29 @@ static const char *room_stage_name(u8 id)
     }
 }
 
+/* How many leading spaces put `s` across the middle of the screen, for a line
+ * whose subtext was created at `anchor`.
+ *
+ * ⚠️ A space is HALF a cell - see ROOM_CELL_UNITS - so it is both the unit
+ * this counts in and the reason the width has to be added up character by
+ * character instead of taken from the length.
+ *
+ * The anchor is the leftmost this line can start, so a name too wide to centre
+ * gets no padding rather than a negative amount of it. */
+static int room_centre_pad(const char *s, float anchor, float size)
+{
+    float cell = ROOM_CELL_UNITS * size;
+    float half = cell * 0.5f;
+    float width = 0.0f;
+    int i, n;
+
+    for (i = 0; s[i]; i++)
+        width += (s[i] == ' ') ? half : cell;
+
+    n = (int)((((ROOM_CENTRE_X - width * 0.5f) - anchor) / half) + 0.5f);
+    return n < 0 ? 0 : n;
+}
+
 /* The stage and the white VS, both of which belong to a match in progress and
  * neither of which should sit over an empty picture. */
 static void room_draw_match(void)
@@ -558,20 +599,20 @@ static void room_draw_match(void)
 
     /* ⚠️ Centred by PADDING, because there is no other way to do it here. A
      * subtext's position is fixed when it is made and nothing in reach moves
-     * one afterwards, and there is no centred mode - so the line starts where
-     * the LONGEST stage name would start, and shorter names are pushed right by
-     * half the difference. Left alone, "Final Destination" ran into NOW LOADING
-     * while "Onett" sat far off to the left. */
+     * one afterwards, and there is no centred mode. So the line is anchored far
+     * enough left for the longest name there is and shorter ones are pushed
+     * right with spaces - but by the WIDTH they actually take, counting a space
+     * as the half cell it is, not by their character count. */
     if (s_stage_line >= 0)
     {
-        char padded[40];
+        char padded[48];
         char *p = padded;
-        int len = 0;
+        /* An idle room writes a genuinely EMPTY line rather than the spaces
+         * centring an empty string would ask for. */
+        int pad = stage[0] ? room_centre_pad(stage, ROOM_STAGE_X, ROOM_STAGE_SZ) : 0;
         int i;
 
-        while (stage[len])
-            len++;
-        for (i = 0; i < (ROOM_STAGE_MAX_CHARS - len) / 2 && i < 12; i++)
+        for (i = 0; i < pad && i < 24; i++)
             *p++ = ' ';
         p = room_put(p, stage);
         *p = 0;
