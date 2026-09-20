@@ -109,11 +109,12 @@ static const u32 COL_GOLD = 0xF5C442FF;  /* the highlight */
  * first were cut off anyway, and said nothing a player wanted. What the room is
  * doing is now shown by the two columns underneath.
  *
- * What takes its place is the STAGE, on the bottom edge of the picture and
- * between the two fighters. Same row NOW LOADING uses - screen 231, and every
- * canvas Y here carries the 104 the splash is raised by, so 335. */
+ * What takes its place is the STAGE, sitting INSIDE the picture with the black
+ * beneath it acting as the line the text is written on. ⚠️ Not on the boundary
+ * itself, which is where it started - straddling the edge put it half in the
+ * blue and half over the players' names. */
 #define ROOM_STAGE_X   230.0f
-#define ROOM_STAGE_Y   335.0f
+#define ROOM_STAGE_Y   317.0f
 #define ROOM_STAGE_SZ  0.55f
 
 /* The white VS, between the two names. The RED one is the splash's own artwork
