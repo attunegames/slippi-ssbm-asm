@@ -49,13 +49,24 @@ def main():
                     help="instructions; default is until the function returns")
     ap.add_argument("--words", type=int, default=0, help="dump raw words instead")
     ap.add_argument("--iso", default=DEFAULT_ISO)
+    ap.add_argument("--raw", default="", help="disassemble a FILE instead of the DOL; "
+                    "addr is then an offset into it")
     args = ap.parse_args()
 
-    if not args.iso or not os.path.exists(args.iso):
-        raise SystemExit("need an ISO: --iso, or set MELEE_ISO")
-
     addr = int(args.addr, 0)
-    dol = Dol(args.iso)
+    if args.raw:
+        # A DAT's code, which is most of what Slippi ships and none of what the
+        # DOL contains. Branch offsets are relative so the listing reads
+        # correctly wherever the file ends up loaded.
+        blob = open(args.raw, "rb").read()
+        class Raw:
+            def read(self, a, n):
+                return blob[a:a + n]
+        dol = Raw()
+    else:
+        if not args.iso or not os.path.exists(args.iso):
+            raise SystemExit("need an ISO: --iso, or set MELEE_ISO")
+        dol = Dol(args.iso)
 
     if args.words:
         data = dol.read(addr, args.words * 4)
