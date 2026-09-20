@@ -1609,22 +1609,9 @@ RoomSlpCSS_SKIP:
 
 # Check if this is a tiebreak. If it is a tiebreak, we dont want to invalidate since the same
 # characters will be loaded
-#
-# ⚠️ NOT IN A ROOM, where the tiebreak flag does not mean a tiebreak. A
-# random-stage room sets it to borrow the draft's characters-only mode, and the
-# characters there change every single pairing - which is the exact case the
-# comment above says crashes if the cache is not invalidated.
-#
-# ⚠️ The MODE, not the scene. This runs while the draft's scene is up,
-# not the room's, so asking where we are would answer "the draft" and never
-# match.
-lbz r3, OFST_R13_ONLINE_MODE(r13)
-cmpwi r3, ONLINE_MODE_ROOMS
-beq SKIP_PRELOAD_TIEBREAK_CHECK
 lbz r3, GPDO_TIEBREAK_GAME_NUM(REG_GPD)
 cmpwi r3, 0
 bne SKIP_PRELOAD_INVALIDATE
-SKIP_PRELOAD_TIEBREAK_CHECK:
 
 # Invalidate pre-load cache otherwise changing one character mid-set crashes
 branchl r12, 0x800174bc
@@ -2051,35 +2038,12 @@ branchl r12, FN_EXITransferBuffer
 lbz r3, ROOMS_STATE_BAN_FIRST(r30)
 stb r3, GPDO_PREV_WINNER(REG_ROOM_GPD)
 
-################################################################################
-# Random stages, by telling the draft it is a tiebreak
-################################################################################
-# A room's stage is random unless its owner turns the draft on - and the draft
-# still has to run either way, because it is where characters are chosen. Only
-# the STAGE half should go.
-#
-# GameSetup.dat has no source here, but it does have code, and reading it
-# settled this. Its setup opens with:
-#
-#     lbz   r10, 6(r30)     # GPDO_TIEBREAK_GAME_NUM
-#     cmpwi r10, 0
-#     bne   <tiebreak>      # everything below is skipped
-#     lhz   r8, 1(r30)      # GPDO_CUR_GAME, which picks mode 1 or mode 2
-#
-# The tiebreak branch writes mode ZERO and returns without building any of the
-# ban and stage steps the other two modes set up. That is Slippi's tiebreak
-# game: same set, fresh characters, a stage nobody strikes for. Which is exactly
-# the shape wanted here, so the room borrows it.
-#
-# ⚠️ The stage still has to come from somewhere, and it already does:
-# Dolphin picks a random legal one for every pairing before the draft runs.
-# Nothing overwrites it once the draft stops choosing.
-lbz r3, ROOMS_STATE_SETTINGS(r30)
-andi. r3, r3, ROOMS_SETTING_DRAFT
-bne RoomSceneDecide_DRAFTS_STAGES
-li r3, 1
-stb r3, GPDO_TIEBREAK_GAME_NUM(REG_ROOM_GPD)
-RoomSceneDecide_DRAFTS_STAGES:
+# ⚠️ NOT by telling the draft it is a tiebreak. That was tried and it is
+# wrong: mode 0 does not pick characters at ALL, it REUSES the ones from the
+# game before - which is what the comment on the preload cache below says in
+# as many words. A room has no game before, so both players arrived as
+# character 0 colour 0, which is Captain Falcon twice, and the match came up
+# black. The stage half and the character half are not separable this way.
 
 RoomSceneDecide_EXIT:
 restore ROOM_DECIDE_FRAME
