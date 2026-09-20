@@ -1743,6 +1743,7 @@ blr
 .set ROOMS_STATE_GUEST_CHAR, 0x06
 .set ROOMS_STATE_GUEST_COL,  0x07
 .set ROOMS_STATE_STAGE,      0x08
+.set ROOMS_STATE_BAN_FIRST,  0x09
 .set ROOMS_NOT_PICKED,       0xFF
 
 RoomScenePrep:
@@ -1884,8 +1885,13 @@ blr
 
 RoomSceneDecide:
 .set REG_ROOM_GPD, 31
+# ⚠️ 544 of free space, for the room state read further down - and `restore`
+# has to be told the same number or it unwinds the wrong amount of stack. The
+# default frame is 0xA8 and the state is 510 bytes, so leaving this alone wrote
+# the reply over the stack below it.
+.set ROOM_DECIDE_FRAME, 544
 
-backup
+backup ROOM_DECIDE_FRAME
 
 ################################################################################
 # Give the 1P port back, if a watch borrowed it
@@ -1989,30 +1995,49 @@ li r3, 0
 stb r3, GPDO_TIEBREAK_GAME_NUM(REG_ROOM_GPD)
 stb r3, GPDO_COLOR_BAN_ACTIVE(REG_ROOM_GPD)
 
-# EXPERIMENT. Who bans first.
+################################################################################
+# Who bans first
+################################################################################
+# CONFIRMED, not assumed: GPDO_PREV_WINNER was forced to 1 and the ban moved to
+# the other player. Only GameSetup.dat reads this byte and that is a shipped
+# binary with no source here, so forcing it was the only way to find out - and
+# it cost a 90-second codeset build instead of a 40-minute Dolphin one.
 #
-# GPDO_PREV_WINNER is the previous game's winner, and Melee counterpick rules
-# say the winner bans - so this should be the byte that decides it. Nothing in
-# this repo READS it; only GameSetup.dat does, and that is a shipped binary with
-# no source here, so it cannot be read the way the DOL can. Zeroing it with the
-# rest of the struct is why port 0 has always banned first.
+# Melee counterpick rules say the WINNER bans. Zeroing this with the rest of the
+# struct is why port 0 banned every time, and why whoever made the room watched
+# their opponent ban.
 #
-# Hardcoded to 1 to find out, because the alternative was guessing and paying
-# for a 40-minute Dolphin build to find out the guess was wrong. If the OTHER
-# player bans after this, the byte is confirmed and the real version can be
-# built: the room's rule is that the longest-standing member stands in for the
-# winner, for a first game and for a game whose winner has left, and Dolphin
-# already knows which of the pair that is - State::is_host. It needs a byte in
-# the room state payload to say so, which is the Dolphin change this is meant
-# to de-risk.
+# â ï¸ The PORT, which is why it comes from Dolphin rather than being worked
+# out here. The port is decided fresh every pairing, and the room's own idea of
+# who should ban is a NAME, not a port. Dolphin has both: pd_pairings picks its
+# host as the first still in the queue, tie-broken by who joined the room first,
+# so it is the winner who stayed - or, for a first game and for one whose winner
+# has left, the longest-standing member.
 #
-# â ï¸ REMOVE THIS once the answer is in. Left alone it hands the ban to
-# whoever is port 1, which is no more correct than port 0 was.
-li r3, 1
+# â ï¸ A 32-byte aligned buffer inside this frame's free space. EXI transfers
+# by DMA and an unaligned one is a corrupt read rather than a failed one.
+addi r30, r1, 0x8 + 31
+rlwinm r30, r30, 0, 0, 26
+
+li r3, CONST_SlippiCmdRoomState
+stb r3, 0x0(r30)
+mr r3, r30
+li r4, 1
+li r5, CONST_ExiWrite
+branchl r12, FN_EXITransferBuffer
+
+# All of it. Dolphin answers from a queue and a short read leaves the rest of
+# it there for whoever asks next.
+mr r3, r30
+li r4, ROOMS_STATE_SIZE
+li r5, CONST_ExiRead
+branchl r12, FN_EXITransferBuffer
+
+lbz r3, ROOMS_STATE_BAN_FIRST(r30)
 stb r3, GPDO_PREV_WINNER(REG_ROOM_GPD)
 
 RoomSceneDecide_EXIT:
-restore
+restore ROOM_DECIDE_FRAME
 blr
 
 
