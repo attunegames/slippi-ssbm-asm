@@ -14,9 +14,9 @@ Deployed to `Desktop/rooms-lan-test/{Alpha,Bravo,Charlie}` on 2026-09-20.
 | asm | the tag | `test/random-stages` |
 | dolphin | the tag | `test/random-stages` |
 
-    Alpha    exe fc1603ea  codeset 1f6a1a6e  module d4728b1c
-    Bravo    exe fc1603ea  codeset 1f6a1a6e  module d4728b1c
-    Charlie  exe fc1603ea  codeset 1f6a1a6e  module d4728b1c
+    Alpha    exe 2248f173  codeset 1f6a1a6e  module d4728b1c
+    Bravo    exe 2248f173  codeset 1f6a1a6e  module d4728b1c
+    Charlie  exe 2248f173  codeset 1f6a1a6e  module d4728b1c
 
 ⚠️ Those three hashes are the first eight of the md5 of `Slippi Dolphin.exe`,
 `Sys/GameSettings/GALE01r2.ini` and `Sys/GameFiles/GALE01/SlippiRoom.dat`. All
