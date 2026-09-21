@@ -105,10 +105,18 @@
 .set ROOM_DRIVE_NOTHING, 0
 .set ROOM_DRIVE_SWEEP,   1
 .set ROOM_DRIVE_PRESS,   2
+# No buttons, centred sticks. Both players get this for the whole stage half
+# of a random-stage draft - the one acting, between its own presses, and the
+# one who is only waiting. Without it a player could steer the cursor while
+# the roulette was running.
+.set ROOM_DRIVE_LOCK,    3
 .set ROOM_PAD_A,         0x0100
 .set PAD_DPAD_RIGHT,     0x0002
 
 .set SCENE_ONLINE_ROOM, 0x0608
+# Practising inside a room. ⚠ minor << 8 | major, so this is minor 7 of
+# the online major - not 0x0807.
+.set SCENE_ONLINE_TRAIN, 0x0708
 
 ################################################################################
 # Practice, which is training mode run as a minor of this major.

@@ -69,6 +69,12 @@ beq ROOM_DRIVE_DONE
 
 # Which buttons that means. The d-pad AND the stick, because which of the two
 # walks this cursor is not known and pressing both costs nothing.
+#
+# ROOM_DRIVE_LOCK is neither: no buttons, centred stick. It is what both
+# players get for the whole stage half of a random-stage draft, including the
+# one whose turn it is not and the frames before the sweep starts.
+cmpwi r30, ROOM_DRIVE_LOCK
+beq ROOM_DRIVE_LOCK_SET
 cmpwi r30, ROOM_DRIVE_PRESS
 beq ROOM_DRIVE_PRESS_A
 li r29, PAD_DPAD_RIGHT
@@ -77,25 +83,81 @@ b ROOM_DRIVE_WRITE
 ROOM_DRIVE_PRESS_A:
 li r29, ROOM_PAD_A
 li r28, 0
+b ROOM_DRIVE_WRITE
+ROOM_DRIVE_LOCK_SET:
+li r29, 0
+li r28, 0
 
 # Into the raw pad the read above just filled: four ports of PADStatus, which
 # is buttons at +0 and the stick at +2, twelve bytes apart, starting 0x2C into
 # the caller's frame. All four, because the room does not own a port - whoever
 # is sitting there is playing.
+# ⚠ REPLACES the pad, it does not add to it. This used to OR our buttons
+# into whatever the player was already holding, which left them free to drive
+# the cursor themselves while the roulette was running - reported from the
+# first beta: "I was able to move my controller then it took over". Two people
+# steering one cursor is also how a stage nobody chose gets picked.
+#
+# Every stick and trigger goes to neutral too, not just the buttons. A held
+# C-stick or a half-pressed trigger is still an input to the screen underneath.
 ROOM_DRIVE_WRITE:
 lwz r27, 0(sp)
 addi r27, r27, 0x2C
 li r26, 4
 mtctr r26
+li r25, 0
 ROOM_DRIVE_PORT:
-lhz r25, 0x0(r27)
-or r25, r25, r29
-sth r25, 0x0(r27)
-stb r28, 0x2(r27)
+sth r29, 0x0(r27)   # our buttons ONLY - the player's are gone
+stb r28, 0x2(r27)   # stick X, the sweep
+stb r25, 0x3(r27)   # stick Y
+stb r25, 0x4(r27)   # C-stick X
+stb r25, 0x5(r27)   # C-stick Y
+stb r25, 0x6(r27)   # L
+stb r25, 0x7(r27)   # R
 addi r27, r27, 0xC
 bdnz ROOM_DRIVE_PORT
 
 ROOM_DRIVE_DONE:
+
+################################################################################
+# Rooms: a practice session ends itself when the match is ready
+################################################################################
+# A player who goes off to practise is STILL IN THE QUEUE - that is the whole
+# point of the offer - so the room pairs them while they are in there. Nothing
+# brought them back: the match was arranged, both sides sat waiting, and one of
+# them was in training with no idea.
+#
+# ⚠ Only ENDS the scene. RoomTrainSceneDecide already sends a finished
+# practice back to the room, and the room already starts a match the moment it
+# sees one is ready - so there is nothing to route here, and routing it would
+# mean two places deciding where practice goes.
+ROOM_TRAIN_CHECK:
+getMinorMajor r3
+cmpwi r3, SCENE_ONLINE_TRAIN
+bne ROOM_TRAIN_DONE
+lbz r3, OFST_R13_ONLINE_MODE(r13)
+cmpwi r3, ONLINE_MODE_ROOMS
+bne ROOM_TRAIN_DONE
+
+# Same one-byte question-and-answer shape as the draft drive above.
+addi r31, sp, 0x8 + 31
+rlwinm r31, r31, 0, 0, 26
+li r3, CONST_SlippiCmdRoomLeaveTrain
+stb r3, 0x0(r31)
+mr r3, r31
+li r4, 1
+li r5, CONST_ExiWrite
+branchl r12, FN_EXITransferBuffer
+mr r3, r31
+li r4, 1
+li r5, CONST_ExiRead
+branchl r12, FN_EXITransferBuffer
+lbz r30, 0x0(r31)
+cmpwi r30, 0
+beq ROOM_TRAIN_DONE
+branchl r12, Scene_ExitMinor
+
+ROOM_TRAIN_DONE:
 
 ################################################################################
 # Short Circuit Conditions
