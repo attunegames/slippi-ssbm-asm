@@ -1905,6 +1905,33 @@ void room_load(void *scene)
      * r3, which works by luck on a fresh entry and not at all otherwise. */
     if (scene)
     {
+        /* ⚠️ Which fighters this build is about to ask for, logged BEFORE
+         * the call and not after it. "band built from" prints on the way OUT,
+         * so a build that never returns says nothing at all about what it was
+         * building - which is precisely the case worth reading.
+         *
+         * This exists to settle the 2026-09-18 freeze, whose note sits above
+         * room_rebuild_band: the two rebuilds that survived used fighters
+         * already in memory, and the one that hung wanted Bowser, which was
+         * not. Seen twice more on 2026-09-21, on the return to the room after
+         * a match, on beta 4 and again on beta 5 - the same signature both
+         * times, "room scene load" with no "splash built" after it.
+         *
+         * If the pair named here includes a fighter nobody had on screen a
+         * moment earlier, the preload theory is right. If it is the two who
+         * were just playing, it is wrong and the cause is somewhere else. */
+        {
+            char line[64];
+            char *q = line;
+            q = room_put(q, "[Rooms] splash wants ");
+            q = room_put_i(q, s_state_buf[ROOMS_STATE_HOST_CHAR]);
+            q = room_put(q, "/");
+            q = room_put_i(q, s_state_buf[ROOMS_STATE_GUEST_CHAR]);
+            q = room_put(q, "  (255 = nobody has picked)");
+            *q = 0;
+            room_log(line);
+        }
+
         SceneLoad_ClassicModeSplash(scene);
         room_log("[Rooms] splash built");
 
