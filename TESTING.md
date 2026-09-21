@@ -7,16 +7,20 @@ once something here is confirmed it moves to `WORKING.md` and leaves.
 
 ## The build
 
-Deployed to `Desktop/rooms-lan-test/{Alpha,Bravo,Charlie}` on 2026-09-20.
+Deployed to `Desktop/rooms-lan-test/{Alpha,Bravo,Charlie}` on 2026-09-21.
 
 | | commit | tag |
 |---|---|---|
-| asm | the tag | `test/random-stages` |
-| dolphin | the tag | `test/random-stages` |
+| asm | `a34497745` | `test/draft-pad-release` |
+| dolphin | `6615944f9` | `test/draft-pad-release` |
 
-    Alpha    exe 181fe684  codeset d8d07d75  module d4728b1c
-    Bravo    exe 181fe684  codeset d8d07d75  module d4728b1c
-    Charlie  exe 181fe684  codeset d8d07d75  module d4728b1c
+    Alpha    exe c0a0e4eb  codeset d8d07d75  module d4728b1c
+    Bravo    exe c0a0e4eb  codeset d8d07d75  module d4728b1c
+    Charlie  exe c0a0e4eb  codeset d8d07d75  module d4728b1c
+
+This is what shipped as **beta 4**. Beta 2 (`exe 181fe684`) and beta 3
+(`exe 1fa31340`) are both marked superseded on the release page - they carry
+the deadlock in section 0a below and cannot finish a drafted match.
 
 ⚠️ Those three hashes are the first eight of the md5 of `Slippi Dolphin.exe`,
 `Sys/GameSettings/GALE01r2.ini` and `Sys/GameFiles/GALE01/SlippiRoom.dat`. All
@@ -25,7 +29,35 @@ to spend an evening testing a build nobody made.
 
 ## What to test
 
-### 0. The four beta fixes, none of them tried
+### 0a. The draft gives the pad back
+
+⚠️ **The first thing to try, because beta 2 and beta 3 both fail it.** Random
+stages worked and then the player who BANNED FIRST could not move at character
+select; their opponent unlocked and waited for somebody who was frozen.
+
+The lock that beta 2 added decided when to release by counting draft steps:
+
+    stage_phase = draft_fetch_step < 2 && draft_last_local_step < 2
+
+A client only FETCHES the steps it is not performing. The client that performs
+0 and 2 therefore never fetches 2, so `draft_fetch_step` stops at 1 and
+`draft_last_local_step` stops at 0 - both under 2 forever, and the pad is never
+returned. The other client fetches 2, unlocks cleanly, and waits for a partner
+who cannot move.
+
+It now unlocks from two REMEMBERED facts instead of a count: the step this
+client performed, and `draft_opp_step_done`, recorded in
+`prepareGamePrepOppStep` where the draft legitimately consumes a result.
+
+⚠️ That second detail is not cosmetic. `GetGamePrepResults(step, res)` POPS
+every queue entry it passes over, so asking it each frame whether a step is
+done would throw away the opponent's stage pick. Never probe it speculatively.
+
+What to watch: **the player who bans first must get their controller back at
+character select.** If they are still frozen, the unlock is reading a fact that
+never becomes true rather than one that arrives late - a different bug.
+
+### 0b. The four beta fixes, none of them tried
 
 From the first beta night with real people on real networks.
 
@@ -174,5 +206,11 @@ the other is worse than not rewinding at all.
 
 ## Known bad, and not part of this test
 
-* `lanForTesting` is still in the build and must come out before any beta.
-* Spectating has never been tried over the real internet.
+* `lanForTesting` is still in the source and must come out. It defaults to
+  off and `peppy.json` is excluded from the zip, so no shipped beta can turn
+  it on - but the code is still there and the rigs still use it.
+* ⚠️ Spectating over the real internet is STILL unproven. The STUN lookup and
+  the hole punch shipped in beta 3, and the rigs cannot test either of them:
+  on one network there is no NAT to open, so a LAN test passes whether or not
+  the code works. That is exactly how the missing half shipped in the first
+  place. It needs people on genuinely different connections.
