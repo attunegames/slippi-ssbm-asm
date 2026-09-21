@@ -14,9 +14,9 @@ Deployed to `Desktop/rooms-lan-test/{Alpha,Bravo,Charlie}` on 2026-09-20.
 | asm | the tag | `test/random-stages` |
 | dolphin | the tag | `test/random-stages` |
 
-    Alpha    exe 2248f173  codeset 1f6a1a6e  module d4728b1c
-    Bravo    exe 2248f173  codeset 1f6a1a6e  module d4728b1c
-    Charlie  exe 2248f173  codeset 1f6a1a6e  module d4728b1c
+    Alpha    exe 181fe684  codeset d8d07d75  module d4728b1c
+    Bravo    exe 181fe684  codeset d8d07d75  module d4728b1c
+    Charlie  exe 181fe684  codeset d8d07d75  module d4728b1c
 
 ⚠️ Those three hashes are the first eight of the md5 of `Slippi Dolphin.exe`,
 `Sys/GameSettings/GALE01r2.ini` and `Sys/GameFiles/GALE01/SlippiRoom.dat`. All
@@ -24,6 +24,22 @@ three rigs must match each other. A mismatched pair is the single easiest way
 to spend an evening testing a build nobody made.
 
 ## What to test
+
+### 0. The four beta fixes, none of them tried
+
+From the first beta night with real people on real networks.
+
+- Four people in a room must run ONE match, not two. (Server side, already
+  live - no build needed.)
+- Every player's own controller must work. The zip was shipping Alpha's
+  keyboard mapping over it. (Packaging, already live.)
+- ⚠️ The stage roulette must TAKE the pad. Both players are locked out of
+  the whole stage half now, sticks and triggers included. This writes the pad
+  every frame of the draft - if a PADStatus offset is wrong it will be
+  obvious and ugly immediately. Try one two-person draft before anything
+  else.
+- Practice must end itself when your match comes up. Queue with two others,
+  press START again to practise, and let their match finish.
 
 ### 1. The draft drives the RIGHT side
 
