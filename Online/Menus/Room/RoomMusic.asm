@@ -44,7 +44,14 @@
 .include "Common/Common.s"
 .include "Online/Online.s"
 
-.set ROOM_SONG_HOWTO, 0x24      # howto.hps
+# ⚠ howto_S, not howto. Both are "How to Play", and 0x24 is the one with the
+# DEMO MIXED IN - you hear Mario and Bowser fighting over it, and it does not
+# loop, because it is a one-shot track cut to the length of the demo.
+#
+# Settled by ear, not by reading: both were decoded out of the ISO to WAV and
+# listened to. 0x25 is the clean music, and it is also what Melee's own sound
+# test offers as "How to Play".
+.set ROOM_SONG_HOWTO, 0x25      # howto_s.hps
 .set SPLASH_SONG_INTRO, 0x2d    # intro_es.hps - the replaced instruction's own
 
 backup
