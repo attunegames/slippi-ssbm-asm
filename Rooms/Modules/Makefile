@@ -27,6 +27,17 @@ CFLAGS  := -Os -mcpu=750 -meabi -mhard-float \
            -fno-strict-aliasing -std=gnu11 \
            -Wall -Wextra -Werror -Iinclude
 
+# ⚠️ libgcc is on the link line for ONE reason: at -Os, GCC stops writing
+# register saves inline and calls _savegpr_N / _restgpr_N_x instead. A
+# freestanding module links none of that by default and the build dies on a
+# dozen undefined references.
+#
+# Only those leaf routines get pulled in, they are pure register moves, and
+# they carry no relocations at all - so the packer never sees a type it does
+# not know. Asking the compiler for the path keeps it right across toolchain
+# versions.
+LIBGCC  := $(shell $(CC) -print-libgcc-file-name)
+
 LDFLAGS := --emit-relocs -T module.ld -T melee_symbols.ld -T slippi_symbols.ld
 
 OUT     := out
@@ -71,7 +82,7 @@ $$(OUT)/$$($(1)_DAT): $$(wildcard $(1)/*.c) $$(wildcard include/*.h) include/sli
 	@mkdir -p $$(OUT)/$(1)
 	$$(foreach src,$$(wildcard $(1)/*.c),\
 	    $$(CC) $$(CFLAGS) -c $$(src) -o $$(OUT)/$(1)/$$(notdir $$(src:.c=.o)) &&) true
-	$$(LD) $$(LDFLAGS) -o $$(OUT)/$(1).elf $$(OUT)/$(1)/*.o
+	$$(LD) $$(LDFLAGS) -o $$(OUT)/$(1).elf $$(OUT)/$(1)/*.o $$(LIBGCC)
 	$$(PYTHON) mexpack.py $$(OUT)/$(1).elf $$@ $$($(1)_EXPORTS)
 	@sz=$$$$(stat -c%s $$@); \
 	 if [ $$$$sz -gt $$(MODULE_MAX) ]; then \
