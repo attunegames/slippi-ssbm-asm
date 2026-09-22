@@ -269,11 +269,6 @@ static const char ROOM_FIGHTERS[ROOM_PICK_SLOTS][ROOM_FIGHTER_W] = {
     "Doc", "Roy", "Pichu", "Ganon", "?"
 };
 
-/* The grid's own state. See the block by ROOM_GRID_COLS - this is a proof and
- * nothing reads it but the grid itself. */
-static int s_grid_row[ROOM_GRID_ROWS];
-static int s_grid_cursor;
-static int s_grid_drawn = -1;   /* what was on screen last, so we redraw once */
 
 static int   s_rule_lobby = -1;  /* the line under each heading      */
 static int   s_rule_queue = -1;
@@ -334,6 +329,12 @@ static int   s_rule_queue = -1;
 #define ROOM_GRID_Y     150.0f
 #define ROOM_GRID_STEP_Y 26.0f
 #define ROOM_GRID_SZ      0.40f
+
+/* The grid's own state. See the block by ROOM_GRID_COLS - this is a proof and
+ * nothing reads it but the grid itself. */
+static int s_grid_row[ROOM_GRID_ROWS];
+static int s_grid_cursor;
+static int s_grid_drawn = -1;   /* what was on screen last, so we redraw once */
 
 #define ROOM_ACT_SYM_X   356.0f
 #define ROOM_ACT_X       376.0f
