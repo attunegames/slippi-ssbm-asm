@@ -56,13 +56,20 @@ b ROOM_MUSIC_CODE
 # DEMO MIXED IN - Mario and Bowser can be heard fighting over the music - and it
 # does not loop, being a one-shot cut to the length of the demo. Both of those
 # complaints had the one cause. Settled by decoding each to WAV and listening.
+#
+# ⚠️ EVERY ONE OF THESE WAS PICKED BY EAR, and that is not fussiness. All-Star
+# is 1p_qk.hps - nothing in that name says All-Star, and no amount of reading
+# would have found it. Melee's sound test numbers its own way too: All-Star is
+# #60 there and id 0x00 here. Decode the clip and listen; do not reason from
+# the filename.
 ROOM_MUSIC_TABLE:
 blrl
 .byte 0x25      # howto_s.hps  - How to Play, clean
 .byte 0x53      # target.hps   - Target Test
+.byte 0x00      # 1p_qk.hps    - All-Star
 .align 2
 
-.set ROOM_SONG_COUNT, 2
+.set ROOM_SONG_COUNT, 3
 
 ROOM_MUSIC_CODE:
 backup
