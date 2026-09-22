@@ -7,6 +7,13 @@
 # Melee owns r13 and r2, so -msdata=none -G0 is not optional: anything the
 # compiler put in .sdata would be addressed off the game's own SDA base at
 # runtime. module.ld refuses to link if that happens.
+#
+# ⚠️ -Os, not -O2, and that is not a preference. A module is loaded onto
+# the ROOM SCENE's heap, which it shares with the VS splash's own fighter
+# models, and there is not much room left on it. A module that does not fit
+# does not fail to load with a message - the game jumps into unmapped memory
+# the instant the scene loads, and the log stops dead after "Writing file
+# contents" with nothing from the module at all. See MODULE_MAX below.
 
 # The devkitPro image sets DEVKITPPC but leaves its bin off PATH.
 DEVKITPPC ?= /opt/devkitpro/devkitPPC
@@ -14,7 +21,7 @@ CC      := $(DEVKITPPC)/bin/powerpc-eabi-gcc
 LD      := $(DEVKITPPC)/bin/powerpc-eabi-ld
 PYTHON  := python3
 
-CFLAGS  := -O2 -mcpu=750 -meabi -mhard-float \
+CFLAGS  := -Os -mcpu=750 -meabi -mhard-float \
            -msdata=none -G0 -fno-common \
            -ffreestanding -fno-builtin -fno-asynchronous-unwind-tables \
            -fno-strict-aliasing -std=gnu11 \
@@ -37,6 +44,18 @@ room_EXPORTS := 0=room_think 1=room_load
 
 MODULES := room
 
+# The largest module that has been SEEN to load.
+#
+# ⚠️ MEASURED, not looked up. 24724 bytes is the biggest that ever ran;
+# 28500 and 28628 both crashed on scene load with nothing logged. The real
+# ceiling is somewhere between the two and depends on what else is on the
+# scene heap that day, so this is the high-water mark rather than a limit the
+# game states anywhere.
+#
+# ⚠️ If a build fails on this, DO NOT just raise the number. Make the
+# module smaller, or find out what the heap actually has room for.
+MODULE_MAX := 24724
+
 all: include/slippi_consts.h $(foreach m,$(MODULES),$(OUT)/$($(m)_DAT))
 
 # The MSRB offsets a module reads are the codeset's own .set values. They are
@@ -54,6 +73,13 @@ $$(OUT)/$$($(1)_DAT): $$(wildcard $(1)/*.c) $$(wildcard include/*.h) include/sli
 	    $$(CC) $$(CFLAGS) -c $$(src) -o $$(OUT)/$(1)/$$(notdir $$(src:.c=.o)) &&) true
 	$$(LD) $$(LDFLAGS) -o $$(OUT)/$(1).elf $$(OUT)/$(1)/*.o
 	$$(PYTHON) mexpack.py $$(OUT)/$(1).elf $$@ $$($(1)_EXPORTS)
+	@sz=$$$$(stat -c%s $$@); \
+	 if [ $$$$sz -gt $$(MODULE_MAX) ]; then \
+	   echo "$$@ is $$$$sz bytes, over the $$(MODULE_MAX) that fits on the scene heap" >&2; \
+	   echo "A module that does not fit CRASHES on scene load with nothing in the log." >&2; \
+	   rm -f $$@; exit 1; \
+	 fi; \
+	 echo "$$@ $$$$sz bytes (ceiling $$(MODULE_MAX))"
 endef
 
 $(foreach m,$(MODULES),$(eval $(call MODULE_RULE,$(m))))
