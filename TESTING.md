@@ -13,11 +13,14 @@ Deployed to `Desktop/rooms-lan-test/{Alpha,Bravo,Charlie}` on 2026-09-22.
 | | commit | tag |
 |---|---|---|
 | asm | `e3e91b8c` | `test/room-picks` |
-| dolphin | `ac0e19fb` | `test/room-picks` |
+| dolphin | `c966be56` | `test/room-picks` |
 
-    Alpha    exe 72c98c9a  codeset c3f8f8fd  module f9a8e187  rust 3e629e40
-    Bravo    exe 72c98c9a  codeset c3f8f8fd  module f9a8e187  rust 3e629e40
-    Charlie  exe 72c98c9a  codeset c3f8f8fd  module f9a8e187  rust 3e629e40
+    Alpha    exe e29ad95a  codeset c3f8f8fd  module f9a8e187  rust abf8953b
+    Bravo    exe e29ad95a  codeset c3f8f8fd  module f9a8e187  rust abf8953b
+    Charlie  exe e29ad95a  codeset c3f8f8fd  module f9a8e187  rust abf8953b
+
+⚠️ The exe was replaced once already, for the tick-null fix. The codeset
+and module did not change with it - only Dolphin's JSON parsing did.
 
 Those are the first eight of the md5 of `Slippi Dolphin.exe`,
 `Sys/GameSettings/GALE01r2.ini`, `Sys/GameFiles/GALE01/SlippiRoom.dat` and
