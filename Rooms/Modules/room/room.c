@@ -958,9 +958,13 @@ static void room_draw_picks(void)
     const u8 *st = s_state_buf;
     int turn = room_pick_turn();
     int mine = room_pick_is_mine();
-    int playing = (st[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
     u8 l = st[ROOMS_STATE_HOST_CHAR];
     u8 r = st[ROOMS_STATE_GUEST_CHAR];
+    u8 stage = st[ROOMS_STATE_STAGE];
+    /* The band's OWN condition, character for character - see
+     * room_rebuild_band. Whatever it is showing, this must not be. */
+    int band_has_it = (l != ROOMS_NOT_PICKED && r != ROOMS_NOT_PICKED
+                       && stage != ROOMS_NOT_PICKED);
     char line[64];
     char *p;
 
@@ -969,12 +973,22 @@ static void room_draw_picks(void)
      * Either there is no pairing at all - clear it, rather than leaving the
      * last match's choices sitting over an empty room.
      *
-     * Or the match has STARTED, and the band above has taken the two fighters
-     * over. ⚠️ That handover is the point at which the band rebuilds: it
-     * waits for a stage as well as two characters, and the stage only resolves
-     * when the match does. So the box carries the choosing, the band carries
-     * the playing, and the two are never both up. */
-    if (playing || (turn == ROOMS_PICK_TURN_NOBODY && l == ROOMS_NOT_PICKED))
+     * Or the band above has taken the two fighters over, which happens when a
+     * stage joins them and the stage does not resolve until the match does.
+     *
+     * ⚠️ NOT ROOMS_FLAG_PLAYING, which is what this first tested and is
+     * the bug that made the whole feature unusable. That flag is set from a
+     * pairing being 'ready', and pd_tick makes a pairing ready the moment the
+     * two are ARRANGED - long before either has chosen. So the box opened, said
+     * "choosing" for exactly one tick and then hid itself for good; nobody
+     * could pick, so the match could never be set, so the room sat on a
+     * handover that was never coming. A deadlock, out of a flag whose name
+     * reads like it means something later than it does.
+     *
+     * The comment this replaces had the right reasoning in it already - "it
+     * waits for a stage as well as two characters" - and then tested the wrong
+     * thing two lines further down. */
+    if (band_has_it || (turn == ROOMS_PICK_TURN_NOBODY && l == ROOMS_NOT_PICKED))
     {
         if (s_pick_l >= 0) Text_UpdateSubtextContents(s_text, s_pick_l, "%s", "");
         if (s_pick_r >= 0) Text_UpdateSubtextContents(s_text, s_pick_r, "%s", "");
