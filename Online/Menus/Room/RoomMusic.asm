@@ -59,12 +59,10 @@ b ROOM_MUSIC_CODE
 ROOM_MUSIC_TABLE:
 blrl
 .byte 0x25      # howto_s.hps  - How to Play, clean
-.byte 0x34      # menu01.hps   - the main menu's own
-.byte 0x35      # menu02.hps
-.byte 0x36      # menu3.hps
+.byte 0x53      # target.hps   - Target Test
 .align 2
 
-.set ROOM_SONG_COUNT, 4
+.set ROOM_SONG_COUNT, 2
 
 ROOM_MUSIC_CODE:
 backup
