@@ -1793,6 +1793,15 @@ lbz r28, ROOMS_STATE_GUEST_CHAR(r31)
 lbz r29, ROOMS_STATE_GUEST_COL(r31)
 lbz r30, ROOMS_STATE_STAGE(r31)
 
+# ⚠️ What the room state ACTUALLY said, before any substitution.
+#
+# The first attempt at this logged room.c's s_state_buf from room_load, which
+# is useless: entering the scene RELOADS the module, so that buffer is freshly
+# zeroed and the first tick has not landed. It printed 0/0 on every load,
+# frozen and working alike, and measured nothing at all. These two ids are read
+# over EXI a few instructions above and are the ones the splash is handed.
+logf LOG_LEVEL_NOTICE, "[Rooms] prep read %d/%d stage %d  (255 = not picked)", "mr r5, r26", "mr r6, r28", "mr r7, r30"
+
 # Anything not yet chosen and the placeholders stand in for all of it, rather
 # than half a real match beside half an invented one.
 cmpwi r26, ROOMS_NOT_PICKED
@@ -1812,6 +1821,12 @@ li r29, 0
 # files - ask for no stage and it waits for ever.
 li r30, ROOM_EMPTY_STAGE
 RoomScenePrep_HAVE_PICKS:
+
+# ⚠️ And what is actually ordered, after the placeholders have stood in.
+# These three are the files the splash then waits on - and a wait that never
+# ends is the freeze. If this line is the LAST thing in the log, these are the
+# three to explain.
+logf LOG_LEVEL_NOTICE, "[Rooms] prep orders %d/%d on %d", "mr r5, r26", "mr r6, r28", "mr r7, r30"
 
 
 # The splash reads a struct it does not initialise, so the template goes in
