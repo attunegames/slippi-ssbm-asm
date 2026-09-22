@@ -897,6 +897,13 @@
    "Tags": ""
   },
   {
+   "InjectionAddress": "8025FBE8",
+   "Name": "Required: Slippi Online",
+   "Codetype": "Auto",
+   "Annotation": "Online/Menus/CSS/HideRandomPick.asm",
+   "Tags": ""
+  },
+  {
    "InjectionAddress": "80264534",
    "Name": "Required: Slippi Online",
    "Codetype": "Auto",
