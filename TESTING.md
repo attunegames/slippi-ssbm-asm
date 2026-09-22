@@ -7,210 +7,153 @@ once something here is confirmed it moves to `WORKING.md` and leaves.
 
 ## The build
 
-Deployed to `Desktop/rooms-lan-test/{Alpha,Bravo,Charlie}` on 2026-09-21.
+Deployed to `Desktop/rooms-lan-test/{Alpha,Bravo,Charlie}` on 2026-09-22.
+Identical to the public **beta 13**.
 
 | | commit | tag |
 |---|---|---|
-| asm | `a34497745` | `test/draft-pad-release` |
-| dolphin | `6615944f9` | `test/draft-pad-release` |
+| asm | `ae7e88c87` | `test/six-features` |
+| dolphin | `e583d9b2b` | `test/six-features` |
 
-    Alpha    exe c0a0e4eb  codeset d8d07d75  module d4728b1c
-    Bravo    exe c0a0e4eb  codeset d8d07d75  module d4728b1c
-    Charlie  exe c0a0e4eb  codeset d8d07d75  module d4728b1c
-
-This is what shipped as **beta 4**. Beta 2 (`exe 181fe684`) and beta 3
-(`exe 1fa31340`) are both marked superseded on the release page - they carry
-the deadlock in section 0a below and cannot finish a drafted match.
+    Alpha    exe 25b10d45  codeset b335eaab  module 0bc1d493
+    Bravo    exe 25b10d45  codeset b335eaab  module 0bc1d493
+    Charlie  exe 25b10d45  codeset b335eaab  module 0bc1d493
 
 ⚠️ Those three hashes are the first eight of the md5 of `Slippi Dolphin.exe`,
 `Sys/GameSettings/GALE01r2.ini` and `Sys/GameFiles/GALE01/SlippiRoom.dat`. All
 three rigs must match each other. A mismatched pair is the single easiest way
 to spend an evening testing a build nobody made.
 
-## What to test
+⚠️ The rigs carry no `Update Peppy.exe` and no `VERSION.txt`, deliberately.
+They are kept in step by `deploy.sh` pulling straight from CI, and an updater
+pointed at the public release would drag a rig backwards to whatever was last
+published the moment the two diverge.
 
-### 0a. The draft gives the pad back
+## Do this one first
 
-⚠️ **The first thing to try, because beta 2 and beta 3 both fail it.** Random
-stages worked and then the player who BANNED FIRST could not move at character
-select; their opponent unlocked and waited for somebody who was frozen.
+### 0. The NOW LOADING freeze
 
-The lock that beta 2 added decided when to release by counting draft steps:
+⚠️ **The only thing here that is a BUG rather than a feature, and the thing
+that stopped a real test night.** On the way back to the room after a match the
+game logs `room scene load` and never reaches `splash built`. The same return
+takes 49 milliseconds when it works.
 
-    stage_phase = draft_fetch_step < 2 && draft_last_local_step < 2
+**Reproduce it:** one player as **Sheik**, the other as **Young Link**. That
+froze both clients at the end of the game. The same two players with the second
+on DK, Zelda or several others did not freeze once - only Young Link did.
 
-A client only FETCHES the steps it is not performing. The client that performs
-0 and 2 therefore never fetches 2, so `draft_fetch_step` stops at 1 and
-`draft_last_local_step` stops at 0 - both under 2 forever, and the pad is never
-returned. The other client fetches 2, unlocks cleanly, and waits for a partner
-who cannot move.
+The diagnostic is in this build and reports what the scene asked for on the way
+IN, where a build that never returns can still be read:
 
-It now unlocks from two REMEMBERED facts instead of a count: the step this
-client performed, and `draft_opp_step_done`, recorded in
-`prepareGamePrepOppStep` where the draft legitimately consumes a result.
+    [Rooms] prep read   X/Y stage Z   (255 = not picked)
+    [Rooms] prep orders X/Y on Z
 
-⚠️ That second detail is not cosmetic. `GetGamePrepResults(step, res)` POPS
-every queue entry it passes over, so asking it each frame whether a step is
-done would throw away the opponent's stage pick. Never probe it speculatively.
+⚠️ **If `prep orders` is the last line in the log, those three files are what
+it died waiting on.** That is the whole question; nothing else needs doing.
 
-What to watch: **the player who bans first must get their controller back at
-character select.** If they are still frozen, the unlock is reading a fact that
-never becomes true rather than one that arrives late - a different bug.
+Already ruled out, so do not spend time on them: the band rebuild (never fires
+- zero occurrences across five logs), a spectator being attached (present in
+one freeze, absent in another), the netplay teardown racing the build (lands at
+the same +1170ms in the cases that WORKED), and stage, winner, frame count and
+end method (all vary across working and frozen alike).
 
-### 0b. The four beta fixes, none of them tried
+## The six features, none of them seen working
 
-From the first beta night with real people on real networks.
+Every address below was read out of the ISO and checked against the game's own
+code. That proves they assemble and that the numbers are right. It proves
+nothing about what appears on screen, which is what all six of them are.
 
-- Four people in a room must run ONE match, not two. (Server side, already
-  live - no build needed.)
-- Every player's own controller must work. The zip was shipping Alpha's
-  keyboard mapping over it. (Packaging, already live.)
-- ⚠️ The stage roulette must TAKE the pad. Both players are locked out of
-  the whole stage half now, sticks and triggers included. This writes the pad
-  every frame of the draft - if a PADStatus offset is wrong it will be
-  obvious and ugly immediately. Try one two-person draft before anything
-  else.
-- Practice must end itself when your match comes up. Queue with two others,
-  press START again to practise, and let their match finish.
+### 1. The room plays How to Play's music
 
-### 1. The draft drives the RIGHT side
+Open a room. It should play `howto.hps` - the How to Play tune - and not the VS
+splash's track.
 
-The drive used to work out who bans first from its own copy of the rule the
-room publishes as ROOM_STATE_BAN_FIRST, and the two could disagree. One
-client announced `driving draft step 0` and auto-pressed into a screen that
-was waiting for its OPPONENT to ban, while the draft sat on the other client
-waiting for a human. Fourteen minutes later somebody banned by hand and
-nothing lined up again. Two of five games failed that way in one session.
+Song id `0x24`, confirmed against two ids the game already told us: `0x2d` ->
+`intro_es.hps`, which is what the splash itself plays, and `0x34`/`0x36` ->
+`menu01`/`menu3`, exactly the two the menu's song setter picks between. Both
+land where the game says they should.
 
-It now asks the draft instead: the draft polls each client about the step it
-is NOT performing, so the other one is ours. The log line says what it
-concluded and on what evidence:
+⚠️ The REAL VS splash before a match must still play its own song. The hack is
+gated on the scene rather than the online mode precisely because the mode
+covers both.
 
-    [Rooms] driving draft step N, sweep M (draft asked about K)
+### 2. Pressing Y is acknowledged
 
-⚠️ If N and K are ever the SAME number, the inference itself is wrong and
-that is a different bug from the one this replaced.
+Press Y with a match on. The spectate row should read `Connecting to the match`
+with a symbol that MOVES, on the frame the button goes down - not whenever the
+room next happens to redraw.
 
-### 2. A second draft in the same room drives its stages
+### 3. Z rerolls your costume
 
-The one that matters. Game one already worked - the cursor swept along the
-stage row by itself, banned, confirmed, and the pick did the same. Game TWO
-did not, and the reason was `draft_last_local_step`: it means "my step has
-landed, stop driving" and it was only ever set, never cleared. So a client
-that had drafted once believed its step was already done forever.
+On the character select, press Z. Your colour should change, and change again
+on another press, without touching your fighter.
 
-⚠️ The tell, and the thing worth watching for again: one side banned by hand
-while the other still picked by itself. That asymmetry is a per-client memory,
-not a protocol disagreement - the fresh client had no stale step to believe.
+⚠️ **Known limitation, and it is ours.** `KeepRoomCostume.asm` treats costume
+`0` as "nothing chosen" and replaces it with the colour it remembered, so a
+roll landing on the DEFAULT colour silently does not stick. If Z sometimes
+appears to do nothing, that is why - it is not the roll failing. A proper fix
+needs a "done once this screen" flag rather than a magic value.
 
-Play at least three matches in a row so the rotation brings a third person in.
-Every draft after the first is new ground.
+### 4. A random character also gets a random colour
 
-### 3. Pressing X is acknowledged
+Pick random several times. The colour should vary as well as the fighter.
 
-The room's sixth action line. The owner sees `X for Stage Draft` or
-`X for Random Stages`; everybody else is told what the room does.
+⚠️ Nothing was built for this. Melee already does it at `0x80260b00`:
+`Character_GetMaxCostumeCount`, then `HSD_Randi`, then store. This is a test to
+find out whether it works, not a test of new code. The costume-0 limitation
+above applies here too.
 
-* One press should change the line to `Turning on Random Stages` (or
-  `Turning the Stage Draft on`) with a blue symbol blinking beside it, ON THE
-  FRAME the button goes down.
-* Further presses do nothing until it settles. That is deliberate - a second
-  press used to send a second request that undid the first.
-* It gives up after five seconds. Anyone who is not the owner should see the
-  line come back unchanged, because the server never answers a request it
-  refuses.
+### 5. A random pick stays a question mark
 
-### 4. The ban order in game two
+Pick random. The portrait should stay `?` for BOTH players until the match
+starts, and the right fighter should appear at the splash.
 
-The drive code and the room's own `ROOM_STATE_BAN_FIRST` byte use the identical
-rule - the PAIRING's host bans first - so they cannot disagree with each other.
-⚠️ But the rule itself is only proven for game one. If the automatic ban happens
-on the wrong side in a later game, that is a different bug from the one above,
-and which side did it is the useful half of the report.
+The character select draws from `+0x3C2` (the icon) while the match reads
+`+0x70` (the fighter), so the pick travels normally underneath. Icon `0x19` is
+the random token, confirmed twice: the picker rolls `0..24`, and its caller
+only invokes random when the selected icon IS 25.
 
-### 5. A character keeps its COLOUR between games
+⚠️ Watch that the match still starts with the RIGHT fighter. If the question
+mark survives into the game, the wrong field is being held back.
 
-New in this build, and the one thing here with no earlier test behind it.
-Play the same fighter twice in a row and the costume should come back with
-it - not just the fighter.
+### 6. Spectating starts at the live frame
 
-Melee already takes the costume out of the match block at scene load, which
-is why this always looked like it should work. What was throwing it away is
-four instructions after the character is applied: the cursor starts the
-screen on a default fighter, the one that arrives is whatever was played
-last, they differ, and the costume set correctly a moment earlier is wiped.
-The character survives because it is applied from the block. Only the
-colour is lost.
+Join a match already in progress with Y. The first frame drawn should be the
+live one, with no double-speed replay of everything that already happened.
 
-⚠️ It only fills in a cursor that has NO costume yet, so it cannot fight a
-player who is choosing one. The case it can get wrong is deliberately
-picking costume 0 when the last one was not 0 - if that snaps back to the
-old colour, this is why.
+⚠️ **The rigs probably cannot test this.** Three clients on one machine means a
+watcher is barely behind at all, so the `behind > 10` condition may never fire
+and the screen would look identical either way. This needs somebody joining a
+match that has genuinely been running a while.
 
-### 6. A pairing that will not connect does not freeze the room
+⚠️ **Watch for the opposite failure.** A long catch-up now shows a STILL FRAME
+rather than a fast-forward. That is the intent, but if it reads as a freeze it
+needs something on screen saying it is working. Say which it felt like.
 
-Hard to trigger on purpose, because it depends on Slippi's own servers.
-Seen once: the server took one client's connection and never answered its
-create-ticket, while the other client's ticket sat open waiting for an
-assignment that could never come. Both rooms waited an HOUR with the two
-names up on the band and nothing on screen.
+## Older, still unconfirmed
 
-If it happens again the queue's own row should now read
-`Connecting - trying again`, up to three times, and then
-`Slippi could not connect us`. The log says
-`Slippi could not connect us - asking again` each time.
-
-⚠️ This only covers the side that gets an ERROR. The side whose ticket is
-accepted and never assigned has no timeout in Slippi at all and can still
-wait forever - the retry is meant to rescue it by giving it a partner. If
-that does not happen in practice, that side needs its own answer, and
-interrupting a live search is not as safe as restarting a failed one.
-
-### 7. The rotation, after a crown
-
-Server-side, already applied to the live database - no build involved.
-
-Beat everyone in the room and the next game should be the OTHER TWO. It was
-not: pd_result sent the champion to the back with now() and then the loser to
-the back with now(), and now() in PostgreSQL is the TRANSACTION's clock, so
-both landed on the same microsecond. Confirmed in the table:
-
-    Bravo    (loser)     queued_at 18:25:52.021941
-    MrBirdMD (champion)  queued_at 18:25:52.021941   crowns 1
-
-The champion now goes a second behind.
-
-### 8. A disconnected game does not brick the room
-
-Also server-side. A pairing that reached 'ready' and never finished was never
-reaped, and pd_tick will not pair anyone who is already in one - so both
-players dropped out of the rotation silently and permanently. Found live:
-PX8M had all three players present with two of them locked out.
-
-Now given up on after fifteen minutes. ⚠️ That is the recovery time, so a
-room that loses a game will look stuck for a quarter of an hour before it
-heals itself. Making a new room is still the faster answer.
-
-### 9. Turning the draft back on still gives a normal draft
-
-The safety net. All of the driving is gated on the room setting, so if the
-automatic play misbehaves, pressing X gives a working room immediately.
-
-## If it broke something
-
-Both repos carry `test/random-stages` at exactly what is deployed. The last
-pair confirmed on hardware is `works/rooms-leave` (asm `ea900c7`, dolphin
-`52dc15214`) - ⚠️ that is BEFORE the live band, the announcer fix and
-everything about stages, so it is a long way back. Rewinding one repo without
-the other is worse than not rewinding at all.
+* A character keeps its COLOUR between games (`0x8025FE84`).
+* Spectating over the real internet. The STUN lookup and the hole punch
+  connected once - `caught a watcher up, frames 1 to 3569` - but one success is
+  not a proven feature. ⚠️ A LAN test passes whether or not it works, which is
+  how the missing half shipped in the first place.
+* An unanswered matchmaking search. Beta 9 stopped it taking the whole game
+  down with it; the search itself still has no timeout anywhere and leaves you
+  queued with nothing happening.
 
 ## Known bad, and not part of this test
 
-* `lanForTesting` is still in the source and must come out. It defaults to
-  off and `peppy.json` is excluded from the zip, so no shipped beta can turn
-  it on - but the code is still there and the rigs still use it.
-* ⚠️ Spectating over the real internet is STILL unproven. The STUN lookup and
-  the hole punch shipped in beta 3, and the rigs cannot test either of them:
-  on one network there is no NAT to open, so a LAN test passes whether or not
-  the code works. That is exactly how the missing half shipped in the first
-  place. It needs people on genuinely different connections.
+* `lanForTesting` is still in the source. It defaults to off and `peppy.json`
+  is excluded from the zip, so no shipped beta can turn it on - but the code is
+  there and the rigs still use it.
+* The browse screen cannot report a failure. `Looking for rooms...` shows
+  whether there genuinely are none or the request was refused, which turned an
+  authentication error into an hour of confusion once already.
+* An abandoned room is never reaped. The 15-minute reaper only runs inside
+  `pd_tick` for a room somebody is standing in, so a room everybody left keeps
+  its stale pairing for ever. Harmless litter, and it self-heals when anyone
+  rejoins.
+* `Build Check` has been red on every run for weeks - the repo does not commit
+  its regenerated `.ini` files, so it always reports dirty. ⚠️ `Staging
+  Artifacts` is the check that actually assembles. A permanently red check
+  means a genuine assembly error looks exactly like the normal state.
