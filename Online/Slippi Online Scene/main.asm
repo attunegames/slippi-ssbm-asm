@@ -1736,8 +1736,17 @@ blr
 
 # What CMD_ROOM_STATE hands back. ⚠️ Mirrors the layout in
 # Rooms/Modules/include/rooms.h - change both or this reads the wrong bytes.
-.set ROOMS_STATE_SIZE,       510   # 12 header + 14 names of 32 + 20 opp code
+# ⚠️ 515, not 510. Three bytes for the pick box and two for the match
+# handoff went on the end of this block and THIS number was not moved with
+# them, which is the exact failure its own warning describes: Dolphin
+# answers from a queue, and a short read leaves the rest of it behind.
+.set ROOMS_STATE_SIZE,       515   # 12 header + 14 names of 32 + 20 opp code
                                    #  + 14 crowns + 8 room code + 8 passcode
+                                   #  + 3 pick box + 2 match handoff
+.set ROOMS_STATE_FLAGS,      0x00
+.set ROOMS_FLAG_WATCHING,    0x20
+.set ROOMS_STATE_MY_PORT,    514   # 0 or 1, or 0xFF when there is no match
+.set ROOMS_PORT_NONE,        0xFF
 .set ROOMS_STATE_HOST_CHAR,  0x04
 .set ROOMS_STATE_HOST_COL,   0x05
 .set ROOMS_STATE_GUEST_CHAR, 0x06
@@ -1751,7 +1760,12 @@ blr
 RoomScenePrep:
 # ⚠️ 544 of free space, for the room state read below - and `restore` has to be
 # told the same number or it unwinds the wrong amount of stack.
-.set ROOM_PREP_FRAME, 544
+# ⚠️ 576, not 544. The buffer is aligned UP to a 32-byte boundary and
+# the state is now 515 bytes, so a 544 frame ran three bytes past its own
+# end and over the stack below it - which is precisely what this number
+# exists to prevent. Anything added to the state block has to be counted
+# here as well as in ROOMS_STATE_SIZE.
+.set ROOM_PREP_FRAME, 576
 backup ROOM_PREP_FRAME
 
 ################################################################################
@@ -1906,7 +1920,12 @@ RoomSceneDecide:
 # has to be told the same number or it unwinds the wrong amount of stack. The
 # default frame is 0xA8 and the state is 510 bytes, so leaving this alone wrote
 # the reply over the stack below it.
-.set ROOM_DECIDE_FRAME, 544
+# ⚠️ 576, not 544. The buffer is aligned UP to a 32-byte boundary and
+# the state is now 515 bytes, so a 544 frame ran three bytes past its own
+# end and over the stack below it - which is precisely what this number
+# exists to prevent. Anything added to the state block has to be counted
+# here as well as in ROOMS_STATE_SIZE.
+.set ROOM_DECIDE_FRAME, 576
 
 backup ROOM_DECIDE_FRAME
 
@@ -1945,6 +1964,35 @@ lbz r3, 0x5(r4)
 cmpwi r3, ROOM_PENDING_SPLASH
 bne RoomSceneDecide_NOT_SPLASH
 
+################################################################################
+# ⚠️ TWO kinds of client come this way now
+################################################################################
+# This used to be a watcher's road and nothing else, so it borrowed port 2
+# unconditionally. A room that does not draft its stages now sends its PLAYERS
+# here too - they chose their characters in the queue and have nothing left to
+# pick - and port 2 is deliberately NOT in the match. A player given it holds a
+# controller that moves nothing.
+#
+# So ask the room which of the two this is.
+addi r30, r1, 0x8 + 31
+rlwinm r30, r30, 0, 0, 26
+
+li r3, CONST_SlippiCmdRoomState
+stb r3, 0x0(r30)
+mr r3, r30
+li r4, 1
+li r5, CONST_ExiWrite
+branchl r12, FN_EXITransferBuffer
+
+mr r3, r30
+li r4, ROOMS_STATE_SIZE
+li r5, CONST_ExiRead
+branchl r12, FN_EXITransferBuffer
+
+lbz r3, ROOMS_STATE_FLAGS(r30)
+andi. r3, r3, ROOMS_FLAG_WATCHING
+beq RoomSceneDecide_SPLASH_PLAYING
+
 # ⚠️ Say which port the local inputs come from, because nothing else will.
 #
 # InitOnlinePlay reads the 1P port out of -0x5108(r13) and makes it the game's
@@ -1971,7 +2019,30 @@ stb r5, OSD_WATCH_PORT_BORROWED(r4)
 
 li r3, ROOM_WATCHER_PORT
 stb r3, -0x5108(r13)
+b RoomSceneDecide_SPLASH_GO
 
+################################################################################
+# A PLAYER, going straight to the match
+################################################################################
+# The same job as the watcher's borrow above and for the same reason - nothing
+# on this path has written the 1P port - but the answer is the port this client
+# is actually playing on, which only Dolphin knows. It rides the room state.
+#
+# ⚠️ No borrow, and nothing saved. The borrow exists so a watcher can put
+# the byte back afterwards; a player's port is simply the truth and should
+# stay.
+#
+# ⚠️ A port of 0xFF means Dolphin has no netplay client to ask, which on
+# this path should not happen. Leave the byte alone rather than writing a
+# nonsense port into it - whatever is there has at least a chance of being
+# right.
+RoomSceneDecide_SPLASH_PLAYING:
+lbz r3, ROOMS_STATE_MY_PORT(r30)
+cmpwi r3, ROOMS_PORT_NONE
+beq RoomSceneDecide_SPLASH_GO
+stb r3, -0x5108(r13)
+
+RoomSceneDecide_SPLASH_GO:
 bl SplashSceneInit
 b RoomSceneDecide_EXIT
 

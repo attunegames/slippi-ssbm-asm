@@ -480,7 +480,24 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
  * the player who asked for it. Nobody sees the fighter before the splash. */
 #define ROOMS_CHAR_RANDOM       0xFE
 
-#define ROOMS_STATE_SIZE        (ROOMS_STATE_PICK_MINE + 1)
+/* The room has handed this match its characters - the module may go.
+ *
+ * ⚠️ The room cannot work this out for itself. A random pick is a
+ * question mark until the pairing is ready, so there is a window where the
+ * match is on and the fighter is still hidden; going then would start a
+ * match with a character that does not exist. */
+#define ROOMS_STATE_MATCH_SET   (ROOMS_STATE_PICK_MINE + 1)
+
+/* Which netplay port is OURS, 0 or 1, or ROOMS_PORT_NONE.
+ *
+ * ⚠️ A room skips the character select, and the character select is what
+ * normally writes the 1P port. Without this the scene decide has nothing to
+ * write it from and Melee reads whatever was last there - which for anybody
+ * who has watched a match is the WATCHER's port, a port not in the game. */
+#define ROOMS_STATE_MY_PORT     (ROOMS_STATE_MATCH_SET + 1)
+#define ROOMS_PORT_NONE         0xFF
+
+#define ROOMS_STATE_SIZE        (ROOMS_STATE_MY_PORT + 1)
 
 #define ROOMS_STATE_FLAGS     0x00
 #define ROOMS_STATE_QUEUE_N   0x01

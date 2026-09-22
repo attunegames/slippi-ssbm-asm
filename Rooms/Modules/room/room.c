@@ -1311,6 +1311,27 @@ static void room_go_to_draft(void)
     Scene_ExitMinor();
 }
 
+
+/* Straight to the VS splash, with the characters already chosen in the room.
+ *
+ * ⚠️ Only for a room that does NOT draft its stages. A drafting room still
+ * goes to the draft, because that is where its stage strike happens - and the
+ * draft picks characters as well, which is why the two cannot be mixed.
+ *
+ * ⚠️ And only once Dolphin says the match is SET. The picks were made here,
+ * but a random one stays a question mark until the pairing is ready, and the
+ * reveal is a tick behind that. Going early would start a match with a
+ * character that does not exist.
+ */
+static void room_go_to_match(void)
+{
+    /* The same latch the draft uses: this client has handed over. */
+    s_draft_entered = 1;
+    room_log("[Rooms] characters are in - handing over to the match");
+    SCENE_CTRL.pending_minor = SCENE_NEXT_MINOR(ONLINE_MINOR_SPLASH);
+    Scene_ExitMinor();
+}
+
 /* Y: watch the match the room is playing.
  *
  * No payload. Dolphin already holds the room state and therefore both players'
@@ -2647,9 +2668,23 @@ void room_think(void)
                 (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_READY))
                 room_start_match();
 
+            /* Connected. Which screen comes next is the ROOM's setting:
+             * a drafting room goes to the draft for its stage strike, and
+             * anything else has already chosen everything it needs to and
+             * goes straight to the match.
+             *
+             * ⚠️ This is the first thing that has ever READ that setting.
+             * It has been stored, shown on this screen and sent to the
+             * server since part 7, and nothing acted on it - every room
+             * drafted, whatever it said. */
             if (s_match_started && !s_draft_entered &&
                 (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_CONNECTED))
-                room_go_to_draft();
+            {
+                if (room_drafts_stages())
+                    room_go_to_draft();
+                else if (s_state_buf[ROOMS_STATE_MATCH_SET])
+                    room_go_to_match();
+            }
 
             /* Asked to watch, and Dolphin now has enough of the match to
              * describe it. */
