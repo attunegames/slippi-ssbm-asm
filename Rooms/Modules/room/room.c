@@ -229,13 +229,6 @@ static int s_pick_choice = -1;  /* the fighter we are pointing at */
 static int s_pick_hint = -1;
 
 
-/* The grid's own state. See the block by ROOM_GRID_COLS - this is a proof and
- * nothing reads it but the grid itself. */
-static int s_grid_dim[ROOM_PICK_SLOTS];
-static int s_grid_lit[ROOM_PICK_SLOTS];
-static int s_grid_cursor;
-static int s_grid_drawn = -1;   /* what was on screen last, so we redraw once */
-
 static int s_pick_cursor;       /* 0..25 a fighter, 26 the question mark */
 static int s_pick_costume;
 static int s_pick_sent = -1;    /* what we told Dolphin, so we say it once */
@@ -275,6 +268,13 @@ static const char ROOM_FIGHTERS[ROOM_PICK_SLOTS][ROOM_FIGHTER_W] = {
     "Puff", "Samus", "Yoshi", "Zelda", "Sheik", "Falco", "Y.Link",
     "Doc", "Roy", "Pichu", "Ganon", "?"
 };
+
+/* The grid's own state. See the block by ROOM_GRID_COLS - this is a proof and
+ * nothing reads it but the grid itself. */
+static int s_grid_dim[ROOM_PICK_SLOTS];
+static int s_grid_lit[ROOM_PICK_SLOTS];
+static int s_grid_cursor;
+static int s_grid_drawn = -1;   /* what was on screen last, so we redraw once */
 
 static int   s_rule_lobby = -1;  /* the line under each heading      */
 static int   s_rule_queue = -1;
