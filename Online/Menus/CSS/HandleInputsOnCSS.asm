@@ -118,6 +118,51 @@ lbz r3, CSSDT_CHAT_WINDOW_OPENED(REG_CSSDT_ADDR)
 cmpwi r3, 0
 bne SKIP_START_MATCH # skip input if chat window is opened
 
+################################################################################
+# Z: reroll this player's costume
+################################################################################
+# ⚠ Only while IDLE, which is the same gate the start button sits behind.
+# Rerolling after lock-in would change a costume the other side has already
+# been told about, and the two would disagree for the whole game.
+#
+# ⚠ Character_GetMaxCostumeCount returns a COUNT, not a highest index.
+# Read out of the DOL rather than assumed: its table at 0x803D51A0 holds
+# 06/05/04/04/06 for Falcon/DK/Fox/G&W/Kirby, which are the exact costume
+# counts. So HSD_Randi takes it unchanged and gives 0 .. count-1.
+#
+# ⚠ Worth knowing: SendGameInfo.asm compares a costume against this with
+# `ble`, which accepts costume == count and is therefore off by one. Not
+# touched here, but it is wrong and it is not wrong because of this code.
+#
+# r29-r31 are untouched anywhere else in this file, which is why they are the
+# ones used here.
+rlwinm. r0, REG_INPUTS, 0, 27, 27   # Z
+beq SKIP_REROLL_COSTUME
+
+lwz r4, -0x49f0(r13)                # the CSS selections block
+lbz r3, -0x5108(r13)                # this console's player index
+mulli r0, r3, 0x24
+add r31, r4, r0                     # our port's selections, kept across calls
+mr r30, r3                          # ...and the index
+
+lbz r3, 0x70(r31)                   # external character id
+branchl r12, Character_GetMaxCostumeCount
+cmpwi r3, 0
+beq SKIP_REROLL_COSTUME             # a fighter it does not know: leave it
+branchl r12, HSD_Randi              # 0 .. count-1
+mr r29, r3
+stb r29, 0x73(r31)                  # what gets SENT to the other side
+
+# And redraw the portrait, or the screen keeps showing the old colour while
+# the opponent is told about the new one.
+mr r3, r30                          # player index
+lbz r4, 0x70(r31)                   # external id
+mr r5, r29                          # costume
+li r6, 0                            # isNull
+branchl r12, FN_CSSUpdateCSP
+
+SKIP_REROLL_COSTUME:
+
 # When idle, pressing start will start finding match
 # Check if start was pressed
 rlwinm.	r0, REG_INPUTS, 0, 19, 19
