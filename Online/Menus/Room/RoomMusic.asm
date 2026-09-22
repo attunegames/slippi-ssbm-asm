@@ -67,9 +67,16 @@ blrl
 .byte 0x25      # howto_s.hps  - How to Play, clean
 .byte 0x53      # target.hps   - Target Test
 .byte 0x00      # 1p_qk.hps    - All-Star
+.byte 0x01      # akaneia.hps
+.byte 0x1e      # flatzone.hps
+.byte 0x1f      # fourside.hps
+.byte 0x33      # kraid.hps
+.byte 0x4c      # siren.hps
+.byte 0x5d      # vs_hyou1.hps
+.byte 0x5e      # vs_hyou2.hps
 .align 2
 
-.set ROOM_SONG_COUNT, 3
+.set ROOM_SONG_COUNT, 10
 
 ROOM_MUSIC_CODE:
 backup
