@@ -228,6 +228,14 @@ static int s_pick_clock = -1;   /* seconds left, between the two */
 static int s_pick_choice = -1;  /* the fighter we are pointing at */
 static int s_pick_hint = -1;
 
+
+/* The grid's own state. See the block by ROOM_GRID_COLS - this is a proof and
+ * nothing reads it but the grid itself. */
+static int s_grid_dim[ROOM_PICK_SLOTS];
+static int s_grid_lit[ROOM_PICK_SLOTS];
+static int s_grid_cursor;
+static int s_grid_drawn = -1;   /* what was on screen last, so we redraw once */
+
 static int s_pick_cursor;       /* 0..25 a fighter, 26 the question mark */
 static int s_pick_costume;
 static int s_pick_sent = -1;    /* what we told Dolphin, so we say it once */
@@ -296,6 +304,31 @@ static int   s_rule_queue = -1;
 #define ROOM_PICK_CHOICE_SZ 0.52f
 #define ROOM_PICK_HINT_Y   (ROOM_PICK_CHOICE_Y - 20.0f)
 #define ROOM_PICK_HINT_SZ   0.30f
+
+
+/* ------------------------------------------------ the character grid --
+ *
+ * ⚠️ A PROOF. It is always on, it is wired to nothing, and it decides
+ * nothing - it exists to answer one question: can a character select be drawn
+ * over the splash's blue backdrop at all. Delete the whole block and the room
+ * behaves exactly as it did.
+ *
+ * The coordinates are bracketed by things already known to render: the room
+ * code sits at y=96 and the pick box's "choosing" at y=318, both confirmed on
+ * screen, so anything between them is inside the visible canvas. The grid
+ * stops at y=252 to stay clear of the pick hint at 268.
+ *
+ * ⚠️ TWO subtexts per slot, one grey and one gold, with the unwanted one
+ * blanked. A subtext's colour is fixed when it is created, so a moving
+ * highlight cannot be one subtext that changes colour - it has to be a pair.
+ * That is the same trick the queue rows and the action lines already use.
+ */
+#define ROOM_GRID_COLS    6
+#define ROOM_GRID_X      70.0f
+#define ROOM_GRID_STEP_X 72.0f
+#define ROOM_GRID_Y     140.0f
+#define ROOM_GRID_STEP_Y 28.0f
+#define ROOM_GRID_SZ      0.36f
 
 #define ROOM_ACT_SYM_X   356.0f
 #define ROOM_ACT_X       376.0f
@@ -1127,6 +1160,50 @@ static void room_pick_input(u32 pressed)
         room_draw_picks();
 }
 
+
+/* Light one name and dim the rest.
+ *
+ * ⚠️ Only when the cursor has actually moved. room_buttons runs every
+ * frame, and rewriting fifty-four subtexts sixty times a second to show a
+ * cursor that has not moved is work for nothing.
+ */
+static void room_draw_grid(void)
+{
+    int i;
+
+    if (s_grid_drawn == s_grid_cursor)
+        return;
+    s_grid_drawn = s_grid_cursor;
+
+    for (i = 0; i < ROOM_PICK_SLOTS; i++)
+    {
+        int lit = (i == s_grid_cursor);
+
+        if (s_grid_dim[i] >= 0)
+            Text_UpdateSubtextContents(s_text, s_grid_dim[i], "%s",
+                                       lit ? "" : ROOM_FIGHTERS[i]);
+        if (s_grid_lit[i] >= 0)
+            Text_UpdateSubtextContents(s_text, s_grid_lit[i], "%s",
+                                       lit ? ROOM_FIGHTERS[i] : "");
+    }
+}
+
+/* The stick, which a room has nothing else to do with. */
+static void room_grid_input(u32 pressed)
+{
+    if (pressed & (PAD_STICK_LEFT | PAD_DPAD_LEFT))
+        s_grid_cursor = s_grid_cursor ? s_grid_cursor - 1 : ROOM_PICK_SLOTS - 1;
+    if (pressed & (PAD_STICK_RIGHT | PAD_DPAD_RIGHT))
+        s_grid_cursor = (s_grid_cursor + 1) % ROOM_PICK_SLOTS;
+    if (pressed & PAD_STICK_UP)
+        s_grid_cursor = (s_grid_cursor + ROOM_PICK_SLOTS - ROOM_GRID_COLS)
+                        % ROOM_PICK_SLOTS;
+    if (pressed & PAD_STICK_DOWN)
+        s_grid_cursor = (s_grid_cursor + ROOM_GRID_COLS) % ROOM_PICK_SLOTS;
+
+    room_draw_grid();
+}
+
 static void room_show_actions(void)
 {
     int playing = (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
@@ -1557,6 +1634,10 @@ static void room_buttons(void)
      * very match you are picking for.
      */
     int picking = room_pick_is_mine();
+
+    /* The grid proof. ⚠️ Before everything, and gated on nothing: the
+     * whole point is to see it without arranging a match first. */
+    room_grid_input(pressed);
 
     if (picking)
     {
@@ -2472,6 +2553,31 @@ void room_load(void *scene)
     s_pick_hint = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
                                    ROOM_PICK_HINT_SZ, ROOM_PICK_CHOICE_X,
                                    ROOM_PICK_HINT_Y);
+
+    /* The character grid - a proof, see ROOM_GRID_COLS. Created last so it
+     * draws over nothing else. */
+    {
+        int gi;
+
+        for (gi = 0; gi < ROOM_PICK_SLOTS; gi++)
+        {
+            float gx = ROOM_GRID_X + (float)(gi % ROOM_GRID_COLS) * ROOM_GRID_STEP_X;
+            float gy = ROOM_GRID_Y + (float)(gi / ROOM_GRID_COLS) * ROOM_GRID_STEP_Y;
+
+            s_grid_dim[gi] = FG_CreateSubtext(s_text, &COL_GRAY,
+                                              ROOMS_SUBTEXT_PLAIN, 0, "",
+                                              ROOM_GRID_SZ, gx, gy);
+            s_grid_lit[gi] = FG_CreateSubtext(s_text, &COL_GOLD,
+                                              ROOMS_SUBTEXT_OUTLINE, 0, "",
+                                              ROOM_GRID_SZ, gx, gy);
+        }
+        /* ⚠️ Forced, because room_draw_grid only redraws on a change and
+         * the cursor starts where it is drawn as being. Without this the grid
+         * is fifty-four empty subtexts. */
+        s_grid_cursor = 0;
+        s_grid_drawn = -1;
+        room_draw_grid();
+    }
 
     /* The rules under the two headings. ⚠️ Created AFTER the headings so they
      * draw over nothing - subtexts go down in the order they are made. */
