@@ -739,6 +739,7 @@ static void room_draw_queue(void)
  * and while somebody is actually playing, watching is the more useful offer of
  * the two - practice is still there the rest of the time. */
 #define STR_WATCH    "Y to Spectate"
+#define STR_WATCH_W  "Connecting to the match"
 #define STR_LEAVE_Q  "Hold Z to Leave the Queue"
 #define STR_LEAVE_R  "Hold B to Leave the Room"
 /* The stage setting. Two ways of saying it: the owner is offered the change,
@@ -780,6 +781,13 @@ static int s_spin_frame;
  * to saying whatever is actually true. */
 static int s_stage_want = -1;
 static int s_stage_wait;
+
+/* Y has been pressed and Dolphin has not yet said the watch is connected.
+ *
+ * ⚠️ Declared HERE, beside the other thing the action rows animate,
+ * and not down beside room_watch() where it started - room_show_actions is
+ * 180 lines above that and could not see it. */
+static int s_watching;
 #define ROOM_STAGE_WAIT_FRAMES 300  /* five seconds, then stop claiming it */
 
 /* How many times Slippi has been asked to connect this pairing, and whether
@@ -862,9 +870,10 @@ static void room_show_actions(void)
      * with the state of somebody else's game reads as a glitch. */
     if (s_spec_sym >= 0)
         Text_UpdateSubtextContents(s_text, s_spec_sym, "%s",
-                                   playing ? SYM_NEXT : "");
+                                   (s_watching || playing) ? SYM_NEXT : "");
     if (s_spec_line >= 0)
-        Text_UpdateSubtextContents(s_text, s_spec_line, "%s", STR_WATCH);
+        Text_UpdateSubtextContents(s_text, s_spec_line, "%s",
+                                   s_watching ? STR_WATCH_W : STR_WATCH);
 
     /* Rows three and four: the two ways out.
      *
@@ -922,6 +931,14 @@ static void room_spin(void)
          * appears and then sits there still reads like a frozen screen. */
         if (s_stage_want >= 0 && s_stage_sym >= 0)
             Text_UpdateSubtextContents(s_text, s_stage_sym, "%s",
+                                       phase ? SYM_TODO : SYM_NEXT);
+
+        /* Same for a watch that has been asked for and not yet opened.
+         * ⚠️ This can take SECONDS - the watcher has to be told where
+         * both players are and have a hole punched towards it - and until now
+         * the screen said nothing at all in the meantime. */
+        if (s_watching && s_spec_sym >= 0)
+            Text_UpdateSubtextContents(s_text, s_spec_sym, "%s",
                                        phase ? SYM_TODO : SYM_NEXT);
     }
     s_spin_frame = (s_spin_frame + 1) % (2 * SPINNER_FRAMES);
@@ -1041,7 +1058,6 @@ static void room_go_to_draft(void)
  * whatever it last saw, and between matches that is two people who have
  * finished.
  */
-static int s_watching;
 static int s_was_playing = -1; /* forces the first decision */
 static int s_was_queued = -1;  /* likewise                   */
 static int s_was_drafts = -1;  /* and the stage setting      */
@@ -1054,6 +1070,13 @@ static void room_watch(void)
     FN_EXITransferBuffer(cmd, 1, CONST_ExiWrite);
     s_watching = 1;
     room_log("[Rooms] asked to watch");
+
+    /* ⚠️ On THIS frame. The rows are only redrawn when something the
+     * room watches changes, and "we asked to watch" is not one of those - so
+     * without this the acknowledgement would appear whenever the next
+     * unrelated redraw happened to come along, which is exactly the delay it
+     * exists to cure. */
+    room_show_actions();
 }
 
 /* Straight to the VS splash, skipping the character select.
