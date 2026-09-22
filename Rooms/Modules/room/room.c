@@ -271,8 +271,7 @@ static const char ROOM_FIGHTERS[ROOM_PICK_SLOTS][ROOM_FIGHTER_W] = {
 
 /* The grid's own state. See the block by ROOM_GRID_COLS - this is a proof and
  * nothing reads it but the grid itself. */
-static int s_grid_dim[ROOM_PICK_SLOTS];
-static int s_grid_lit[ROOM_PICK_SLOTS];
+static int s_grid_row[ROOM_GRID_ROWS];
 static int s_grid_cursor;
 static int s_grid_drawn = -1;   /* what was on screen last, so we redraw once */
 
@@ -308,27 +307,33 @@ static int   s_rule_queue = -1;
 
 /* ------------------------------------------------ the character grid --
  *
- * ⚠️ A PROOF. It is always on, it is wired to nothing, and it decides
- * nothing - it exists to answer one question: can a character select be drawn
- * over the splash's blue backdrop at all. Delete the whole block and the room
- * behaves exactly as it did.
+ * ⚠️ A PROOF. Always on, wired to nothing, decides nothing - it exists to
+ * answer one question: can a character select be drawn over the splash's blue
+ * backdrop at all. Delete the block and the room behaves exactly as before.
  *
- * The coordinates are bracketed by things already known to render: the room
- * code sits at y=96 and the pick box's "choosing" at y=318, both confirmed on
- * screen, so anything between them is inside the visible canvas. The grid
- * stops at y=252 to stay clear of the pick hint at 268.
+ * Coordinates are bracketed by things already seen on screen: the room code at
+ * y=96 and the pick box's "choosing" at y=318. Anything between them is inside
+ * the canvas rather than guessed at.
  *
- * ⚠️ TWO subtexts per slot, one grey and one gold, with the unwanted one
- * blanked. A subtext's colour is fixed when it is created, so a moving
- * highlight cannot be one subtext that changes colour - it has to be a pair.
- * That is the same trick the queue rows and the action lines already use.
+ * ⚠️ ONE SUBTEXT PER ROW, not per character, and that is the whole reason
+ * this works. The first attempt gave every slot a grey subtext and a gold one,
+ * and used ROOMS_SUBTEXT_OUTLINE for the gold - which is not one subtext. Its
+ * loop runs from 4 down to 0 and creates FIVE, four outlines and the text. So
+ * twenty-seven slots cost 27 + 27*5 = 162 on top of the 66 the room already
+ * had, and room_load died partway through making them: the log stopped after
+ * "heap cursor" and never reached "room scene built".
+ *
+ * Six rows is six. The cost of a highlight is then a pair of brackets rather
+ * than a second subtext, because a subtext's colour is fixed when it is made
+ * and a moving highlight would otherwise need one of each.
  */
-#define ROOM_GRID_COLS    6
+#define ROOM_GRID_COLS    5
+#define ROOM_GRID_ROWS    6
+#define ROOM_GRID_PAD    10      /* characters per column, padded with spaces */
 #define ROOM_GRID_X      70.0f
-#define ROOM_GRID_STEP_X 72.0f
-#define ROOM_GRID_Y     140.0f
-#define ROOM_GRID_STEP_Y 28.0f
-#define ROOM_GRID_SZ      0.36f
+#define ROOM_GRID_Y     150.0f
+#define ROOM_GRID_STEP_Y 26.0f
+#define ROOM_GRID_SZ      0.40f
 
 #define ROOM_ACT_SYM_X   356.0f
 #define ROOM_ACT_X       376.0f
@@ -1161,30 +1166,61 @@ static void room_pick_input(u32 pressed)
 }
 
 
-/* Light one name and dim the rest.
+/* Redraw the rows, with brackets round the one under the cursor.
  *
  * ⚠️ Only when the cursor has actually moved. room_buttons runs every
- * frame, and rewriting fifty-four subtexts sixty times a second to show a
- * cursor that has not moved is work for nothing.
+ * frame, and rewriting six rows sixty times a second to show a cursor that has
+ * not moved is work for nothing.
  */
 static void room_draw_grid(void)
 {
-    int i;
+    char line[ROOM_GRID_COLS * ROOM_GRID_PAD + 4];
+    int r, c;
 
     if (s_grid_drawn == s_grid_cursor)
         return;
     s_grid_drawn = s_grid_cursor;
 
-    for (i = 0; i < ROOM_PICK_SLOTS; i++)
+    for (r = 0; r < ROOM_GRID_ROWS; r++)
     {
-        int lit = (i == s_grid_cursor);
+        char *p = line;
 
-        if (s_grid_dim[i] >= 0)
-            Text_UpdateSubtextContents(s_text, s_grid_dim[i], "%s",
-                                       lit ? "" : ROOM_FIGHTERS[i]);
-        if (s_grid_lit[i] >= 0)
-            Text_UpdateSubtextContents(s_text, s_grid_lit[i], "%s",
-                                       lit ? ROOM_FIGHTERS[i] : "");
+        for (c = 0; c < ROOM_GRID_COLS; c++)
+        {
+            int i = r * ROOM_GRID_COLS + c;
+            const char *n;
+            int used = 0;
+
+            if (i >= ROOM_PICK_SLOTS)
+                break;
+
+            if (i == s_grid_cursor)
+            {
+                *p++ = '[';
+                used++;
+            }
+            for (n = ROOM_FIGHTERS[i]; *n; n++)
+            {
+                *p++ = *n;
+                used++;
+            }
+            if (i == s_grid_cursor)
+            {
+                *p++ = ']';
+                used++;
+            }
+            /* Pad to a fixed width so the columns line up. The font is
+             * proportional, so this is approximate and meant to be. */
+            while (used < ROOM_GRID_PAD)
+            {
+                *p++ = ' ';
+                used++;
+            }
+        }
+        *p = 0;
+
+        if (s_grid_row[r] >= 0)
+            Text_UpdateSubtextContents(s_text, s_grid_row[r], "%s", line);
     }
 }
 
@@ -2554,26 +2590,19 @@ void room_load(void *scene)
                                    ROOM_PICK_HINT_SZ, ROOM_PICK_CHOICE_X,
                                    ROOM_PICK_HINT_Y);
 
-    /* The character grid - a proof, see ROOM_GRID_COLS. Created last so it
-     * draws over nothing else. */
+    /* The character grid - a proof, see ROOM_GRID_COLS. Six subtexts, one
+     * per row. */
     {
-        int gi;
+        int gr;
 
-        for (gi = 0; gi < ROOM_PICK_SLOTS; gi++)
-        {
-            float gx = ROOM_GRID_X + (float)(gi % ROOM_GRID_COLS) * ROOM_GRID_STEP_X;
-            float gy = ROOM_GRID_Y + (float)(gi / ROOM_GRID_COLS) * ROOM_GRID_STEP_Y;
+        for (gr = 0; gr < ROOM_GRID_ROWS; gr++)
+            s_grid_row[gr] = FG_CreateSubtext(
+                s_text, &COL_WHITE, ROOMS_SUBTEXT_PLAIN, 0, "",
+                ROOM_GRID_SZ, ROOM_GRID_X,
+                ROOM_GRID_Y + (float)gr * ROOM_GRID_STEP_Y);
 
-            s_grid_dim[gi] = FG_CreateSubtext(s_text, &COL_GRAY,
-                                              ROOMS_SUBTEXT_PLAIN, 0, "",
-                                              ROOM_GRID_SZ, gx, gy);
-            s_grid_lit[gi] = FG_CreateSubtext(s_text, &COL_GOLD,
-                                              ROOMS_SUBTEXT_OUTLINE, 0, "",
-                                              ROOM_GRID_SZ, gx, gy);
-        }
         /* ⚠️ Forced, because room_draw_grid only redraws on a change and
-         * the cursor starts where it is drawn as being. Without this the grid
-         * is fifty-four empty subtexts. */
+         * the cursor starts where it is already drawn as being. */
         s_grid_cursor = 0;
         s_grid_drawn = -1;
         room_draw_grid();
