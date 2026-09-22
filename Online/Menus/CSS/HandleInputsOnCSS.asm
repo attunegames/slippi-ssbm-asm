@@ -94,51 +94,33 @@ branchl r12, SFX_Menu_CommonSound
 SOUND_PLAY_END:
 
 ################################################################################
-# Fork logic based on current connection state
-################################################################################
-lbz r3, MSRB_CONNECTION_STATE(REG_MSRB_ADDR)
-cmpwi r3, MM_STATE_IDLE
-ble HANDLE_IDLE
-cmpwi r3, MM_STATE_OPPONENT_CONNECTING
-ble HANDLE_FINDING
-cmpwi r3, MM_STATE_CONNECTION_SUCCESS
-beq HANDLE_CONNECTED
-cmpwi r3, MM_STATE_ERROR_ENCOUNTERED
-beq HANDLE_ERROR
-
-b SKIP_START_MATCH
-
-################################################################################
-# Case 1: Handle idle case
-################################################################################
-HANDLE_IDLE:
-
-# Prevent CSS Actions if chat window is opened
-lbz r3, CSSDT_CHAT_WINDOW_OPENED(REG_CSSDT_ADDR)
-cmpwi r3, 0
-bne SKIP_START_MATCH # skip input if chat window is opened
-
-################################################################################
 # Z: reroll this player's costume
 ################################################################################
-# ⚠ Only while IDLE, which is the same gate the start button sits behind.
+# ⚠ NOT inside HANDLE_IDLE, which is where this started and why it never
+# worked in a room. That branch is only reached when MSRB_CONNECTION_STATE is
+# MM_STATE_IDLE, and by the time anyone is on a room's character select the
+# match has already been arranged - so the state is never idle and the code
+# never ran. It looked like "works on keyboard but not on a controller"
+# because the keyboard test happened outside the room flow entirely.
+#
+# The gate that actually belongs here is whether this player has LOCKED IN.
 # Rerolling after lock-in would change a costume the other side has already
 # been told about, and the two would disagree for the whole game.
-#
-# ⚠ Character_GetMaxCostumeCount returns a COUNT, not a highest index.
-# Read out of the DOL rather than assumed: its table at 0x803D51A0 holds
-# 06/05/04/04/06 for Falcon/DK/Fox/G&W/Kirby, which are the exact costume
-# counts. So HSD_Randi takes it unchanged and gives 0 .. count-1.
-#
-# ⚠ Worth knowing: SendGameInfo.asm compares a costume against this with
-# `ble`, which accepts costume == count and is therefore off by one. Not
-# touched here, but it is wrong and it is not wrong because of this code.
-#
-# r29-r31 are untouched anywhere else in this file, which is why they are the
-# ones used here.
+lbz r3, MSRB_IS_LOCAL_PLAYER_READY(REG_MSRB_ADDR)
+cmpwi r3, 0
+bne SKIP_REROLL_COSTUME             # already locked in - too late
+
+lbz r3, CSSDT_CHAT_WINDOW_OPENED(REG_CSSDT_ADDR)
+cmpwi r3, 0
+bne SKIP_REROLL_COSTUME             # chat is open, the pad belongs to it
+
 rlwinm. r0, REG_INPUTS, 0, 27, 27   # Z
 beq SKIP_REROLL_COSTUME
 
+# ⚠ Character_GetMaxCostumeCount returns a COUNT, not a highest index.
+# Read out of the DOL: its table at 0x803D51A0 holds 06/05/04/04/06 for
+# Falcon/DK/Fox/G&W/Kirby, the exact costume counts. Melee's own random
+# picker at 0x80260b00 does the same thing - count straight into HSD_Randi.
 lwz r4, -0x49f0(r13)                # the CSS selections block
 lbz r3, -0x5108(r13)                # this console's player index
 mulli r0, r3, 0x24
@@ -162,6 +144,31 @@ li r6, 0                            # isNull
 branchl r12, FN_CSSUpdateCSP
 
 SKIP_REROLL_COSTUME:
+
+################################################################################
+# Fork logic based on current connection state
+################################################################################
+lbz r3, MSRB_CONNECTION_STATE(REG_MSRB_ADDR)
+cmpwi r3, MM_STATE_IDLE
+ble HANDLE_IDLE
+cmpwi r3, MM_STATE_OPPONENT_CONNECTING
+ble HANDLE_FINDING
+cmpwi r3, MM_STATE_CONNECTION_SUCCESS
+beq HANDLE_CONNECTED
+cmpwi r3, MM_STATE_ERROR_ENCOUNTERED
+beq HANDLE_ERROR
+
+b SKIP_START_MATCH
+
+################################################################################
+# Case 1: Handle idle case
+################################################################################
+HANDLE_IDLE:
+
+# Prevent CSS Actions if chat window is opened
+lbz r3, CSSDT_CHAT_WINDOW_OPENED(REG_CSSDT_ADDR)
+cmpwi r3, 0
+bne SKIP_START_MATCH # skip input if chat window is opened
 
 # When idle, pressing start will start finding match
 # Check if start was pressed
