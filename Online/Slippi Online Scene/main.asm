@@ -1813,35 +1813,6 @@ li r29, 0
 li r30, ROOM_EMPTY_STAGE
 RoomScenePrep_HAVE_PICKS:
 
-################################################################################
-# STABILITY: build no fighters at all
-################################################################################
-# ⚠️ The room froze repeatedly on 2026-09-21 on the way back from a match -
-# "room scene load" and no "splash built" after it, for everyone testing, on
-# beta 4 and beta 5 alike. The hang is inside SceneLoad_ClassicModeSplash.
-#
-# NOW LOADING is this splash saying it is waiting for files, and the old note on
-# this approach says the models "are a preload nothing in this scene advances".
-# So a model already in memory appears in 49ms and one that has to come off the
-# disc never arrives at all. Returning from a match is the worst case: the match
-# evicts whatever the band had, and with the next pair yet to pick, the prep
-# above asks for the DK/Zelda placeholders - two files that are now guaranteed
-# not to be resident.
-#
-# 26 is Melee's own "nobody", which the splash checks for and then builds
-# nothing for. No fighter file is requested, so there is nothing to wait on.
-#
-# ⚠️ The STAGE is deliberately left alone. Asking for no stage makes the
-# splash wait for ever - that is written directly above - so the backdrop still
-# loads, and if this does not cure the freeze then the stage is the one left.
-#
-# ⚠️ COSMETIC LOSS, ON PURPOSE. The band shows no fighters while this is
-# in. Revert these four lines to put them back.
-li r26, 26
-li r27, 0
-li r28, 26
-li r29, 0
-
 
 # The splash reads a struct it does not initialise, so the template goes in
 # first - +0x08 through +0x0A are fields whose meaning is not known here, and
