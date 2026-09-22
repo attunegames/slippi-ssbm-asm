@@ -236,11 +236,32 @@ static int s_pick_frac;
 
 /* Short names, because this sits between two player names and the canvas runs
  * out. External character ids, which is the order the whole project uses -
- * confirmed by the band's own placeholders, 1 for DK and 18 for Zelda. */
+ * confirmed by the band's own placeholders, 1 for DK and 18 for Zelda.
+ *
+ * ⚠️ A FLAT array, not an array of pointers, and that is not a style
+ * choice. `const char *const[27]` is twenty-seven pointers, and every one of
+ * them needs an R_PPC_ADDR32 relocation applied by the m-ex loader before it
+ * means anything. This is a two-dimensional char array: plain bytes, no
+ * relocations, and the indexing is arithmetic the compiler emits inline.
+ *
+ * ⚠️ The pointer version froze the game, and only ever on the client whose
+ * TURN it was - the one client that dereferences this. The other side never
+ * touches it: an empty slot draws the literal "choosing" and a filled one is
+ * not drawn until later. So this was the single line of difference between the
+ * machine that hung and the machine that did not.
+ *
+ * ⚠️ room_put copies until it finds a NUL and counts nothing, so a wrong
+ * pointer here does not read one wrong name - it walks memory into a 64-byte
+ * stack buffer until it happens to stop.
+ *
+ * Nine wide because "Climbers" is eight characters and the NUL makes nine. A
+ * name longer than that will not fail to build - it will silently lose its
+ * tail - so keep them short. */
 #define ROOM_PICK_RANDOM_SLOT 26
 #define ROOM_PICK_SLOTS       27
+#define ROOM_FIGHTER_W         9
 
-static const char *const ROOM_FIGHTERS[ROOM_PICK_SLOTS] = {
+static const char ROOM_FIGHTERS[ROOM_PICK_SLOTS][ROOM_FIGHTER_W] = {
     "Falcon", "DK", "Fox", "G&W", "Kirby", "Bowser", "Link", "Luigi",
     "Mario", "Marth", "Mewtwo", "Ness", "Peach", "Pikachu", "Climbers",
     "Puff", "Samus", "Yoshi", "Zelda", "Sheik", "Falco", "Y.Link",
