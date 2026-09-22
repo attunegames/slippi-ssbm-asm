@@ -12,15 +12,22 @@ Deployed to `Desktop/rooms-lan-test/{Alpha,Bravo,Charlie}` on 2026-09-22.
 
 | | commit | tag |
 |---|---|---|
-| asm | `e3e91b8c` | `test/room-picks` |
+| asm | `09596f8d` | `test/room-picks` |
 | dolphin | `c966be56` | `test/room-picks` |
 
-    Alpha    exe e29ad95a  codeset c3f8f8fd  module f9a8e187  rust abf8953b
-    Bravo    exe e29ad95a  codeset c3f8f8fd  module f9a8e187  rust abf8953b
-    Charlie  exe e29ad95a  codeset c3f8f8fd  module f9a8e187  rust abf8953b
+    Alpha    exe e29ad95a  codeset c3f8f8fd  module d855fa30  rust abf8953b
+    Bravo    exe e29ad95a  codeset c3f8f8fd  module d855fa30  rust abf8953b
+    Charlie  exe e29ad95a  codeset c3f8f8fd  module d855fa30  rust abf8953b
 
 ⚠️ The exe was replaced once already, for the tick-null fix. The codeset
 and module did not change with it - only Dolphin's JSON parsing did.
+
+
+⚠️ **The module has a size ceiling of about 24.7 KB** and nothing says so
+anywhere. Over it, the game jumps into unmapped memory the instant the room
+scene loads - no message, and the log simply stops after "Writing file
+contents". The build now refuses at `MODULE_MAX` in `Rooms/Modules/Makefile`.
+This one is 22676.
 
 Those are the first eight of the md5 of `Slippi Dolphin.exe`,
 `Sys/GameSettings/GALE01r2.ini`, `Sys/GameFiles/GALE01/SlippiRoom.dat` and
