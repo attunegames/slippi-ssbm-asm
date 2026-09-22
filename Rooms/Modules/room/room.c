@@ -208,6 +208,45 @@ static int   s_stage_sym = -1;   /* X, the owner's stage setting     */
 static int   s_stage_line = -1;
 static int   s_leaver_sym = -1;  /* hold B, out of the room          */
 static int   s_leaver_line = -1;
+
+/* ----------------------------------------------------------- the pick box --
+ *
+ * Characters are chosen HERE now, in the room, rather than in the draft. The
+ * winner of the last game picks first and the challenger picks second, and
+ * everybody standing in the room watches the two slots fill in.
+ *
+ * ⚠️ The BAND is deliberately not involved. It rebuilds by re-entering the
+ * scene and it only does so for a COMPLETE draft - both characters AND a stage.
+ * Picks land here long before the stage resolves, so the band stays empty right
+ * through the choosing and rebuilds exactly once, at the splash. That guard is
+ * what keeps this clear of the rebuild hang of 2026-09-18, and moving the
+ * reveal earlier would walk straight back into it.
+ */
+static int s_pick_l = -1;       /* what the winner has locked    */
+static int s_pick_r = -1;       /* ...and the challenger         */
+static int s_pick_clock = -1;   /* seconds left, between the two */
+static int s_pick_choice = -1;  /* the fighter we are pointing at */
+static int s_pick_hint = -1;
+
+static int s_pick_cursor;       /* 0..25 a fighter, 26 the question mark */
+static int s_pick_costume;
+static int s_pick_sent = -1;    /* what we told Dolphin, so we say it once */
+static int s_pick_secs;         /* counted down locally between ticks */
+static int s_pick_frac;
+
+/* Short names, because this sits between two player names and the canvas runs
+ * out. External character ids, which is the order the whole project uses -
+ * confirmed by the band's own placeholders, 1 for DK and 18 for Zelda. */
+#define ROOM_PICK_RANDOM_SLOT 26
+#define ROOM_PICK_SLOTS       27
+
+static const char *const ROOM_FIGHTERS[ROOM_PICK_SLOTS] = {
+    "Falcon", "DK", "Fox", "G&W", "Kirby", "Bowser", "Link", "Luigi",
+    "Mario", "Marth", "Mewtwo", "Ness", "Peach", "Pikachu", "Climbers",
+    "Puff", "Samus", "Yoshi", "Zelda", "Sheik", "Falco", "Y.Link",
+    "Doc", "Roy", "Pichu", "Ganon", "?"
+};
+
 static int   s_rule_lobby = -1;  /* the line under each heading      */
 static int   s_rule_queue = -1;
 
@@ -221,6 +260,22 @@ static int   s_rule_queue = -1;
  *
  * Top-aligned with the two headings rather than with the names under them, so
  * the three columns start on the same line. */
+
+/* The pick box, in the empty space under the picture and above the two names.
+ *
+ * ⚠️ ABOVE the names rather than below them. Below runs into the top of
+ * the third column, which starts 32 under the name row and is six rows deep;
+ * above is the band, and the band is EMPTY while anyone is still choosing -
+ * that is the whole reason this screen can borrow the space at all.
+ */
+#define ROOM_PICK_Y        (ROOM_NAME_Y - 30.0f)
+#define ROOM_PICK_SZ        0.42f
+#define ROOM_PICK_CHOICE_X  190.0f
+#define ROOM_PICK_CHOICE_Y (ROOM_PICK_Y - 30.0f)
+#define ROOM_PICK_CHOICE_SZ 0.52f
+#define ROOM_PICK_HINT_Y   (ROOM_PICK_CHOICE_Y - 20.0f)
+#define ROOM_PICK_HINT_SZ   0.30f
+
 #define ROOM_ACT_SYM_X   356.0f
 #define ROOM_ACT_X       376.0f
 /* ⚠️ UP a little, and a row TIGHTER, because this canvas ends at about
@@ -829,6 +884,214 @@ static int room_is_owner(void)
     return (s_state_buf[ROOMS_STATE_SETTINGS] & ROOMS_SETTING_OWNER) != 0;
 }
 
+
+/* What one side has settled on, for the slot under their name. */
+static const char *room_pick_name(u8 c)
+{
+    if (c == ROOMS_CHAR_RANDOM)
+        return ROOM_FIGHTERS[ROOM_PICK_RANDOM_SLOT];
+    if (c < ROOM_PICK_RANDOM_SLOT)
+        return ROOM_FIGHTERS[c];
+    return "";
+}
+
+static int room_pick_turn(void)
+{
+    return s_state_buf[ROOMS_STATE_PICK_TURN];
+}
+
+/* Ours to make, and not made yet. */
+static int room_pick_is_mine(void)
+{
+    return s_state_buf[ROOMS_STATE_PICK_MINE] != 0
+        && room_pick_turn() != ROOMS_PICK_TURN_NOBODY;
+}
+
+/* Tell Dolphin, which tells the room on the next tick.
+ *
+ * ⚠️ Nothing is decided here. The SERVER drops a pick that arrives out of
+ * turn, so this is a request like the stage setting is a request - and a client
+ * that asks early simply does not see its own screen move. The one thing kept
+ * locally is what we SENT, so a held button cannot send it sixty times.
+ */
+static void room_send_pick(int character, int costume)
+{
+    u8 *cmd = rooms_exi_buf;
+
+    cmd[0] = ROOMS_CMD_PICK;
+    cmd[1] = (u8)character;
+    cmd[2] = (u8)costume;
+    FN_EXITransferBuffer(cmd, 3, CONST_ExiWrite);
+    s_pick_sent = character;
+    room_log("[Rooms] locked in a character");
+}
+
+/* Z: a different colour for the fighter under the cursor.
+ *
+ * ⚠️ Character_GetMaxCostumeCount returns a COUNT. Treating it as a highest
+ * index rolls one costume too many and lands on a slot the fighter does not
+ * have. Melee's own random picker feeds the count straight into HSD_Randi, and
+ * so does this.
+ */
+static void room_roll_costume(void)
+{
+    int count;
+
+    if (s_pick_cursor >= ROOM_PICK_RANDOM_SLOT)
+        return;     /* the question mark has no colour to choose */
+
+    count = Character_GetMaxCostumeCount(s_pick_cursor);
+    if (count <= 1)
+        return;
+    s_pick_costume = HSD_Randi(count);
+}
+
+/* The two slots, the clock, and - when it is our go - what we are pointing at.
+ *
+ * ⚠️ The clock counts down HERE rather than being read off each tick. A
+ * tick is two seconds apart and a number that only changed that often looked
+ * like a frozen screen. The tick still has the last word: every one resets this
+ * to whatever the server says is left, so local drift cannot accumulate.
+ */
+static void room_draw_picks(void)
+{
+    const u8 *st = s_state_buf;
+    int turn = room_pick_turn();
+    int mine = room_pick_is_mine();
+    int playing = (st[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
+    u8 l = st[ROOMS_STATE_HOST_CHAR];
+    u8 r = st[ROOMS_STATE_GUEST_CHAR];
+    char line[64];
+    char *p;
+
+    /* Nothing to show, for one of two reasons.
+     *
+     * Either there is no pairing at all - clear it, rather than leaving the
+     * last match's choices sitting over an empty room.
+     *
+     * Or the match has STARTED, and the band above has taken the two fighters
+     * over. ⚠️ That handover is the point at which the band rebuilds: it
+     * waits for a stage as well as two characters, and the stage only resolves
+     * when the match does. So the box carries the choosing, the band carries
+     * the playing, and the two are never both up. */
+    if (playing || (turn == ROOMS_PICK_TURN_NOBODY && l == ROOMS_NOT_PICKED))
+    {
+        if (s_pick_l >= 0) Text_UpdateSubtextContents(s_text, s_pick_l, "%s", "");
+        if (s_pick_r >= 0) Text_UpdateSubtextContents(s_text, s_pick_r, "%s", "");
+        if (s_pick_clock >= 0) Text_UpdateSubtextContents(s_text, s_pick_clock, "%s", "");
+        if (s_pick_choice >= 0) Text_UpdateSubtextContents(s_text, s_pick_choice, "%s", "");
+        if (s_pick_hint >= 0) Text_UpdateSubtextContents(s_text, s_pick_hint, "%s", "");
+        return;
+    }
+
+    /* An empty slot whose turn it is says so; one still waiting stays blank. */
+    if (s_pick_l >= 0)
+        Text_UpdateSubtextContents(s_text, s_pick_l, "%s",
+                                   l != ROOMS_NOT_PICKED ? room_pick_name(l)
+                                   : turn == ROOMS_PICK_TURN_HOST ? "choosing"
+                                                                  : "");
+    if (s_pick_r >= 0)
+        Text_UpdateSubtextContents(s_text, s_pick_r, "%s",
+                                   r != ROOMS_NOT_PICKED ? room_pick_name(r)
+                                   : turn == ROOMS_PICK_TURN_GUEST ? "choosing"
+                                                                   : "");
+
+    if (s_pick_clock >= 0)
+    {
+        if (turn == ROOMS_PICK_TURN_NOBODY || s_pick_secs <= 0)
+            Text_UpdateSubtextContents(s_text, s_pick_clock, "%s", "");
+        else
+            Text_UpdateSubtextContents(s_text, s_pick_clock, "%d", s_pick_secs);
+    }
+
+    if (s_pick_choice >= 0)
+    {
+        if (!mine)
+        {
+            Text_UpdateSubtextContents(s_text, s_pick_choice, "%s", "");
+        }
+        else
+        {
+            p = line;
+            /* No arrows once it is locked - they say "you may still
+             * move", and by then you may not. */
+            p = room_put(p, s_pick_sent >= 0 ? "" : "< ");
+            p = room_put(p, ROOM_FIGHTERS[s_pick_cursor]);
+            if (s_pick_cursor < ROOM_PICK_RANDOM_SLOT && s_pick_costume > 0)
+            {
+                p = room_put(p, "  c");
+                p = room_put_i(p, s_pick_costume + 1);
+            }
+            p = room_put(p, s_pick_sent >= 0 ? "" : " >");
+            *p = 0;
+            Text_UpdateSubtextContents(s_text, s_pick_choice, "%s", line);
+        }
+    }
+
+    if (s_pick_hint >= 0)
+        Text_UpdateSubtextContents(s_text, s_pick_hint, "%s",
+                                   !mine           ? ""
+                                   : s_pick_sent >= 0
+                                       ? "Locked in"
+                                       : "A to lock in    Z for another colour");
+}
+
+/* One second of local clock, so the countdown moves on every frame rather than
+ * on every tick. */
+static void room_pick_clock(void)
+{
+    if (room_pick_turn() == ROOMS_PICK_TURN_NOBODY || s_pick_secs <= 0)
+        return;
+    if (++s_pick_frac < 60)
+        return;
+    s_pick_frac = 0;
+    s_pick_secs--;
+}
+
+
+/* The pad, while the box is ours.
+ *
+ * ⚠️ Redrawn only on a frame where something MOVED. room_buttons runs
+ * every frame and the rest of this screen redraws twice a second; rewriting
+ * five subtexts sixty times a second to show a cursor that has not moved is
+ * work for nothing.
+ */
+static void room_pick_input(u32 pressed)
+{
+    int before = (s_pick_cursor << 8) | s_pick_costume | (s_pick_sent >= 0 ? 0x10000 : 0);
+    int after;
+
+    /* ⚠️ Nothing once we have locked in. The turn does not move on until
+     * the next tick answers, up to two seconds later, and without this the box
+     * went on offering A for all of it - so A got pressed again, and the second
+     * pick raced the first. The server drops it, but the screen should not have
+     * invited it. */
+    if (s_pick_sent < 0)
+    {
+        if (pressed & (PAD_STICK_LEFT | PAD_DPAD_LEFT))
+        {
+            s_pick_cursor = s_pick_cursor ? s_pick_cursor - 1
+                                          : ROOM_PICK_SLOTS - 1;
+            s_pick_costume = 0;
+        }
+        if (pressed & (PAD_STICK_RIGHT | PAD_DPAD_RIGHT))
+        {
+            s_pick_cursor = (s_pick_cursor + 1) % ROOM_PICK_SLOTS;
+            s_pick_costume = 0;
+        }
+        if (pressed & PAD_Z)
+            room_roll_costume();
+        if (pressed & PAD_A)
+            room_send_pick(s_pick_cursor >= ROOM_PICK_RANDOM_SLOT
+                               ? ROOMS_CHAR_RANDOM : s_pick_cursor,
+                           s_pick_costume);
+    }
+
+    after = (s_pick_cursor << 8) | s_pick_costume | (s_pick_sent >= 0 ? 0x10000 : 0);
+    if (before != after)
+        room_draw_picks();
+}
+
 static void room_show_actions(void)
 {
     int playing = (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING) != 0;
@@ -1223,7 +1486,36 @@ static void room_buttons(void)
     u32 pressed = rooms_pad_pressed();
     u32 held = rooms_pad_held();
 
-    if (pressed & PAD_START)
+    /* Choosing a character takes the screen over - but NOT the way out.
+     *
+     * ⚠️ A flag rather than an early return, which is what this was first
+     * written as. Returning suspended HOLD B along with everything else, and B
+     * is how you leave the room. A screen that can strand somebody in a room is
+     * worse than one that is briefly busy, and this module's own history has a
+     * room nobody could leave in it.
+     *
+     * Start, Y, X and hold-Z ARE suspended, and all four mean things that
+     * cannot happen here anyway: you are already paired, so there is no queue
+     * to leave and no practice to start. Z in particular is wanted for the
+     * colour, and leaving hold-Z live would have a reroll drop you out of the
+     * very match you are picking for.
+     */
+    int picking = room_pick_is_mine();
+
+    if (picking)
+    {
+        room_pick_input(pressed);
+    }
+    else
+    {
+        /* Not our turn: back to the start, so the next game does not open on
+         * whoever happened to be chosen last. */
+        s_pick_sent = -1;
+        s_pick_cursor = 0;
+        s_pick_costume = 0;
+    }
+
+    if (!picking && (pressed & PAD_START))
     {
         if (!s_queued)
             room_set_queued(1);
@@ -1231,7 +1523,8 @@ static void room_buttons(void)
             room_practice();
     }
 
-    if ((pressed & PAD_Y) && (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING))
+    if (!picking && (pressed & PAD_Y)
+        && (s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_PLAYING))
         room_watch();
 
     /* X: the owner turning the stage draft on or off. Nothing changes here - the
@@ -1250,7 +1543,7 @@ static void room_buttons(void)
         s_stage_want = -1;
         room_show_actions();
     }
-    else if ((pressed & PAD_X) && room_is_owner() && s_stage_want < 0)
+    else if (!picking && (pressed & PAD_X) && room_is_owner() && s_stage_want < 0)
     {
         s_stage_want = !room_drafts_stages();
         s_stage_wait = 0;
@@ -1258,7 +1551,8 @@ static void room_buttons(void)
         room_show_actions();
     }
 
-    /* Hold B: out of the room. */
+    /* Hold B: out of the room. ⚠️ Live even while the box is open - see
+     * the note above. */
     s_hold_b = (held & PAD_B) ? s_hold_b + 1 : 0;
     if (s_hold_b == ROOM_HOLD_FRAMES)
     {
@@ -1269,7 +1563,7 @@ static void room_buttons(void)
 
     /* Hold Z: out of the queue, staying in the room. Nothing to do if we are
      * not in it. */
-    s_hold_z = (held & PAD_Z) ? s_hold_z + 1 : 0;
+    s_hold_z = (!picking && (held & PAD_Z)) ? s_hold_z + 1 : 0;
     if (s_hold_z == ROOM_HOLD_FRAMES)
     {
         s_hold_z = 0;
@@ -2108,6 +2402,21 @@ void room_load(void *scene)
                                     ROOM_ACT_SZ, ROOM_ACT_X,
                                     ROOM_ACT_Y + 5.0f * ROOM_ACT_STEP);
 
+    /* The pick box. Created BEFORE the rules so it draws under nothing -
+     * subtexts go down in the order they are made. */
+    s_pick_l = FG_CreateSubtext(s_text, &COL_GOLD, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                ROOM_PICK_SZ, ROOM_NAME_L_X, ROOM_PICK_Y);
+    s_pick_r = FG_CreateSubtext(s_text, &COL_GOLD, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                ROOM_PICK_SZ, ROOM_NAME_R_X, ROOM_PICK_Y);
+    s_pick_clock = FG_CreateSubtext(s_text, &COL_WAIT, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                    ROOM_PICK_SZ, ROOM_VS_X, ROOM_PICK_Y);
+    s_pick_choice = FG_CreateSubtext(s_text, &COL_WHITE, ROOMS_SUBTEXT_OUTLINE, 0,
+                                     "", ROOM_PICK_CHOICE_SZ,
+                                     ROOM_PICK_CHOICE_X, ROOM_PICK_CHOICE_Y);
+    s_pick_hint = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0, "",
+                                   ROOM_PICK_HINT_SZ, ROOM_PICK_CHOICE_X,
+                                   ROOM_PICK_HINT_Y);
+
     /* The rules under the two headings. ⚠️ Created AFTER the headings so they
      * draw over nothing - subtexts go down in the order they are made. */
     s_rule_lobby = FG_CreateSubtext(s_text, &COL_GRAY, ROOMS_SUBTEXT_PLAIN, 0,
@@ -2219,6 +2528,12 @@ void room_think(void)
         room_fetch_state();
         s_browsing = !(s_state_buf[ROOMS_STATE_FLAGS] & ROOMS_FLAG_INROOM);
 
+        /* The server has the last word on the clock. Counting down locally
+         * between ticks is what makes it watchable; resetting it here is
+         * what stops the drift adding up over a whole thirty seconds. */
+        s_pick_secs = s_state_buf[ROOMS_STATE_PICK_SECS];
+        s_pick_frac = 0;
+
         /* The first answer is what the band was built from - RoomScenePrep
          * asked the same question a moment earlier, on the way into this
          * scene. Everything after it is compared against that. */
@@ -2296,6 +2611,7 @@ void room_think(void)
             }
 
             room_draw_match();
+            room_draw_picks();
             room_draw_code();
             room_draw_players();
             room_draw_queue();
@@ -2381,6 +2697,7 @@ void room_think(void)
     {
         room_buttons();
         room_spin();
+        room_pick_clock();
     }
 
 }

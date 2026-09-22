@@ -420,7 +420,9 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
  *   +0x06  u8  guest character     0xFF = has not picked
  *   +0x07  u8  guest costume
  *   +0x08  u8  stage               0xFF = not picked
- *   +0x09  u8  pad[3]
+ *   +0x09  u8  ban_first           the PORT that picks first
+ *   +0x0A  u8  settings            ROOMS_SETTING_*
+ *   +0x0B  u8  matchmaking         ROOMS_MM_*
  *   +0x0C      names, 32 bytes each: the two playing, then 6 queue, then 6
  *              lobby. Blank rather than absent, so every slot keeps its offset.
  *
@@ -451,7 +453,34 @@ void FN_EXITransferBuffer(void *buf, int len, int mode);
 #define ROOMS_STATE_PASS        (ROOMS_STATE_CODE + ROOMS_STATE_CODE_LEN)
 #define ROOMS_STATE_PASS_LEN    8
 
-#define ROOMS_STATE_SIZE        (ROOMS_STATE_PASS + ROOMS_STATE_PASS_LEN)
+/* Who is choosing a character, how long they have, and whether it is us.
+ *
+ * ⚠️ On the END of the block. The header is FULL - 0x00 to 0x0B are all
+ * spoken for, whatever the layout comment above used to claim about 0x09.
+ *
+ * ⚠️ PICK_SECS is what was LEFT when the tick came back, and a tick is
+ * two seconds apart. The screen counts down between them itself, or the
+ * clock drops two at a time and reads as a stutter. */
+#define ROOMS_STATE_PICK_TURN   (ROOMS_STATE_PASS + ROOMS_STATE_PASS_LEN)
+#define ROOMS_STATE_PICK_SECS   (ROOMS_STATE_PICK_TURN + 1)
+#define ROOMS_STATE_PICK_MINE   (ROOMS_STATE_PICK_SECS + 1)
+
+#define ROOMS_PICK_TURN_HOST    0   /* the winner of the last game */
+#define ROOMS_PICK_TURN_GUEST   1   /* the challenger */
+#define ROOMS_PICK_TURN_NOBODY  2   /* both in, or no pairing at all */
+
+/* The question mark.
+ *
+ * ⚠️ NOT the same as ROOMS_NOT_PICKED. "Has not chosen yet" and "chose
+ * the question mark" are different states and the box draws them
+ * differently - one is an empty slot, the other is a locked-in choice.
+ *
+ * ⚠️ The server ROLLS it and keeps the answer back until the match is
+ * on, so this is what comes down the wire for a random pick - including to
+ * the player who asked for it. Nobody sees the fighter before the splash. */
+#define ROOMS_CHAR_RANDOM       0xFE
+
+#define ROOMS_STATE_SIZE        (ROOMS_STATE_PICK_MINE + 1)
 
 #define ROOMS_STATE_FLAGS     0x00
 #define ROOMS_STATE_QUEUE_N   0x01
@@ -597,6 +626,12 @@ static inline const char *rooms_state_name(const unsigned char *st, int n)
  * all pass zero because they all ask once, on the way into a scene. */
 void *FN_LoadMatchState(void *buf);
 
+/* ⚠️ Returns a COUNT, not a highest index. Its table at 0x803D51A0 holds
+ * 06/05/04/04/06 for Falcon/DK/Fox/G&W/Kirby, which are the costume counts,
+ * and Melee's own random picker feeds it straight into HSD_Randi. */
+int Character_GetMaxCostumeCount(int external_id);
+int HSD_Randi(int n);
+
 /* Slippi's logf macro transfers out of a scratch buffer hung off r13 at
  * OFST_R13_SB_ADDR, but every caller of that macro is online code -- there is
  * no promise the pointer is live in a menu scene, and writing 128 bytes
@@ -628,6 +663,15 @@ void *FN_LoadMatchState(void *buf);
 /* Joining a room somebody else made: the mode, then the four characters of its
  * code. Melee does not terminate it - the length is the terminator. */
 #define ROOMS_CMD_JOIN_ROOM 0xC8
+
+/* A character chosen on the ROOM screen.  Payload is the character then the
+ * costume; ROOMS_CHAR_RANDOM asks the server to roll one.
+ *
+ * ⚠️ 0xA0, not in the 0xC5-0xCF block with the rest of Rooms - that
+ * block is full. Slippi's own ids stop at 0x8A and restart at 0xB0, and this
+ * sits in the middle of that gap. Duplicated by hand in EXI_DeviceSlippi.h,
+ * like everything else across this boundary. */
+#define ROOMS_CMD_PICK 0xA0
 
 #define ROOMS_CMD_FIND_OPPONENT 0xB4
 #define ROOMS_FIND_OPPONENT_SIZE 20
