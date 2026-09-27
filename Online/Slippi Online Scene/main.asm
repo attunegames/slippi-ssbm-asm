@@ -148,6 +148,15 @@ MajorSceneLoad:
 blrl
 backup
 
+# Rooms starts on its own minor scene instead of the CSS
+lbz r3, OFST_R13_ONLINE_MODE(r13)
+cmpwi r3, ONLINE_MODE_ROOMS
+bne MajorSceneLoad_NotRooms
+load r4, 0x80479d30
+li r3, 6
+stb r3, 0x3(r4)
+MajorSceneLoad_NotRooms:
+
 # Set the proper 1p port for CSS
 load r4, 0x8045abf0
 lbz r3, -0x5108(r13) # player index
@@ -274,6 +283,16 @@ bl GamePrepSceneDecide    #SceneDecide
 .align 2
 bl GamePrepData           #Minor Data 1
 bl GamePrepData           #Minor Data 2
+#Rooms
+.byte 6                     #Minor Scene ID
+.byte 3                    #Amount of persistent heaps
+.align 2
+bl RoomsScenePrep         #ScenePrep
+bl RoomsSceneDecide       #SceneDecide
+.byte 81                  #Common Minor ID (Rooms)
+.align 2
+.long 0x00000000          #Minor Data 1
+.long 0x00000000          #Minor Data 2
 #End
 .byte -1
 .align 2
@@ -1431,6 +1450,20 @@ li r3, 0x05
 stb r3, 0x5(r4)
 
 GamePrepSceneDecide_RestoreAndExit:
+restore
+blr
+
+RoomsScenePrep:
+blr
+
+RoomsSceneDecide:
+backup
+
+# Leaving rooms always goes back to the main menu
+li r3, 1
+branchl r12, 0x801a42e8 # Scene_SetNextMajor
+branchl r12, 0x801a42d4 # Scene_ExitMajor
+
 restore
 blr
 
