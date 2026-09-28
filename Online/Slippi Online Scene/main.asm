@@ -639,7 +639,13 @@ cmpwi r3, ONLINE_MODE_RANKED
 beq VSSceneDecide_Ranked
 cmpwi r3, ONLINE_MODE_PARTY
 beq VSSceneDecide_Party
+cmpwi r3, ONLINE_MODE_ROOMS
+beq VSSceneDecide_Rooms
 b VSSceneDecide_GoToNextScene
+
+VSSceneDecide_Rooms:
+li REG_NEXT_SCENE, 8 # Go back to the room
+b VSSceneDecide_DisconnectAndNextScene # Always disconnect, the next match may be someone else
 
 VSSceneDecide_Party:
 li REG_NEXT_SCENE, 4 # Go to results screen for party mode
@@ -1501,13 +1507,32 @@ RoomScenePrep:
 blr
 
 RoomSceneDecide:
+.set REG_RD, 31
+
 backup
 
+lwz REG_RD, 0x10(r3) # Grabs load data
+
+# Check if the room's match is ready to start
+lbz r3, RDO_START_MATCH(REG_RD)
+cmpwi r3, 0
+beq RoomSceneDecide_BackToRooms
+
+bl SplashSceneInit
+
+# Set next scene as Splash
+load r4, 0x80479d30
+li r3, 0x05
+stb r3, 0x5(r4)
+b RoomSceneDecide_RestoreAndExit
+
+RoomSceneDecide_BackToRooms:
 # Set next scene as Rooms
 load r4, 0x80479d30
 li r3, 0x07
 stb r3, 0x5(r4)
 
+RoomSceneDecide_RestoreAndExit:
 restore
 blr
 
