@@ -148,7 +148,7 @@ MajorSceneLoad:
 blrl
 backup
 
-# Rooms starts on its own minor scene instead of the CSS
+# Start Rooms on its own minor scene instead of the CSS
 lbz r3, OFST_R13_ONLINE_MODE(r13)
 cmpwi r3, ONLINE_MODE_ROOMS
 bne MajorSceneLoad_NotRooms
@@ -291,8 +291,18 @@ bl RoomsScenePrep         #ScenePrep
 bl RoomsSceneDecide       #SceneDecide
 .byte 81                  #Common Minor ID (Rooms)
 .align 2
-.long 0x00000000          #Minor Data 1
-.long 0x00000000          #Minor Data 2
+bl RoomsData              #Minor Data 1
+bl RoomsData              #Minor Data 2
+#Room
+.byte 7                     #Minor Scene ID
+.byte 3                    #Amount of persistent heaps
+.align 2
+bl RoomScenePrep          #ScenePrep
+bl RoomSceneDecide        #SceneDecide
+.byte 82                  #Common Minor ID (Room)
+.align 2
+bl RoomsData              #Minor Data 1
+bl RoomsData              #Minor Data 2
 #End
 .byte -1
 .align 2
@@ -362,6 +372,9 @@ GamePrepData_BLRL:
 blrl
 GamePrepData:
 createGamePrepStaticBlock
+
+RoomsData:
+createRoomsStaticBlock
 
 #region CSSScenePrep
 CSSScenePrep:
@@ -1457,12 +1470,43 @@ RoomsScenePrep:
 blr
 
 RoomsSceneDecide:
+.set REG_RD, 31
+
 backup
 
-# Leaving rooms always goes back to the main menu
+lwz REG_RD, 0x10(r3) # Grabs load data
+
+# Check if a room was created or joined
+lbz r3, RDO_ENTER_ROOM(REG_RD)
+cmpwi r3, 0
+beq RoomsSceneDecide_ExitToMenu
+
+# Set next scene as Room
+load r4, 0x80479d30
+li r3, 0x08
+stb r3, 0x5(r4)
+b RoomsSceneDecide_RestoreAndExit
+
+RoomsSceneDecide_ExitToMenu:
+# Go back to main menu
 li r3, 1
 branchl r12, 0x801a42e8 # Scene_SetNextMajor
 branchl r12, 0x801a42d4 # Scene_ExitMajor
+
+RoomsSceneDecide_RestoreAndExit:
+restore
+blr
+
+RoomScenePrep:
+blr
+
+RoomSceneDecide:
+backup
+
+# Set next scene as Rooms
+load r4, 0x80479d30
+li r3, 0x07
+stb r3, 0x5(r4)
 
 restore
 blr

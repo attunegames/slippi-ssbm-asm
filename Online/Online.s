@@ -528,6 +528,31 @@
 .endm
 
 ################################################################################
+# Define rooms data and include macro to create static data
+################################################################################
+.set RDO_ENTER_ROOM, 0 # bool
+.set RDO_VISIBILITY, RDO_ENTER_ROOM + 1 # u8
+.set RDO_MODE, RDO_VISIBILITY + 1 # u8
+.set RDO_CAPACITY, RDO_MODE + 1 # u8, 0 is no limit
+.set RDO_STAGE_MODE, RDO_CAPACITY + 1 # u8
+.set RDO_LAST_CHAR, RDO_STAGE_MODE + 1 # u8, local player's last pick, kept between rooms
+.set RDO_LAST_COLOR, RDO_LAST_CHAR + 1 # u8
+.set RDO_SIZE, RDO_LAST_COLOR + 1
+
+# Warning: When making changes, ensure the offsets above are synced with below
+
+.macro createRoomsStaticBlock
+.byte 0x0 # RDO_ENTER_ROOM
+.byte 0x0 # RDO_VISIBILITY
+.byte 0x0 # RDO_MODE
+.byte 0x0 # RDO_CAPACITY
+.byte 0x0 # RDO_STAGE_MODE
+.byte 0x1A # RDO_LAST_CHAR, starts on random
+.byte 0x0 # RDO_LAST_COLOR
+.align 2
+.endm
+
+################################################################################
 # Define online static data (OSD) and include macro to create static data
 ################################################################################
 .set OSD_LOCAL_PLAYER_INDEX, 0 # u8
