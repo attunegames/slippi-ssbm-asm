@@ -94,6 +94,35 @@
 .set SCENE_ONLINE_IN_GAME, 0x0208
 .set SCENE_ONLINE_RESULTS, 0x0308
 .set SCENE_ONLINE_VS, 0x0408
+.set SCENE_ONLINE_PRACTICE, 0x0808
+.set SCENE_ONLINE_PRACTICE_CSS, 0x0908
+.set SCENE_ONLINE_PRACTICE_SSS, 0x0A08
+
+################################################################################
+# Practice: Melee's own training scenes run as minors of the online major, so a
+# player waiting in a room's queue can practice and is brought back when called
+################################################################################
+.set MINOR_SPLASH, 4
+.set MINOR_ROOMS, 6
+.set MINOR_ROOM, 7
+.set MINOR_PRACTICE, 8
+.set MINOR_PRACTICE_CSS, 9
+.set MINOR_PRACTICE_SSS, 10
+
+# A room watcher sits on this port, which isn't in the match, so its neutral controller
+# moves nothing
+.set ROOM_WATCHER_PORT, 2
+
+.set GetMinorSceneData2, 0x801a4284
+.set MajorSetup_TrainingMode, 0x801b2298
+.set ScenePrep_TrainingMode_CSS, 0x801b1b74
+.set SceneDecide_TrainingMode_CSS, 0x801b1c24
+.set ScenePrep_TrainingMode_InGame, 0x801b1f70
+.set ScenePrep_TrainingMode_SSS, 0x801b1eb8
+.set SceneDecide_TrainingMode_SSS, 0x801b1eec
+
+# What the training character select leaves in its data when you back out of it
+.set TRAIN_CSS_BACKED_OUT, 2
 
 /*
 -each is 0xC long
@@ -534,7 +563,9 @@
 .set RDO_START_MATCH, RDO_ENTER_ROOM + 1 # bool
 .set RDO_LAST_CHAR, RDO_START_MATCH + 1 # u8, local player's last pick, kept between rooms
 .set RDO_LAST_COLOR, RDO_LAST_CHAR + 1 # u8
-.set RDO_SIZE, RDO_LAST_COLOR + 1
+.set RDO_START_PRACTICE, RDO_LAST_COLOR + 1 # bool
+.set RDO_START_WATCH, RDO_START_PRACTICE + 1 # bool
+.set RDO_SIZE, RDO_START_WATCH + 1
 
 # Warning: When making changes, ensure the offsets above are synced with below
 
@@ -543,6 +574,8 @@
 .byte 0x0 # RDO_START_MATCH
 .byte 0x1A # RDO_LAST_CHAR, starts on random
 .byte 0x0 # RDO_LAST_COLOR
+.byte 0x0 # RDO_START_PRACTICE
+.byte 0x0 # RDO_START_WATCH
 .align 2
 .endm
 
@@ -550,6 +583,8 @@
 # Define online static data (OSD) and include macro to create static data
 ################################################################################
 .set OSD_LOCAL_PLAYER_INDEX, 0 # u8
+.set OSD_WATCH_SAVED_PORT, OSD_LOCAL_PLAYER_INDEX + 1 # u8
+.set OSD_WATCH_PORT_BORROWED, OSD_WATCH_SAVED_PORT + 1 # bool
 
 ################################################################################
 # Create space for the defined offsets above
@@ -559,6 +594,10 @@
 # that it can be used on the results screen or any scene following the in game
 # vs scene
 .byte 0 # OSD_LOCAL_PLAYER_INDEX
+# A room watcher points the 1P port at a port that isn't in the match. Nothing on the
+# room's way to a game sets it again, so it's kept here and given back
+.byte 0 # OSD_WATCH_SAVED_PORT
+.byte 0 # OSD_WATCH_PORT_BORROWED
 .align 2
 .endm
 
