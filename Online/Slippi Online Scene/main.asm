@@ -1552,6 +1552,14 @@ restore
 blr
 
 RoomScenePrep:
+backup
+
+# Invalidate the pre-load cache, the same as the game setup does. Players change
+# characters between a room's matches, and a cached character from the last match
+# crashes the next one's splash
+branchl r12, 0x800174bc
+
+restore
 blr
 
 RoomSceneDecide:
